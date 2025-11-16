@@ -8,10 +8,10 @@ class GraphSettings:
 
     neo4j_url: str = os.getenv("NEO4J_URL", "bolt://localhost:7687")
     neo4j_username: str = os.getenv("NEO4J_USERNAME", "neo4j")
-    neo4j_password: str = os.getenv("NEO4J_PASSWORD", "password")
+    neo4j_password: str = os.getenv("NEO4J_PASSWORD", "21599031janeShicoryack")
     neo4j_database: str | None = os.getenv("NEO4J_DATABASE") or None
 
-    ollama_model: str = os.getenv("OLLAMA_MODEL", "llama3")
+    ollama_model: str = os.getenv("OLLAMA_MODEL", "qwen3:32b")
     llm_temperature: float = float(os.getenv("LLM_TEMPERATURE", "0"))
 
     verification_interval_seconds: int = int(
