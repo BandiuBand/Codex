@@ -1,0 +1,7 @@
+langchain>=0.1.0
+langchain-community>=0.0.28
+langchain-experimental>=0.0.50
+langchain-text-splitters>=0.0.1
+neo4j>=5.14.1
+ollama>=0.1.11
+apscheduler>=3.10.4
