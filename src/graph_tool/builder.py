@@ -7,9 +7,11 @@ from typing import Iterable, Mapping
 from langchain_core.documents import Document
 from langchain_community.chat_models import ChatOllama
 from langchain_community.graphs import Neo4jGraph
-from langchain_experimental.graph_transformers import (
+from langchain_experimental.graph_transformers import LLMGraphTransformer
+from langchain_community.graphs.graph_document import (
     GraphDocument,
-    LLMGraphTransformer,
+    Node,
+    Relationship,
 )
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
