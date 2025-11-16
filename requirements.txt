@@ -5,3 +5,4 @@ langchain-text-splitters>=0.0.1
 neo4j>=5.14.1
 ollama>=0.1.11
 apscheduler>=3.10.4
+json-repair>=0.53.0
