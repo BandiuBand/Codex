@@ -67,13 +67,24 @@ class KnowledgeGraphBuilder:
     def _merge_graph_documents(self, graph_documents: list[GraphDocument]) -> None:
         """Merge nodes/relationships into Neo4j to avoid duplicates."""
 
+        def _resolve_node_id(node: Node) -> str | None:
+            """Return a stable identifier for a Node object."""
+
+            properties = node.properties or {}
+            return node.id or properties.get("name")
+
         for graph_doc in graph_documents:
+            node_ids: dict[int, str] = {}
+
             for node in graph_doc.nodes:
                 properties = node.properties or {}
-                node_id = node.id or properties.get("name")
+                node_id = _resolve_node_id(node)
                 if not node_id:
                     logger.debug("Skipping node without identifier: %s", node)
                     continue
+
+                node_ids[id(node)] = node_id
+
                 labels = [node.type] if isinstance(node.type, str) else list(node.type)
                 label_clause = ":" + ":".join(labels) if labels else ""
                 if "name" not in properties:
@@ -88,6 +99,23 @@ class KnowledgeGraphBuilder:
                     logger.debug("Skipping relationship missing endpoints: %s", rel)
                     continue
 
+                source_id = (
+                    node_ids.get(id(rel.source))
+                    if isinstance(rel.source, Node)
+                    else rel.source
+                )
+                target_id = (
+                    node_ids.get(id(rel.target))
+                    if isinstance(rel.target, Node)
+                    else rel.target
+                )
+
+                if not source_id or not target_id:
+                    logger.debug(
+                        "Skipping relationship with unresolved endpoints: %s", rel
+                    )
+                    continue
+
                 rel_type = rel.type if isinstance(rel.type, str) else ":".join(rel.type)
                 self.graph.query(
                     (
@@ -95,8 +123,8 @@ class KnowledgeGraphBuilder:
                         f"MERGE (a)-[r:`{rel_type}`]->(b) SET r += $props RETURN r"
                     ),
                     params={
-                        "source_id": rel.source,
-                        "target_id": rel.target,
+                        "source_id": source_id,
+                        "target_id": target_id,
                         "props": rel.properties or {},
                     },
                 )
