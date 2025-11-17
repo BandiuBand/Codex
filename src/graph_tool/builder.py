@@ -71,28 +71,56 @@ class KnowledgeGraphBuilder:
             """Return a stable identifier for a Node object."""
 
             properties = node.properties or {}
-            return node.id or properties.get("name")
+            raw_id = node.id or properties.get("id") or properties.get("name")
+            return str(raw_id) if raw_id is not None else None
+
+        def _normalize_rel_type(rel_type: str | Iterable[str] | None) -> str:
+            """Return a Neo4j-safe relationship type name."""
+
+            if isinstance(rel_type, str):
+                rel_type = rel_type.strip()
+                return rel_type.replace(":", "_").replace(" ", "_") or "RELATED_TO"
+
+            try:
+                first_type = next((t for t in rel_type if t), None)
+            except TypeError:
+                first_type = None
+
+            if not first_type:
+                return "RELATED_TO"
+
+            return str(first_type).replace(":", "_").replace(" ", "_")
+
+        def _merge_node(node: Node, known_ids: set[str]) -> str | None:
+            """Merge a single node and return its identifier."""
+
+            properties = node.properties or {}
+            node_id = _resolve_node_id(node)
+            if not node_id:
+                logger.debug("Skipping node without identifier: %s", node)
+                return None
+
+            labels = [node.type] if isinstance(node.type, str) else list(node.type)
+            label_clause = ":" + ":".join(labels) if labels else ""
+            if "name" not in properties:
+                properties["name"] = node_id
+            # Persist the resolved identifier and merged properties on the node so
+            # downstream relationship handling can reliably find endpoints even
+            # when the original `id` field was empty.
+            node.id = node_id
+            node.properties = properties
+            self.graph.query(
+                f"MERGE (n{label_clause} {{id: $id}}) SET n += $props RETURN n",
+                params={"id": node_id, "props": properties},
+            )
+            known_ids.add(node_id)
+            return node_id
 
         for graph_doc in graph_documents:
-            node_ids: dict[int, str] = {}
+            known_ids: set[str] = set()
 
             for node in graph_doc.nodes:
-                properties = node.properties or {}
-                node_id = _resolve_node_id(node)
-                if not node_id:
-                    logger.debug("Skipping node without identifier: %s", node)
-                    continue
-
-                node_ids[id(node)] = node_id
-
-                labels = [node.type] if isinstance(node.type, str) else list(node.type)
-                label_clause = ":" + ":".join(labels) if labels else ""
-                if "name" not in properties:
-                    properties["name"] = node_id
-                self.graph.query(
-                    f"MERGE (n{label_clause} {{id: $id}}) SET n += $props RETURN n",
-                    params={"id": node_id, "props": properties},
-                )
+                _merge_node(node, known_ids)
 
             for rel in graph_doc.relationships:
                 if not rel.source or not rel.target:
@@ -100,15 +128,16 @@ class KnowledgeGraphBuilder:
                     continue
 
                 source_id = (
-                    node_ids.get(id(rel.source))
-                    if isinstance(rel.source, Node)
-                    else rel.source
+                    _resolve_node_id(rel.source) if isinstance(rel.source, Node) else rel.source
                 )
                 target_id = (
-                    node_ids.get(id(rel.target))
-                    if isinstance(rel.target, Node)
-                    else rel.target
+                    _resolve_node_id(rel.target) if isinstance(rel.target, Node) else rel.target
                 )
+
+                if isinstance(rel.source, Node) and source_id and source_id not in known_ids:
+                    source_id = _merge_node(rel.source, known_ids)
+                if isinstance(rel.target, Node) and target_id and target_id not in known_ids:
+                    target_id = _merge_node(rel.target, known_ids)
 
                 if not source_id or not target_id:
                     logger.debug(
@@ -116,7 +145,7 @@ class KnowledgeGraphBuilder:
                     )
                     continue
 
-                rel_type = rel.type if isinstance(rel.type, str) else ":".join(rel.type)
+                rel_type = _normalize_rel_type(rel.type)
                 self.graph.query(
                     (
                         "MATCH (a {id: $source_id}) MATCH (b {id: $target_id}) "
