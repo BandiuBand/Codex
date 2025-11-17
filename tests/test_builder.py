@@ -37,8 +37,8 @@ class FakeGraph:
         return "\n".join(lines)
 
 
-def _make_doc() -> Document:
-    return Document(page_content="", metadata={})
+def _make_doc(metadata: dict | None = None) -> Document:
+    return Document(page_content="", metadata=metadata or {})
 
 
 def _debug_context(graph: FakeGraph, nodes: list[Node], relationships: list[Relationship]):  # pragma: no cover - debug aid only
@@ -144,6 +144,43 @@ class KnowledgeGraphBuilderTests(unittest.TestCase):
         self.assertTrue(relationship_params, "Relationship merge query was not executed")
         self.assertEqual(relationship_params[0]["source_id"], "ghosty")
 
+    def test_raw_text_entry_node_and_mentions(self) -> None:
+        fake_graph = FakeGraph()
+        builder = KnowledgeGraphBuilder(graph=fake_graph, llm=None)
+
+        metadata = {
+            "entry_id": "entry-123",
+            "timestamp": "2024-01-01T00:00:00Z",
+            "source": "tester",
+        }
+        doc = Document(page_content="Some raw text", metadata=metadata)
+
+        node = Node(id="alice", type="Person", properties={})
+        graph_document = GraphDocument(nodes=[node], relationships=[], source=doc)
+
+        builder._merge_graph_documents([graph_document])
+
+        merge_entry_queries = [
+            (statement, params)
+            for statement, params in fake_graph.queries
+            if "MERGE (e:RawText" in statement
+        ]
+        self.assertTrue(merge_entry_queries, "Raw text entry was not merged")
+        entry_params = merge_entry_queries[0][1]
+        self.assertEqual(entry_params["id"], "entry-123")
+        self.assertEqual(entry_params["props"]["source"], "tester")
+        self.assertEqual(entry_params["props"]["timestamp"], "2024-01-01T00:00:00Z")
+        self.assertEqual(entry_params["props"]["text"], "Some raw text")
+
+        mention_queries = [
+            (statement, params)
+            for statement, params in fake_graph.queries
+            if "MERGE (e)-[:MENTIONS]->(n)" in statement
+        ]
+        self.assertTrue(mention_queries, "Mention relationship to entities was not created")
+        self.assertEqual(mention_queries[0][1]["entry_id"], "entry-123")
+        self.assertEqual(mention_queries[0][1]["node_id"], "alice")
+
 
 class KnowledgeGraphBuilderIntegrationTests(unittest.TestCase):
     @classmethod
@@ -174,6 +211,7 @@ class KnowledgeGraphBuilderIntegrationTests(unittest.TestCase):
 
         ghost_id = f"ghost-{self.run_id}"
         target_id = f"target-{self.run_id}"
+        entry_id = f"entry-{self.run_id}"
 
         ghost = Node(id="", type="Ghost", properties={"id": ghost_id, "run_id": self.run_id})
         target = Node(id="", type="Person", properties={"id": target_id, "run_id": self.run_id})
@@ -184,7 +222,18 @@ class KnowledgeGraphBuilderIntegrationTests(unittest.TestCase):
             properties={"run_id": self.run_id},
         )
 
-        graph_document = GraphDocument(nodes=[ghost, target], relationships=[rel], source=_make_doc())
+        graph_document = GraphDocument(
+            nodes=[ghost, target],
+            relationships=[rel],
+            source=_make_doc(
+                {
+                    "run_id": self.run_id,
+                    "entry_id": entry_id,
+                    "timestamp": "2024-01-01T00:00:00Z",
+                    "source": "integration-test",
+                }
+            ),
+        )
 
         builder._merge_graph_documents([graph_document])
 
@@ -208,3 +257,18 @@ class KnowledgeGraphBuilderIntegrationTests(unittest.TestCase):
                 ]
             ),
         )
+
+        entry = self.graph.query(
+            "MATCH (e:RawText {id: $entry_id, run_id: $run_id}) RETURN e",
+            {"entry_id": entry_id, "run_id": self.run_id},
+        )
+        self.assertTrue(entry, "Raw text entry node was not persisted in Neo4j")
+
+        mentions = self.graph.query(
+            (
+                "MATCH (e:RawText {id: $entry_id, run_id: $run_id})-"
+                "[:MENTIONS]->(n {id: $node_id, run_id: $run_id}) RETURN n"
+            ),
+            {"entry_id": entry_id, "node_id": ghost_id, "run_id": self.run_id},
+        )
+        self.assertTrue(mentions, "Mention relationship between entry and entity was not created")
