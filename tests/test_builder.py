@@ -20,9 +20,40 @@ class FakeGraph:
         self.queries.append((statement, params or {}))
         return []
 
+    def snapshot(self) -> str:  # pragma: no cover - debug aid only
+        lines = ["Captured queries:"]
+        if not self.queries:
+            lines.append("  (none)")
+            return "\n".join(lines)
+
+        for idx, (statement, params) in enumerate(self.queries, start=1):
+            lines.append(f"  {idx}. {statement}")
+            if params:
+                lines.append(f"     params: {params}")
+        return "\n".join(lines)
+
 
 def _make_doc() -> Document:
     return Document(page_content="", metadata={})
+
+
+def _debug_context(graph: FakeGraph, nodes: list[Node], relationships: list[Relationship]):  # pragma: no cover - debug aid only
+    def _printer():
+        print("\n==== Debug snapshot ====")
+        print(graph.snapshot())
+        print("Nodes:")
+        for node in nodes:
+            print(f"  {node.type} id={node.id!r} properties={node.properties}")
+        print("Relationships:")
+        for rel in relationships:
+            print(
+                "  "
+                f"{rel.source.id!r} -[{rel.type}]-> {rel.target.id!r}"
+                f" properties={rel.properties}"
+            )
+        print("========================\n")
+
+    return _printer
 
 
 class KnowledgeGraphBuilderTests(unittest.TestCase):
@@ -33,6 +64,8 @@ class KnowledgeGraphBuilderTests(unittest.TestCase):
         alice = Node(id="alice", type="Person", properties={})
         bob = Node(id="bob", type="Person", properties={})
         rel = Relationship(source=alice, target=bob, type="knows", properties={"since": 2020})
+
+        self.addCleanup(_debug_context(fake_graph, [alice, bob], [rel]))
 
         graph_document = GraphDocument(nodes=[alice, bob], relationships=[rel], source=_make_doc())
 
@@ -50,6 +83,8 @@ class KnowledgeGraphBuilderTests(unittest.TestCase):
         target = Node(id="target", type="Person", properties={})
         rel = Relationship(source=ghost, target=target, type="haunts", properties={})
 
+        self.addCleanup(_debug_context(fake_graph, [ghost, target], [rel]))
+
         graph_document = GraphDocument(nodes=[ghost, target], relationships=[rel], source=_make_doc())
 
         builder._merge_graph_documents([graph_document])
@@ -62,15 +97,24 @@ class KnowledgeGraphBuilderTests(unittest.TestCase):
 
         self.assertTrue(
             relationship_params,
-            (
-                "Relationship merge query was not executed; captured queries: "
-                f"{fake_graph.queries} | source_id={ghost.id!r}, properties={ghost.properties}"
+            "\n".join(
+                [
+                    "Relationship merge query was not executed.",
+                    fake_graph.snapshot(),
+                    f"Source node after merge: id={ghost.id!r} properties={ghost.properties}",
+                ]
             ),
         )
         self.assertEqual(
             relationship_params[0]["source_id"],
             "ghost-1",
-            f"Unexpected relationship source id; captured queries: {fake_graph.queries}",
+            "\n".join(
+                [
+                    "Unexpected relationship source id.",
+                    fake_graph.snapshot(),
+                    f"Source node after merge: id={ghost.id!r} properties={ghost.properties}",
+                ]
+            ),
         )
 
     def test_node_id_is_persisted_after_merge(self) -> None:
@@ -80,6 +124,8 @@ class KnowledgeGraphBuilderTests(unittest.TestCase):
         unnamed = Node(id="", type="Entity", properties={"name": "ghosty"})
         target = Node(id="target", type="Person", properties={})
         rel = Relationship(source=unnamed, target=target, type="knows", properties={})
+
+        self.addCleanup(_debug_context(fake_graph, [unnamed, target], [rel]))
 
         graph_document = GraphDocument(nodes=[unnamed, target], relationships=[rel], source=_make_doc())
 
