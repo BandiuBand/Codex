@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from datetime import UTC, datetime
+import uuid
 from typing import Iterable, Mapping
 
 from langchain_core.documents import Document
@@ -117,10 +119,40 @@ class KnowledgeGraphBuilder:
             return node_id
 
         for graph_doc in graph_documents:
+            source_doc = graph_doc.source
+            metadata = source_doc.metadata if source_doc else {}
+            entry_id = metadata.get("entry_id") or f"entry-{uuid.uuid4()}"
+            timestamp = metadata.get("timestamp") or datetime.now(UTC).isoformat()
+            entry_props = {
+                "id": entry_id,
+                "text": source_doc.page_content if source_doc else "",
+                "timestamp": timestamp,
+            }
+
+            if metadata.get("source"):
+                entry_props["source"] = metadata["source"]
+            if "chunk" in metadata:
+                entry_props["chunk"] = metadata["chunk"]
+            if "total_chunks" in metadata:
+                entry_props["total_chunks"] = metadata["total_chunks"]
+
+            self.graph.query(
+                "MERGE (e:RawText {id: $id}) SET e += $props RETURN e",
+                params={"id": entry_id, "props": entry_props},
+            )
+
             known_ids: set[str] = set()
 
             for node in graph_doc.nodes:
-                _merge_node(node, known_ids)
+                node_id = _merge_node(node, known_ids)
+                if node_id:
+                    self.graph.query(
+                        (
+                            "MATCH (e:RawText {id: $entry_id}) MATCH (n {id: $node_id}) "
+                            "MERGE (e)-[:MENTIONS]->(n)"
+                        ),
+                        params={"entry_id": entry_id, "node_id": node_id},
+                    )
 
             for rel in graph_doc.relationships:
                 if not rel.source or not rel.target:
@@ -165,7 +197,10 @@ class KnowledgeGraphBuilder:
             logger.info("No content to ingest; skipping.")
             return
 
-        docs = self._split_into_documents(text, metadata)
+        entry_id = metadata.get("entry_id") if metadata else None
+        if not entry_id:
+            entry_id = f"entry-{uuid.uuid4()}"
+        docs = self._split_into_documents(text, {**(metadata or {}), "entry_id": entry_id})
         logger.info("Extracting graph from %d document chunk(s)...", len(docs))
         graph_documents = self._extract_graph_documents(docs)
         if not graph_documents:
