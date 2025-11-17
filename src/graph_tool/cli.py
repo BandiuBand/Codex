@@ -18,6 +18,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Ingest text into Neo4j via LangChain/Ollama and run background verification.",
     )
+
+    parser.add_argument("--console", action="store_true", help="Start an interactive console session.")
     parser.add_argument("--text", help="Raw text to ingest into the knowledge graph.")
     parser.add_argument("--input-file", type=Path, help="Path to a file containing text to ingest.")
     parser.add_argument(
@@ -42,6 +44,44 @@ def load_input_text(args: argparse.Namespace) -> str:
     raise SystemExit("Either --text or --input-file is required")
 
 
+def run_console_mode(settings: GraphSettings, start_verifier: bool = False) -> None:
+    builder = KnowledgeGraphBuilder.from_settings(settings)
+
+    if start_verifier:
+        verifier = GraphVerifier(
+            graph=builder.graph,
+            llm=builder.llm,
+            interval_seconds=settings.verification_interval_seconds,
+            max_relationship_suggestions=settings.max_relationship_suggestions,
+        )
+        verifier.start()
+        logger.info(
+            "Verifier is running in the background. It will continue while you ingest from the console."
+        )
+    else:
+        verifier = None
+
+    try:
+        while True:
+            try:
+                text = input("Enter text (blank to exit): ").strip()
+            except EOFError:
+                logger.info("EOF received; exiting console mode.")
+                break
+
+            if not text:
+                break
+
+            source = input("Source label (optional): ").strip()
+            metadata = {"source": source or "console"}
+            builder.ingest_text(text, metadata=metadata)
+            logger.info("Ingestion complete for console input.")
+    finally:
+        if verifier:
+            verifier.stop()
+            logger.info("Verifier stopped.")
+
+
 def main(argv: list[str] | None = None) -> None:
     argv = argv or sys.argv[1:]
     args = parse_args(argv)
@@ -49,6 +89,10 @@ def main(argv: list[str] | None = None) -> None:
 
     if args.interval:
         settings.verification_interval_seconds = args.interval
+
+    if args.console:
+        run_console_mode(settings, start_verifier=args.start_verifier)
+        return
 
     text = load_input_text(args)
 

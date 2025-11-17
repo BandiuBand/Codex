@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from datetime import UTC, datetime
+import uuid
 from typing import Iterable, Mapping
 
 from langchain_core.documents import Document
@@ -67,36 +69,123 @@ class KnowledgeGraphBuilder:
     def _merge_graph_documents(self, graph_documents: list[GraphDocument]) -> None:
         """Merge nodes/relationships into Neo4j to avoid duplicates."""
 
+        def _resolve_node_id(node: Node) -> str | None:
+            """Return a stable identifier for a Node object."""
+
+            properties = node.properties or {}
+            raw_id = node.id or properties.get("id") or properties.get("name")
+            return str(raw_id) if raw_id is not None else None
+
+        def _normalize_rel_type(rel_type: str | Iterable[str] | None) -> str:
+            """Return a Neo4j-safe relationship type name."""
+
+            if isinstance(rel_type, str):
+                rel_type = rel_type.strip()
+                return rel_type.replace(":", "_").replace(" ", "_") or "RELATED_TO"
+
+            try:
+                first_type = next((t for t in rel_type if t), None)
+            except TypeError:
+                first_type = None
+
+            if not first_type:
+                return "RELATED_TO"
+
+            return str(first_type).replace(":", "_").replace(" ", "_")
+
+        def _merge_node(node: Node, known_ids: set[str]) -> str | None:
+            """Merge a single node and return its identifier."""
+
+            properties = node.properties or {}
+            node_id = _resolve_node_id(node)
+            if not node_id:
+                logger.debug("Skipping node without identifier: %s", node)
+                return None
+
+            labels = [node.type] if isinstance(node.type, str) else list(node.type)
+            label_clause = ":" + ":".join(labels) if labels else ""
+            if "name" not in properties:
+                properties["name"] = node_id
+            # Persist the resolved identifier and merged properties on the node so
+            # downstream relationship handling can reliably find endpoints even
+            # when the original `id` field was empty.
+            node.id = node_id
+            node.properties = properties
+            self.graph.query(
+                f"MERGE (n{label_clause} {{id: $id}}) SET n += $props RETURN n",
+                params={"id": node_id, "props": properties},
+            )
+            known_ids.add(node_id)
+            return node_id
+
         for graph_doc in graph_documents:
+            source_doc = graph_doc.source
+            metadata = source_doc.metadata if source_doc else {}
+            entry_id = metadata.get("entry_id") or f"entry-{uuid.uuid4()}"
+            timestamp = metadata.get("timestamp") or datetime.now(UTC).isoformat()
+            entry_props = {
+                "id": entry_id,
+                "text": source_doc.page_content if source_doc else "",
+                "timestamp": timestamp,
+            }
+
+            if metadata.get("source"):
+                entry_props["source"] = metadata["source"]
+            if "chunk" in metadata:
+                entry_props["chunk"] = metadata["chunk"]
+            if "total_chunks" in metadata:
+                entry_props["total_chunks"] = metadata["total_chunks"]
+
+            self.graph.query(
+                "MERGE (e:RawText {id: $id}) SET e += $props RETURN e",
+                params={"id": entry_id, "props": entry_props},
+            )
+
+            known_ids: set[str] = set()
+
             for node in graph_doc.nodes:
-                properties = node.properties or {}
-                node_id = node.id or properties.get("name")
-                if not node_id:
-                    logger.debug("Skipping node without identifier: %s", node)
-                    continue
-                labels = [node.type] if isinstance(node.type, str) else list(node.type)
-                label_clause = ":" + ":".join(labels) if labels else ""
-                if "name" not in properties:
-                    properties["name"] = node_id
-                self.graph.query(
-                    f"MERGE (n{label_clause} {{id: $id}}) SET n += $props RETURN n",
-                    params={"id": node_id, "props": properties},
-                )
+                node_id = _merge_node(node, known_ids)
+                if node_id:
+                    self.graph.query(
+                        (
+                            "MATCH (e:RawText {id: $entry_id}) MATCH (n {id: $node_id}) "
+                            "MERGE (e)-[:MENTIONS]->(n)"
+                        ),
+                        params={"entry_id": entry_id, "node_id": node_id},
+                    )
 
             for rel in graph_doc.relationships:
                 if not rel.source or not rel.target:
                     logger.debug("Skipping relationship missing endpoints: %s", rel)
                     continue
 
-                rel_type = rel.type if isinstance(rel.type, str) else ":".join(rel.type)
+                source_id = (
+                    _resolve_node_id(rel.source) if isinstance(rel.source, Node) else rel.source
+                )
+                target_id = (
+                    _resolve_node_id(rel.target) if isinstance(rel.target, Node) else rel.target
+                )
+
+                if isinstance(rel.source, Node) and source_id and source_id not in known_ids:
+                    source_id = _merge_node(rel.source, known_ids)
+                if isinstance(rel.target, Node) and target_id and target_id not in known_ids:
+                    target_id = _merge_node(rel.target, known_ids)
+
+                if not source_id or not target_id:
+                    logger.debug(
+                        "Skipping relationship with unresolved endpoints: %s", rel
+                    )
+                    continue
+
+                rel_type = _normalize_rel_type(rel.type)
                 self.graph.query(
                     (
                         "MATCH (a {id: $source_id}) MATCH (b {id: $target_id}) "
                         f"MERGE (a)-[r:`{rel_type}`]->(b) SET r += $props RETURN r"
                     ),
                     params={
-                        "source_id": rel.source,
-                        "target_id": rel.target,
+                        "source_id": source_id,
+                        "target_id": target_id,
                         "props": rel.properties or {},
                     },
                 )
@@ -108,7 +197,10 @@ class KnowledgeGraphBuilder:
             logger.info("No content to ingest; skipping.")
             return
 
-        docs = self._split_into_documents(text, metadata)
+        entry_id = metadata.get("entry_id") if metadata else None
+        if not entry_id:
+            entry_id = f"entry-{uuid.uuid4()}"
+        docs = self._split_into_documents(text, {**(metadata or {}), "entry_id": entry_id})
         logger.info("Extracting graph from %d document chunk(s)...", len(docs))
         graph_documents = self._extract_graph_documents(docs)
         if not graph_documents:
