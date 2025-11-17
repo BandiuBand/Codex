@@ -3,6 +3,9 @@ from __future__ import annotations
 import pathlib
 import sys
 import unittest
+import uuid
+
+from langchain_community.graphs import Neo4jGraph
 
 from langchain_core.documents import Document
 from langchain_community.graphs.graph_document import GraphDocument, Node, Relationship
@@ -10,6 +13,7 @@ from langchain_community.graphs.graph_document import GraphDocument, Node, Relat
 sys.path.append(str(pathlib.Path(__file__).resolve().parents[1] / "src"))
 
 from graph_tool.builder import KnowledgeGraphBuilder
+from graph_tool.config import GraphSettings
 
 
 class FakeGraph:
@@ -139,3 +143,68 @@ class KnowledgeGraphBuilderTests(unittest.TestCase):
         ]
         self.assertTrue(relationship_params, "Relationship merge query was not executed")
         self.assertEqual(relationship_params[0]["source_id"], "ghosty")
+
+
+class KnowledgeGraphBuilderIntegrationTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        settings = GraphSettings()
+        cls.neo4j_url = settings.neo4j_url
+        try:
+            cls.graph = Neo4jGraph(**settings.neo4j_kwargs())
+            cls.graph.query("RETURN 1 AS ok")
+        except Exception as exc:  # pragma: no cover - defensive skip when Neo4j unavailable
+            raise unittest.SkipTest(
+                f"Neo4j not reachable at {settings.neo4j_url}: {exc}"
+            )
+
+    def setUp(self) -> None:
+        self.run_id = f"test-run-{uuid.uuid4()}"
+
+    def tearDown(self) -> None:  # pragma: no cover - cleanup best effort
+        try:
+            self.graph.query(
+                "MATCH (n {run_id: $run_id}) DETACH DELETE n", {"run_id": self.run_id}
+            )
+        except Exception:
+            pass
+
+    def test_relationship_persists_in_real_neo4j(self) -> None:
+        builder = KnowledgeGraphBuilder(graph=self.graph, llm=None)
+
+        ghost_id = f"ghost-{self.run_id}"
+        target_id = f"target-{self.run_id}"
+
+        ghost = Node(id="", type="Ghost", properties={"id": ghost_id, "run_id": self.run_id})
+        target = Node(id="", type="Person", properties={"id": target_id, "run_id": self.run_id})
+        rel = Relationship(
+            source=ghost,
+            target=target,
+            type="haunts",
+            properties={"run_id": self.run_id},
+        )
+
+        graph_document = GraphDocument(nodes=[ghost, target], relationships=[rel], source=_make_doc())
+
+        builder._merge_graph_documents([graph_document])
+
+        result = self.graph.query(
+            (
+                "MATCH (a {id: $a_id, run_id: $run_id})-"
+                "[r:`haunts` {run_id: $run_id}]->(b {id: $b_id, run_id: $run_id})"
+                " RETURN r"
+            ),
+            {"a_id": ghost_id, "b_id": target_id, "run_id": self.run_id},
+        )
+
+        self.assertTrue(
+            result,
+            "\n".join(
+                [
+                    "Relationship was not found in the target Neo4j instance.",
+                    f"Neo4j URL: {self.neo4j_url}",
+                    "Check that APOC is installed and that the configured credentials"
+                    " can create nodes and relationships.",
+                ]
+            ),
+        )
