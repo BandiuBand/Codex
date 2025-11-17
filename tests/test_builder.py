@@ -59,8 +59,19 @@ class KnowledgeGraphBuilderTests(unittest.TestCase):
             for statement, params in fake_graph.queries
             if "MERGE (a)-[r:`haunts`]->(b)" in statement
         ]
-        self.assertTrue(relationship_params, "Relationship merge query was not executed")
-        self.assertEqual(relationship_params[0]["source_id"], "ghost-1")
+
+        self.assertTrue(
+            relationship_params,
+            (
+                "Relationship merge query was not executed; captured queries: "
+                f"{fake_graph.queries} | source_id={ghost.id!r}, properties={ghost.properties}"
+            ),
+        )
+        self.assertEqual(
+            relationship_params[0]["source_id"],
+            "ghost-1",
+            f"Unexpected relationship source id; captured queries: {fake_graph.queries}",
+        )
 
     def test_node_id_is_persisted_after_merge(self) -> None:
         fake_graph = FakeGraph()
