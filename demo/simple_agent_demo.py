@@ -17,6 +17,7 @@ from agentfw.runtime.engine import ExecutionEngine
 from agentfw.tools.builtin import (
     AcceptValidatorTool,
     AgentCallTool,
+    FlakyTool,
     EchoTool,
     MathAddTool,
     ShellTool,
@@ -46,6 +47,7 @@ tool_registry.register("math_add", MathAddTool())
 tool_registry.register("llm", LLMTool(client=llm_client))
 tool_registry.register("cerber_accept", AcceptValidatorTool())
 tool_registry.register("shell", ShellTool())
+tool_registry.register("flaky", FlakyTool())
 
 
 def main() -> None:
