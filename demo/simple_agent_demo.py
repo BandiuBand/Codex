@@ -19,6 +19,7 @@ from agentfw.tools.builtin import (
     AgentCallTool,
     EchoTool,
     MathAddTool,
+    ShellTool,
     LLMTool,
 )
 
@@ -44,6 +45,7 @@ tool_registry.register("echo", EchoTool())
 tool_registry.register("math_add", MathAddTool())
 tool_registry.register("llm", LLMTool(client=llm_client))
 tool_registry.register("cerber_accept", AcceptValidatorTool())
+tool_registry.register("shell", ShellTool())
 
 
 def main() -> None:
@@ -66,6 +68,12 @@ def main() -> None:
 
     # Register AgentCallTool after the engine is created to avoid circular dependency
     tool_registry.register("agent_call", AgentCallTool(engine=engine))
+
+    state_shell = engine.run_to_completion(
+        agent_name="shell_demo_agent",
+        input_json={},
+    )
+    print("Shell demo variables:", state_shell.variables)
 
     state1 = engine.run_to_completion(
         agent_name="simple_demo_agent",
