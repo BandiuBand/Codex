@@ -14,7 +14,7 @@ from agentfw.core.registry import AgentRegistry, ToolRegistry
 from agentfw.llm.base import DummyLLMClient, OllamaLLMClient
 from agentfw.persistence.storage import FileRunStorage
 from agentfw.runtime.engine import ExecutionEngine
-from agentfw.tools.builtin import EchoTool, MathAddTool, LLMTool
+from agentfw.tools.builtin import AgentCallTool, EchoTool, MathAddTool, LLMTool
 
 
 llm_config = LLMConfig.from_env()
@@ -57,6 +57,9 @@ def main() -> None:
         condition_evaluator=condition_evaluator,
     )
 
+    # Register AgentCallTool after the engine is created to avoid circular dependency
+    tool_registry.register("agent_call", AgentCallTool(engine=engine))
+
     state1 = engine.run_to_completion(
         agent_name="simple_demo_agent",
         input_json={"x": 3, "y": 4},
@@ -74,6 +77,12 @@ def main() -> None:
         input_json={"user_name": "Bandiu"},
     )
     print("LLM demo variables:", state_llm.variables)
+
+    state_parent = engine.run_to_completion(
+        agent_name="parent_demo_agent",
+        input_json={"x": 3, "y": 4},
+    )
+    print("Parent demo variables:", state_parent.variables)
 
 
 if __name__ == "__main__":
