@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from pathlib import Path
 import sys
 
@@ -10,6 +9,7 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 from agentfw.conditions.evaluator import ConditionEvaluator
+from agentfw.config.settings import LLMConfig
 from agentfw.core.registry import AgentRegistry, ToolRegistry
 from agentfw.llm.base import DummyLLMClient, OllamaLLMClient
 from agentfw.persistence.storage import FileRunStorage
@@ -17,14 +17,16 @@ from agentfw.runtime.engine import ExecutionEngine
 from agentfw.tools.builtin import EchoTool, MathAddTool, LLMTool
 
 
-use_ollama = os.getenv("AGENTFW_USE_OLLAMA", "0") == "1"
+llm_config = LLMConfig.from_env()
 
-if use_ollama:
+if llm_config.backend == "ollama":
     llm_client = OllamaLLMClient(
-        base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
-        model=os.getenv("OLLAMA_MODEL", "qwen3:32b"),
+        base_url=llm_config.base_url or "http://localhost:11434",
+        model=llm_config.model or "qwen3:32b",
+        api_key=llm_config.api_key,
     )
 else:
+    # fallback по замовчуванню
     llm_client = DummyLLMClient()
 
 
