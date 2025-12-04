@@ -54,7 +54,39 @@ class AgentCallTool(BaseTool):
 
     def execute(self, ctx: ExecutionContext, params: Dict[str, object]) -> Dict[str, object]:
         """Delegate execution to another agent using the engine."""
-        raise NotImplementedError()
+
+        agent_name = params.get("agent_name")
+        if not agent_name:
+            raise ValueError("AgentCallTool requires 'agent_name' in params")
+
+        input_mapping = params.get("input_mapping") or {}
+        output_mapping = params.get("output_mapping") or []
+
+        if not isinstance(input_mapping, dict):
+            raise ValueError("'input_mapping' must be a dict if provided")
+
+        child_input: Dict[str, Any] = {}
+        for child_key, parent_var in input_mapping.items():
+            child_input[child_key] = ctx.get_var(str(parent_var))
+
+        child_state = self.engine.run_to_completion(agent_name=str(agent_name), input_json=child_input)
+
+        result: Dict[str, Any] = {
+            "__child_run_id": child_state.run_id,
+            "__child_agent_name": child_state.agent_name,
+            "__child_finished": child_state.finished,
+            "__child_failed": child_state.failed,
+        }
+
+        if isinstance(output_mapping, dict):
+            for parent_var, child_var in output_mapping.items():
+                result[parent_var] = child_state.variables.get(str(child_var))
+        elif isinstance(output_mapping, list):
+            for var_name in output_mapping:
+                key = str(var_name)
+                result[key] = child_state.variables.get(key)
+
+        return result
 
 
 class ShellTool(BaseTool):
