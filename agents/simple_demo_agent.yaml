@@ -36,9 +36,10 @@ steps:
       b_var: y
     save_mapping:
       sum: result
-    validator_agent_name: null
+    validator_agent_name: cerber_validator
     validator_params: {}
-    validator_policy: {}
+    validator_policy:
+      max_retries: "2"
     transitions:
       - target_step_id: branch_step
         condition:

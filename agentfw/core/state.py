@@ -34,6 +34,7 @@ class AgentState:
     failed: bool = False
     variables: Dict[str, object] = field(default_factory=dict)
     history: List[StepExecutionRecord] = field(default_factory=list)
+    retry_counts: Dict[str, int] = field(default_factory=dict)
 
     def get_variable(self, name: str, default: object | None = None) -> object:
         """Retrieve a variable value from the agent state."""
