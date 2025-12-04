@@ -194,3 +194,22 @@ class AcceptValidatorTool(BaseTool):
             validation_result["patch"] = patch
 
         return {"validation": validation_result}
+
+
+class FlakyTool(BaseTool):
+    """Tool that increments a counter stored in the execution context."""
+
+    def execute(self, ctx: ExecutionContext, params: Dict[str, object]) -> Dict[str, object]:
+        counter_var = params.get("counter_var")
+        if not counter_var:
+            raise ValueError("FlakyTool requires 'counter_var' in params")
+
+        counter_name = str(counter_var)
+        current_value = ctx.get_var(counter_name, 0)
+        if not isinstance(current_value, int):
+            raise ValueError("FlakyTool counter must be an integer")
+
+        new_value = current_value + 1
+        ctx.set_var(counter_name, new_value)
+
+        return {"counter": new_value}
