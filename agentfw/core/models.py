@@ -64,4 +64,7 @@ class AgentDefinition:
 
     def get_step(self, step_id: str) -> StepDefinition:
         """Return a step definition by id or raise if it is missing."""
-        raise NotImplementedError()
+        try:
+            return self.steps[step_id]
+        except KeyError:
+            raise KeyError(f"Step '{step_id}' not found in agent '{self.name}'")

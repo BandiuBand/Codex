@@ -58,12 +58,12 @@ class ExecutionContext:
 
     def get_var(self, name: str, default: object | None = None) -> object:
         """Get a variable from the agent state."""
-        raise NotImplementedError()
+        return self.state.variables.get(name, default)
 
     def set_var(self, name: str, value: object) -> None:
         """Set a variable in the agent state."""
-        raise NotImplementedError()
+        self.state.variables[name] = value
 
     def resolve_template(self, template: str) -> str:
         """Resolve placeholders in the template using current variables."""
-        raise NotImplementedError()
+        return template.format(**self.state.variables)
