@@ -197,19 +197,99 @@ class AcceptValidatorTool(BaseTool):
 
 
 class FlakyTool(BaseTool):
-    """Tool that increments a counter stored in the execution context."""
+    """Deterministic tool that tracks how many times it has been called.
 
-    def execute(self, ctx: ExecutionContext, params: Dict[str, object]) -> Dict[str, object]:
-        counter_var = params.get("counter_var")
-        if not counter_var:
-            raise ValueError("FlakyTool requires 'counter_var' in params")
+    Useful for demos involving validators and retry policies.
+    """
 
-        counter_name = str(counter_var)
-        current_value = ctx.get_var(counter_name, 0)
-        if not isinstance(current_value, int):
-            raise ValueError("FlakyTool counter must be an integer")
+    def execute(self, ctx: ExecutionContext, params: dict) -> dict:
+        """
+        Expected params:
+          - counter_var: name of the counter variable (default: "__flaky_attempt")
+          - message: base message text (default: "Simulated flaky call")
+          - reset: if True, reset counter before increment
 
-        new_value = current_value + 1
-        ctx.set_var(counter_name, new_value)
+        Behavior:
+          - Reads integer counter from ctx.state.variables[counter_var] (default 0)
+          - Increments it by 1 and writes back
+          - Returns {"attempt": int, "message": str}
+        """
+        counter_var = str(params.get("counter_var", "__flaky_attempt"))
+        base_message = str(params.get("message", "Simulated flaky call"))
+        reset = bool(params.get("reset", False))
 
-        return {"counter": new_value}
+        if reset:
+            ctx.state.variables.pop(counter_var, None)
+
+        attempt = int(ctx.state.variables.get(counter_var, 0) or 0) + 1
+        ctx.state.variables[counter_var] = attempt
+
+        return {
+            "attempt": attempt,
+            "message": f"{base_message} (attempt {attempt})",
+        }
+
+
+class AttemptThresholdValidatorTool(BaseTool):
+    """Validator that retries until a configured attempt threshold is reached.
+
+    Expects that the main step stores the current attempt number in variable 'attempt'
+    (e.g. via FlakyTool + save_mapping).
+    """
+
+    def execute(self, ctx: ExecutionContext, params: dict) -> dict:
+        """
+        Sources of configuration:
+
+        1) validator_params (from step definition), passed via validator_input:
+           - accept_after: int (attempt number from which we accept)
+           - force_fail: bool/str (if true, always fail regardless of attempt)
+           - fail_message: str (message when forcing failure)
+
+        2) Local params (fallback, if not present in validator_params):
+           - accept_after
+           - force_fail
+           - fail_message
+        """
+
+        # validator_params приходять з validator_input → state.variables["validator_params"]
+        validator_params = ctx.get_var("validator_params", {}) or {}
+
+        accept_after_raw = validator_params.get("accept_after", params.get("accept_after", 1))
+        force_fail_raw = validator_params.get("force_fail", params.get("force_fail", False))
+        fail_message = str(
+            validator_params.get(
+                "fail_message",
+                params.get("fail_message", "explicit failure requested"),
+            )
+        )
+
+        # безпечна конвертація accept_after в int
+        try:
+            accept_after = int(accept_after_raw)
+        except (TypeError, ValueError):
+            accept_after = 1
+
+        # привідніть force_fail до bool
+        if isinstance(force_fail_raw, str):
+            force_fail = force_fail_raw.strip().lower() in {"1", "true", "yes", "y", "on", "fail"}
+        else:
+            force_fail = bool(force_fail_raw)
+
+        attempt = int(ctx.get_var("attempt", 0) or 0)
+
+        if force_fail:
+            validation = {"status": "fail", "message": fail_message}
+        elif attempt < accept_after:
+            validation = {
+                "status": "retry",
+                "message": f"Attempt {attempt} below threshold {accept_after}",
+            }
+        else:
+            validation = {
+                "status": "accept",
+                "message": f"Accepted on attempt {attempt}",
+            }
+
+        return {"validation": validation}
+
