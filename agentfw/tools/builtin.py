@@ -194,3 +194,65 @@ class AcceptValidatorTool(BaseTool):
             validation_result["patch"] = patch
 
         return {"validation": validation_result}
+
+
+class FlakyTool(BaseTool):
+    """Deterministic tool that tracks how many times it has been called.
+
+    Useful for demos involving validators and retry policies.
+    """
+
+    def execute(self, ctx: ExecutionContext, params: dict) -> dict:
+        counter_var = str(params.get("counter_var", "__flaky_attempt"))
+        base_message = str(params.get("message", "Simulated flaky call"))
+        reset = bool(params.get("reset", False))
+
+        if reset:
+            ctx.state.variables.pop(counter_var, None)
+
+        attempt = int(ctx.state.variables.get(counter_var, 0)) + 1
+        ctx.state.variables[counter_var] = attempt
+
+        return {
+            "attempt": attempt,
+            "message": f"{base_message} (attempt {attempt})",
+        }
+
+
+class AttemptThresholdValidatorTool(BaseTool):
+    """Validator that retries until a configured attempt threshold is reached."""
+
+    def execute(self, ctx: ExecutionContext, params: dict) -> dict:
+        validator_params = ctx.get_var("validator_params", {}) or {}
+
+        accept_after_raw = validator_params.get("accept_after", params.get("accept_after", 1))
+        force_fail_raw = validator_params.get("force_fail", params.get("force_fail", False))
+        fail_message = str(validator_params.get("fail_message", params.get("fail_message", "explicit failure requested")))
+
+        try:
+            accept_after = int(accept_after_raw)
+        except (TypeError, ValueError):
+            accept_after = 1
+
+        force_fail = False
+        if isinstance(force_fail_raw, str):
+            force_fail = force_fail_raw.strip().lower() in {"1", "true", "yes", "y", "on", "fail"}
+        else:
+            force_fail = bool(force_fail_raw)
+
+        attempt = int(ctx.get_var("attempt", 0) or 0)
+
+        if force_fail:
+            validation = {"status": "fail", "message": fail_message}
+        elif attempt < accept_after:
+            validation = {
+                "status": "retry",
+                "message": f"Attempt {attempt} below threshold {accept_after}",
+            }
+        else:
+            validation = {
+                "status": "accept",
+                "message": f"Accepted on attempt {attempt}",
+            }
+
+        return {"validation": validation}

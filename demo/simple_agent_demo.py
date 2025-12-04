@@ -17,10 +17,12 @@ from agentfw.runtime.engine import ExecutionEngine
 from agentfw.tools.builtin import (
     AcceptValidatorTool,
     AgentCallTool,
+    AttemptThresholdValidatorTool,
     EchoTool,
+    FlakyTool,
+    LLMTool,
     MathAddTool,
     ShellTool,
-    LLMTool,
 )
 
 
@@ -45,6 +47,8 @@ tool_registry.register("echo", EchoTool())
 tool_registry.register("math_add", MathAddTool())
 tool_registry.register("llm", LLMTool(client=llm_client))
 tool_registry.register("cerber_accept", AcceptValidatorTool())
+tool_registry.register("flaky", FlakyTool())
+tool_registry.register("retry_validator", AttemptThresholdValidatorTool())
 tool_registry.register("shell", ShellTool())
 
 
@@ -98,6 +102,30 @@ def main() -> None:
         input_json={"x": 3, "y": 4},
     )
     print("Parent demo variables:", state_parent.variables)
+
+    state_flaky = engine.run_to_completion(
+        agent_name="flaky_retry_demo_agent",
+        input_json={},
+    )
+    print(
+        "Flaky retry variables:",
+        state_flaky.variables,
+        "history entries:",
+        len(state_flaky.history),
+    )
+
+    state_flaky_fail = engine.run_to_completion(
+        agent_name="flaky_failure_demo_agent",
+        input_json={},
+    )
+    print(
+        "Flaky failure variables:",
+        state_flaky_fail.variables,
+        "failed:",
+        state_flaky_fail.failed,
+        "history entries:",
+        len(state_flaky_fail.history),
+    )
 
 
 if __name__ == "__main__":
