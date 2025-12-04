@@ -36,3 +36,41 @@ class ShellTool(BaseTool):
     def execute(self, ctx: ExecutionContext, params: Dict[str, object]) -> Dict[str, object]:
         """Run a shell command using the provided parameters."""
         raise NotImplementedError()
+
+
+class EchoTool(BaseTool):
+    """Simple tool that echoes back rendered text."""
+
+    def execute(self, ctx: ExecutionContext, params: dict) -> dict:
+        """
+        Simple test tool that returns a formatted text based on the current variables.
+        Expected params:
+          - "text": template string with {var_name} placeholders.
+        Returns:
+          - {"output_text": str}
+        """
+
+        template = params.get("text", "")
+        rendered = ctx.resolve_template(template)
+        return {"output_text": rendered}
+
+
+class MathAddTool(BaseTool):
+    """Test tool that adds two numeric variables from the agent state."""
+
+    def execute(self, ctx: ExecutionContext, params: dict) -> dict:
+        """
+        Test tool that adds two numeric variables from the agent state.
+        Expected params:
+          - "a_var": name of the first variable
+          - "b_var": name of the second variable
+        Returns:
+          - {"result": number}
+        """
+
+        a_name = params.get("a_var")
+        b_name = params.get("b_var")
+        a_value = ctx.get_var(a_name)
+        b_value = ctx.get_var(b_name)
+        result = (a_value or 0) + (b_value or 0)
+        return {"result": result}
