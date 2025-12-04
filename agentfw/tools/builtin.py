@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import subprocess
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from agentfw.core.state import ExecutionContext
 from agentfw.runtime.engine import ExecutionEngine
@@ -94,7 +95,43 @@ class ShellTool(BaseTool):
 
     def execute(self, ctx: ExecutionContext, params: Dict[str, object]) -> Dict[str, object]:
         """Run a shell command using the provided parameters."""
-        raise NotImplementedError()
+
+        command: Union[str, List[str], None] = params.get("command")
+        if command is None:
+            raise ValueError("ShellTool requires a 'command' parameter")
+
+        if isinstance(command, list):
+            command_arg: Union[str, List[str]] = [str(part) for part in command]
+        elif isinstance(command, str):
+            command_arg = command
+        else:
+            raise ValueError("ShellTool 'command' must be a string or list")
+
+        allow_failure = bool(params.get("allow_failure", True))
+        cwd = params.get("cwd")
+        timeout = params.get("timeout")
+        env = params.get("env")
+
+        result = subprocess.run(
+            command_arg,
+            capture_output=True,
+            text=True,
+            cwd=cwd,
+            timeout=timeout,
+            env=env,
+        )
+
+        output = {
+            "return_code": result.returncode,
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+            "ok": result.returncode == 0,
+        }
+
+        if not allow_failure and result.returncode != 0:
+            raise RuntimeError(f"Command failed with return code {result.returncode}")
+
+        return output
 
 
 class EchoTool(BaseTool):
