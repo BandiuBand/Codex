@@ -47,9 +47,6 @@ class ExecutionEngine:
             ctx = ExecutionContext(definition=definition, state=state, engine=self)
             self._execute_next_step(ctx)
 
-            if state.current_step_id in definition.end_step_ids:
-                state.finished = True
-
             if definition.serialize_enabled:
                 self.storage.save_state(state)
 
