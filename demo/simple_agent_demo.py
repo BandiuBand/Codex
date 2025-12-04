@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 import sys
 
@@ -10,10 +11,21 @@ if str(ROOT_DIR) not in sys.path:
 
 from agentfw.conditions.evaluator import ConditionEvaluator
 from agentfw.core.registry import AgentRegistry, ToolRegistry
-from agentfw.llm.base import DummyLLMClient
+from agentfw.llm.base import DummyLLMClient, OllamaLLMClient
 from agentfw.persistence.storage import FileRunStorage
 from agentfw.runtime.engine import ExecutionEngine
 from agentfw.tools.builtin import EchoTool, MathAddTool, LLMTool
+
+
+use_ollama = os.getenv("AGENTFW_USE_OLLAMA", "0") == "1"
+
+if use_ollama:
+    llm_client = OllamaLLMClient(
+        base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
+        model=os.getenv("OLLAMA_MODEL", "qwen3:32b"),
+    )
+else:
+    llm_client = DummyLLMClient()
 
 
 # Tool registry with built-in demo tools
@@ -22,7 +34,7 @@ from agentfw.tools.builtin import EchoTool, MathAddTool, LLMTool
 tool_registry = ToolRegistry(tools={})
 tool_registry.register("echo", EchoTool())
 tool_registry.register("math_add", MathAddTool())
-tool_registry.register("llm", LLMTool(client=DummyLLMClient()))
+tool_registry.register("llm", LLMTool(client=llm_client))
 
 
 def main() -> None:
