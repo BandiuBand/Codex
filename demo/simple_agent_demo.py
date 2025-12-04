@@ -10,9 +10,10 @@ if str(ROOT_DIR) not in sys.path:
 
 from agentfw.conditions.evaluator import ConditionEvaluator
 from agentfw.core.registry import AgentRegistry, ToolRegistry
+from agentfw.llm.base import DummyLLMClient
 from agentfw.persistence.storage import FileRunStorage
 from agentfw.runtime.engine import ExecutionEngine
-from agentfw.tools.builtin import EchoTool, MathAddTool
+from agentfw.tools.builtin import EchoTool, MathAddTool, LLMTool
 
 
 # Tool registry with built-in demo tools
@@ -21,6 +22,7 @@ from agentfw.tools.builtin import EchoTool, MathAddTool
 tool_registry = ToolRegistry(tools={})
 tool_registry.register("echo", EchoTool())
 tool_registry.register("math_add", MathAddTool())
+tool_registry.register("llm", LLMTool(client=DummyLLMClient()))
 
 
 def main() -> None:
@@ -52,6 +54,12 @@ def main() -> None:
         input_json={"x": 10, "y": 5},
     )
     print("Run 2 variables:", state2.variables)
+
+    state_llm = engine.run_to_completion(
+        agent_name="llm_demo_agent",
+        input_json={"user_name": "Bandiu"},
+    )
+    print("LLM demo variables:", state_llm.variables)
 
 
 if __name__ == "__main__":

@@ -1,22 +1,49 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 from agentfw.core.state import ExecutionContext
 from agentfw.runtime.engine import ExecutionEngine
 from agentfw.tools.base import BaseTool
+from agentfw.llm.base import LLMClient
 
 
 @dataclass
 class LLMTool(BaseTool):
-    """Abstract tool representing a language model backend call."""
+    """
+    Tool that calls an LLMClient to generate text based on a prompt template.
 
-    backend_name: Optional[str] = None
+    The behavior is controlled entirely by 'params' from the step definition.
+    """
 
-    def execute(self, ctx: ExecutionContext, params: Dict[str, object]) -> Dict[str, object]:
-        """Invoke the language model backend with provided parameters."""
-        raise NotImplementedError()
+    client: LLMClient
+
+    def execute(self, ctx: ExecutionContext, params: Dict[str, Any]) -> Dict[str, Any]:
+        has_prompt = "prompt" in params
+        has_prompt_var = "prompt_var" in params
+
+        if not (has_prompt or has_prompt_var):
+            raise ValueError("LLMTool requires either 'prompt' or 'prompt_var'")
+
+        prompt: Optional[str]
+        if has_prompt:
+            template = str(params.get("prompt", ""))
+            prompt = ctx.resolve_template(template)
+        else:
+            var_name = str(params.get("prompt_var"))
+            prompt = str(ctx.get_var(var_name, ""))
+
+        options = params.get("options", {}) or {}
+        if not isinstance(options, dict):
+            raise ValueError("LLMTool 'options' must be a mapping if provided")
+
+        output_text = self.client.generate(prompt, **options)
+
+        return {
+            "prompt": prompt,
+            "output_text": output_text,
+        }
 
 
 @dataclass
