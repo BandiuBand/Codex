@@ -14,7 +14,13 @@ from agentfw.core.registry import AgentRegistry, ToolRegistry
 from agentfw.llm.base import DummyLLMClient, OllamaLLMClient
 from agentfw.persistence.storage import FileRunStorage
 from agentfw.runtime.engine import ExecutionEngine
-from agentfw.tools.builtin import AgentCallTool, EchoTool, MathAddTool, LLMTool
+from agentfw.tools.builtin import (
+    AcceptValidatorTool,
+    AgentCallTool,
+    EchoTool,
+    MathAddTool,
+    LLMTool,
+)
 
 
 llm_config = LLMConfig.from_env()
@@ -37,6 +43,7 @@ tool_registry = ToolRegistry(tools={})
 tool_registry.register("echo", EchoTool())
 tool_registry.register("math_add", MathAddTool())
 tool_registry.register("llm", LLMTool(client=llm_client))
+tool_registry.register("cerber_accept", AcceptValidatorTool())
 
 
 def main() -> None:

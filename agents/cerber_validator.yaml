@@ -1,0 +1,27 @@
+name: cerber_validator
+description: Simple validator that always accepts, demo only.
+
+input_schema: null
+output_schema: null
+
+serialize:
+  enabled: false
+  base_dir: null
+  per_step: false
+
+entry_step_id: decide
+end_step_ids:
+  - decide
+
+steps:
+  decide:
+    kind: tool
+    tool_name: cerber_accept
+    tool_params:
+      message: "Cerber approves the step"
+    save_mapping:
+      validation: validation
+    validator_agent_name: null
+    validator_params: {}
+    validator_policy: {}
+    transitions: []
