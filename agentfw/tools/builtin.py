@@ -133,3 +133,27 @@ class MathAddTool(BaseTool):
         b_value = ctx.get_var(b_name)
         result = (a_value or 0) + (b_value or 0)
         return {"result": result}
+
+
+@dataclass
+class AcceptValidatorTool(BaseTool):
+    """Simple tool that unconditionally approves validation."""
+
+    default_message: str = "Validation accepted"
+
+    def execute(self, ctx: ExecutionContext, params: dict) -> dict:
+        message = str(params.get("message", self.default_message))
+        patch = params.get("patch") or {}
+
+        if patch is not None and not isinstance(patch, dict):
+            raise ValueError("AcceptValidatorTool 'patch' param must be a mapping if provided")
+
+        validation_result: Dict[str, object] = {
+            "status": "accept",
+            "message": message,
+        }
+
+        if isinstance(patch, dict) and patch:
+            validation_result["patch"] = patch
+
+        return {"validation": validation_result}

@@ -45,6 +45,7 @@ class FileRunStorage(RunStorage):
             "finished": state.finished,
             "failed": state.failed,
             "variables": state.variables,
+            "retry_counts": state.retry_counts,
         }
 
         with (run_dir / "state.json").open("w", encoding="utf-8") as f:

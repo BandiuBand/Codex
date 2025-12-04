@@ -32,6 +32,7 @@ class ExecutionEngine:
             failed=False,
             variables=dict(input_json),
             history=[],
+            retry_counts={},
         )
 
         if definition.serialize_enabled:
@@ -81,6 +82,121 @@ class ExecutionEngine:
                 error = str(exc)
                 ctx.state.failed = True
 
+        if error is not None:
+            finished_at = time.time()
+            record = StepExecutionRecord(
+                step_id=step_def.id,
+                started_at=started_at,
+                finished_at=finished_at,
+                input_variables_snapshot=input_snapshot,
+                tool_result=tool_result,
+                validator_result=validator_result,
+                chosen_transition=None,
+                error=error,
+            )
+            ctx.state.history.append(record)
+            if ctx.definition.serialize_enabled:
+                self.storage.save_step_record(ctx.state, record)
+            ctx.state.failed = True
+            return
+
+        for var_name, result_key in step_def.save_mapping.items():
+            if tool_result and result_key in tool_result:
+                ctx.state.variables[var_name] = tool_result[result_key]
+
+        if step_def.validator_agent_name:
+            retry_counts = ctx.state.retry_counts
+            attempt = retry_counts.get(step_def.id, 0) + 1
+            validator_input = {
+                "run_id": ctx.state.run_id,
+                "agent_name": ctx.state.agent_name,
+                "step_id": step_def.id,
+                "step_name": step_def.name,
+                "tool_name": step_def.tool_name,
+                "attempt": attempt,
+                "input_variables": input_snapshot,
+                "output_variables": dict(ctx.state.variables),
+                "tool_result": tool_result or {},
+                "validator_params": step_def.validator_params or {},
+            }
+
+            validator_state = self.run_to_completion(
+                agent_name=step_def.validator_agent_name,
+                input_json=validator_input,
+            )
+
+            validation_payload = validator_state.variables.get("validation", {})
+            if not isinstance(validation_payload, dict):
+                validation_payload = {}
+
+            validator_result = validation_payload
+
+            status_raw = validation_payload.get("status")
+            status = str(status_raw).lower() if status_raw is not None else ""
+            message = str(validation_payload.get("message", ""))
+            patch = validation_payload.get("patch")
+
+            max_retries_raw = step_def.validator_policy.get("max_retries", "0")
+            try:
+                max_retries = int(max_retries_raw) if max_retries_raw is not None else 0
+            except (TypeError, ValueError):
+                max_retries = 0
+
+            retry_counts[step_def.id] = attempt
+
+            if validator_state.failed:
+                status = "fail"
+                if not message:
+                    message = "validator agent failed"
+
+            if not status:
+                status = "fail"
+                if not message:
+                    message = "validator did not return a status"
+
+            if status == "accept":
+                if isinstance(patch, dict):
+                    ctx.state.variables.update(patch)
+            elif status == "retry":
+                if attempt <= max_retries:
+                    finished_at = time.time()
+                    record = StepExecutionRecord(
+                        step_id=step_def.id,
+                        started_at=started_at,
+                        finished_at=finished_at,
+                        input_variables_snapshot=input_snapshot,
+                        tool_result=tool_result,
+                        validator_result=validator_result,
+                        chosen_transition=None,
+                        error=None,
+                    )
+                    ctx.state.history.append(record)
+                    if ctx.definition.serialize_enabled:
+                        self.storage.save_step_record(ctx.state, record)
+                    return
+                status = "fail"
+                if not message:
+                    message = "maximum retries exceeded"
+
+            if status == "fail":
+                error = f"validation failed: {message}" if message else "validation failed"
+                finished_at = time.time()
+                record = StepExecutionRecord(
+                    step_id=step_def.id,
+                    started_at=started_at,
+                    finished_at=finished_at,
+                    input_variables_snapshot=input_snapshot,
+                    tool_result=tool_result,
+                    validator_result=validator_result,
+                    chosen_transition=None,
+                    error=error,
+                )
+                ctx.state.history.append(record)
+                if ctx.definition.serialize_enabled:
+                    self.storage.save_step_record(ctx.state, record)
+                ctx.state.failed = True
+                return
+
         finished_at = time.time()
 
         record = StepExecutionRecord(
@@ -93,17 +209,6 @@ class ExecutionEngine:
             chosen_transition=None,
             error=error,
         )
-
-        if error is not None:
-            ctx.state.history.append(record)
-            if ctx.definition.serialize_enabled:
-                self.storage.save_step_record(ctx.state, record)
-            ctx.state.failed = True
-            return
-
-        for var_name, result_key in step_def.save_mapping.items():
-            if tool_result and result_key in tool_result:
-                ctx.state.variables[var_name] = tool_result[result_key]
 
         next_step_id = self._choose_transition(ctx, step_def, tool_result, validator_result)
         record.chosen_transition = next_step_id
