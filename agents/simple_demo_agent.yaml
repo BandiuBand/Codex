@@ -1,0 +1,87 @@
+name: simple_demo_agent
+description: Simple demo agent with sum and branching.
+
+input_schema: null
+output_schema: null
+
+serialize:
+  enabled: true
+  base_dir: "./data/runs"
+  per_step: true
+
+entry_step_id: init
+end_step_ids:
+  - big
+  - small
+
+steps:
+  init:
+    kind: tool
+    tool_name: null
+    tool_params: {}
+    save_mapping: {}
+    validator_agent_name: null
+    validator_params: {}
+    validator_policy: {}
+    transitions:
+      - target_step_id: sum_step
+        condition:
+          type: always
+
+  sum_step:
+    kind: tool
+    tool_name: math_add
+    tool_params:
+      a_var: x
+      b_var: y
+    save_mapping:
+      sum: result
+    validator_agent_name: null
+    validator_params: {}
+    validator_policy: {}
+    transitions:
+      - target_step_id: branch_step
+        condition:
+          type: always
+
+  branch_step:
+    kind: tool
+    tool_name: null
+    tool_params: {}
+    save_mapping: {}
+    validator_agent_name: null
+    validator_params: {}
+    validator_policy: {}
+    transitions:
+      - target_step_id: big
+        condition:
+          type: greater_than
+          value_from: sum
+          value: 10
+      - target_step_id: small
+        condition:
+          type: always
+
+  big:
+    kind: tool
+    tool_name: echo
+    tool_params:
+      text: "Sum {sum} is BIG"
+    save_mapping:
+      message: output_text
+    validator_agent_name: null
+    validator_params: {}
+    validator_policy: {}
+    transitions: []
+
+  small:
+    kind: tool
+    tool_name: echo
+    tool_params:
+      text: "Sum {sum} is small"
+    save_mapping:
+      message: output_text
+    validator_agent_name: null
+    validator_params: {}
+    validator_policy: {}
+    transitions: []
