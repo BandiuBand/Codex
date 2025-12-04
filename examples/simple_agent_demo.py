@@ -12,7 +12,7 @@ from agentfw.core.models import (
 from agentfw.core.registry import AgentRegistry, ToolRegistry
 from agentfw.persistence.storage import FileRunStorage
 from agentfw.runtime.engine import ExecutionEngine
-from agentfw.tools.builtin import EchoTool, MathAddTool
+from agentfw.tools.builtin import EchoTool, FlakyTool, MathAddTool
 
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data" / "runs"
@@ -23,6 +23,7 @@ DATA_DIR = Path(__file__).resolve().parent.parent / "data" / "runs"
 tool_registry = ToolRegistry(tools={})
 tool_registry.register("echo", EchoTool())
 tool_registry.register("math_add", MathAddTool())
+tool_registry.register("flaky", FlakyTool())
 
 # Step definitions
 init_step = StepDefinition(

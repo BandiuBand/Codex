@@ -203,6 +203,17 @@ class FlakyTool(BaseTool):
     """
 
     def execute(self, ctx: ExecutionContext, params: dict) -> dict:
+        """
+        Expected params:
+          - counter_var: name of the counter variable (default: "__flaky_attempt")
+          - message: base message text (default: "Simulated flaky call")
+          - reset: if True, reset counter before increment
+
+        Behavior:
+          - Reads integer counter from ctx.state.variables[counter_var] (default 0)
+          - Increments it by 1 and writes back
+          - Returns {"attempt": int, "message": str}
+        """
         counter_var = str(params.get("counter_var", "__flaky_attempt"))
         base_message = str(params.get("message", "Simulated flaky call"))
         reset = bool(params.get("reset", False))
@@ -210,7 +221,7 @@ class FlakyTool(BaseTool):
         if reset:
             ctx.state.variables.pop(counter_var, None)
 
-        attempt = int(ctx.state.variables.get(counter_var, 0)) + 1
+        attempt = int(ctx.state.variables.get(counter_var, 0) or 0) + 1
         ctx.state.variables[counter_var] = attempt
 
         return {
@@ -220,21 +231,46 @@ class FlakyTool(BaseTool):
 
 
 class AttemptThresholdValidatorTool(BaseTool):
-    """Validator that retries until a configured attempt threshold is reached."""
+    """Validator that retries until a configured attempt threshold is reached.
+
+    Expects that the main step stores the current attempt number in variable 'attempt'
+    (e.g. via FlakyTool + save_mapping).
+    """
 
     def execute(self, ctx: ExecutionContext, params: dict) -> dict:
+        """
+        Sources of configuration:
+
+        1) validator_params (from step definition), passed via validator_input:
+           - accept_after: int (attempt number from which we accept)
+           - force_fail: bool/str (if true, always fail regardless of attempt)
+           - fail_message: str (message when forcing failure)
+
+        2) Local params (fallback, if not present in validator_params):
+           - accept_after
+           - force_fail
+           - fail_message
+        """
+
+        # validator_params приходять з validator_input → state.variables["validator_params"]
         validator_params = ctx.get_var("validator_params", {}) or {}
 
         accept_after_raw = validator_params.get("accept_after", params.get("accept_after", 1))
         force_fail_raw = validator_params.get("force_fail", params.get("force_fail", False))
-        fail_message = str(validator_params.get("fail_message", params.get("fail_message", "explicit failure requested")))
+        fail_message = str(
+            validator_params.get(
+                "fail_message",
+                params.get("fail_message", "explicit failure requested"),
+            )
+        )
 
+        # безпечна конвертація accept_after в int
         try:
             accept_after = int(accept_after_raw)
         except (TypeError, ValueError):
             accept_after = 1
 
-        force_fail = False
+        # привідніть force_fail до bool
         if isinstance(force_fail_raw, str):
             force_fail = force_fail_raw.strip().lower() in {"1", "true", "yes", "y", "on", "fail"}
         else:
@@ -256,3 +292,4 @@ class AttemptThresholdValidatorTool(BaseTool):
             }
 
         return {"validation": validation}
+

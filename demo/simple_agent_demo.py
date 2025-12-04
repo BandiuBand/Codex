@@ -50,6 +50,7 @@ tool_registry.register("cerber_accept", AcceptValidatorTool())
 tool_registry.register("flaky", FlakyTool())
 tool_registry.register("retry_validator", AttemptThresholdValidatorTool())
 tool_registry.register("shell", ShellTool())
+tool_registry.register("flaky", FlakyTool())
 
 
 def main() -> None:
