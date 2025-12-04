@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List
+from typing import Dict, List, Optional
 
+from agentfw.config.loader import AgentConfigLoader
 from agentfw.core.models import AgentDefinition
 from agentfw.tools.base import BaseTool
 
@@ -13,14 +14,24 @@ class AgentRegistry:
 
     agents: Dict[str, AgentDefinition] = field(default_factory=dict)
     config_dirs: List[str] = field(default_factory=list)
+    config_loader: Optional[AgentConfigLoader] = None
 
     def load_all(self) -> None:
-        """Placeholder for loading all agent configurations."""
-        raise NotImplementedError()
+        """Load agent definitions from YAML configuration files."""
+        if not self.config_dirs:
+            return
+
+        if self.config_loader is None:
+            self.config_loader = AgentConfigLoader(self.config_dirs)
+
+        definitions = self.config_loader.load_all()
+        for definition in definitions:
+            self.register(definition)
 
     def reload(self) -> None:
-        """Placeholder for reloading agent configurations."""
-        raise NotImplementedError()
+        """Clear registry and reload all agent definitions."""
+        self.agents.clear()
+        self.load_all()
 
     def register(self, definition: AgentDefinition) -> None:
         """Register an agent definition in the registry."""
