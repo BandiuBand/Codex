@@ -2,9 +2,13 @@ const state = {
   steps: {},
   entryStepId: '',
   endStepIds: new Set(),
+  agents: [],
   tools: [],
   conditions: [],
   dragging: null,
+  draggingLink: null,
+  selectedStepId: null,
+  counter: 1,
 };
 
 const canvas = document.getElementById('graphCanvas');
@@ -16,6 +20,45 @@ async function fetchTools() {
   state.tools = data.tools || [];
   state.conditions = data.conditions || [];
   populateToolAndConditionOptions();
+  renderToolPalette();
+}
+
+async function fetchAgents(autoLoadFirst = false) {
+  const res = await fetch('/api/agents');
+  if (!res.ok) return;
+  const data = await res.json();
+  state.agents = data.agents || [];
+  populateAgentOptions();
+
+  if (autoLoadFirst && state.agents.length) {
+    await loadAgent(state.agents[0]);
+    document.getElementById('agentSelect').value = state.agents[0];
+  } else if (!state.agents.length) {
+    newAgent(true);
+  }
+}
+
+function renderToolPalette() {
+  const palette = document.getElementById('toolPalette');
+  palette.innerHTML = '';
+  state.tools.forEach((tool) => {
+    const pill = document.createElement('div');
+    pill.className = 'tool-pill';
+    pill.draggable = true;
+    const title = document.createElement('strong');
+    title.textContent = tool.name || tool;
+    const desc = document.createElement('span');
+    desc.textContent = tool.description || '';
+    desc.className = 'muted';
+    pill.appendChild(title);
+    if (desc.textContent) pill.appendChild(desc);
+    pill.title = tool.description || '';
+    pill.dataset.tool = tool.name || tool;
+    pill.addEventListener('dragstart', (e) => {
+      e.dataTransfer.setData('text/plain', pill.dataset.tool);
+    });
+    palette.appendChild(pill);
+  });
 }
 
 function populateToolAndConditionOptions() {
@@ -23,8 +66,8 @@ function populateToolAndConditionOptions() {
   toolSelect.innerHTML = '<option value="">--</option>';
   state.tools.forEach((tool) => {
     const opt = document.createElement('option');
-    opt.value = tool;
-    opt.textContent = tool;
+    opt.value = tool.name || tool;
+    opt.textContent = tool.name || tool;
     toolSelect.appendChild(opt);
   });
 
@@ -32,9 +75,21 @@ function populateToolAndConditionOptions() {
   condSelect.innerHTML = '';
   state.conditions.forEach((cond) => {
     const opt = document.createElement('option');
-    opt.value = cond;
-    opt.textContent = cond;
+    const value = cond.type || cond;
+    opt.value = value;
+    opt.textContent = value;
     condSelect.appendChild(opt);
+  });
+}
+
+function populateAgentOptions() {
+  const select = document.getElementById('agentSelect');
+  select.innerHTML = '<option value="">-- select existing --</option>';
+  state.agents.forEach((name) => {
+    const opt = document.createElement('option');
+    opt.value = name;
+    opt.textContent = name;
+    select.appendChild(opt);
   });
 }
 
@@ -49,6 +104,16 @@ function addStep(step) {
   };
   refreshSelectors();
   render();
+}
+
+function nextStepId(base = 'step') {
+  let id = `${base}_${state.counter}`;
+  while (state.steps[id]) {
+    state.counter += 1;
+    id = `${base}_${state.counter}`;
+  }
+  state.counter += 1;
+  return id;
 }
 
 function refreshSelectors() {
@@ -95,6 +160,103 @@ function refreshSelectors() {
     state.entryStepId = ids[0];
     entrySelect.value = state.entryStepId;
   }
+}
+
+function getStepAt(x, y) {
+  return Object.values(state.steps).find(
+    (step) => x >= step.x && x <= step.x + 140 && y >= step.y && y <= step.y + 60,
+  );
+}
+
+function selectStep(stepId) {
+  state.selectedStepId = stepId;
+  const step = state.steps[stepId];
+  if (!step) {
+    document.getElementById('inspectorContent').textContent = 'Select a step to see details.';
+    return;
+  }
+
+  document.getElementById('stepId').value = step.id;
+  document.getElementById('stepName').value = step.name || '';
+  document.getElementById('stepKind').value = step.kind || '';
+  document.getElementById('toolName').value = step.tool_name || '';
+  document.getElementById('toolParams').value = JSON.stringify(step.tool_params || {}, null, 2);
+  document.getElementById('saveMapping').value = JSON.stringify(step.save_mapping || {}, null, 2);
+  document.getElementById('validatorAgent').value = step.validator_agent_name || '';
+  document.getElementById('validatorParams').value = JSON.stringify(step.validator_params || {}, null, 2);
+  document.getElementById('validatorPolicy').value = JSON.stringify(step.validator_policy || {}, null, 2);
+
+  renderInspector(step);
+  render();
+}
+
+function renderInspector(step) {
+  const panel = document.getElementById('inspectorContent');
+  if (!step) {
+    panel.textContent = 'Select a step to see details.';
+    return;
+  }
+
+  const inputKeys = Object.keys(step.tool_params || {});
+  const outputKeys = Object.keys(step.save_mapping || {});
+
+  panel.innerHTML = `
+    <div class="inspector-row"><strong>${step.id}</strong><span class="badge">${
+    state.entryStepId === step.id ? 'entry' : 'step'
+  }</span></div>
+    <div class="inspector-row"><span>Tool</span><span>${step.tool_name || '—'}</span></div>
+    <div class="inspector-row"><span>Kind</span><span>${step.kind || 'tool'}</span></div>
+    <div class="inspector-row"><span>Validator</span><span>${
+      step.validator_agent_name || '—'
+    }</span></div>
+    <div class="inspector-row"><span>Inputs</span><span class="pill-list" data-role="inputs"></span></div>
+    <div class="inspector-row"><span>Outputs</span><span class="pill-list" data-role="outputs"></span></div>
+    <div class="connector-hint">Hold Shift and drag from this step to another to link them.</div>
+    <div class="actions">
+      <button id="setEntryBtn">Set as entry</button>
+      <button id="toggleEndBtn">${state.endStepIds.has(step.id) ? 'Unset end' : 'Mark as end'}</button>
+    </div>
+  `;
+
+  const inputsContainer = document.createElement('div');
+  inputsContainer.className = 'pill-list';
+  (inputKeys.length ? inputKeys : ['—']).forEach((k) => {
+    const span = document.createElement('span');
+    span.className = 'badge';
+    span.textContent = k;
+    inputsContainer.appendChild(span);
+  });
+
+  const outputsContainer = document.createElement('div');
+  outputsContainer.className = 'pill-list';
+  (outputKeys.length ? outputKeys : ['—']).forEach((k) => {
+    const span = document.createElement('span');
+    span.className = 'badge';
+    span.textContent = k;
+    outputsContainer.appendChild(span);
+  });
+
+  panel.querySelector('[data-role="inputs"]')?.replaceWith(inputsContainer);
+  panel.querySelector('[data-role="outputs"]')?.replaceWith(outputsContainer);
+
+  panel.querySelector('#setEntryBtn')?.addEventListener('click', () => {
+    state.entryStepId = step.id;
+    document.getElementById('entryStep').value = step.id;
+    render();
+    updatePreview();
+  });
+
+  panel.querySelector('#toggleEndBtn')?.addEventListener('click', () => {
+    if (state.endStepIds.has(step.id)) {
+      state.endStepIds.delete(step.id);
+    } else {
+      state.endStepIds.add(step.id);
+    }
+    refreshSelectors();
+    renderInspector(step);
+    render();
+    updatePreview();
+  });
 }
 
 function parseJsonField(value) {
@@ -179,8 +341,32 @@ function render() {
       ctx.closePath();
       ctx.fillStyle = '#1d5dff';
       ctx.fill();
+
+      if (tr.condition?.type) {
+        const midX = (startX + endX) / 2;
+        const midY = (startY + endY) / 2;
+        ctx.fillStyle = 'rgba(13, 27, 42, 0.7)';
+        ctx.font = '11px Inter';
+        ctx.fillText(tr.condition.type, midX + 4, midY - 4);
+      }
     });
   });
+
+  if (state.draggingLink) {
+    const source = state.steps[state.draggingLink.from];
+    if (source) {
+      const startX = source.x + 70;
+      const startY = source.y + 30;
+      const { x, y } = state.draggingLink;
+      ctx.strokeStyle = '#f39c12';
+      ctx.setLineDash([6, 4]);
+      ctx.beginPath();
+      ctx.moveTo(startX, startY);
+      ctx.lineTo(x, y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
 
   // Draw nodes
   Object.values(state.steps).forEach((step) => {
@@ -188,7 +374,7 @@ function render() {
     const height = 60;
     ctx.fillStyle = state.entryStepId === step.id ? '#e8f1ff' : '#ffffff';
     ctx.strokeStyle = '#1d5dff';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = state.selectedStepId === step.id ? 3 : 2;
     ctx.beginPath();
     if (ctx.roundRect) {
       ctx.roundRect(step.x, step.y, width, height, 10);
@@ -214,17 +400,25 @@ function render() {
 
 function startDrag(event) {
   const { offsetX, offsetY } = event;
-  const hit = Object.values(state.steps).find(
-    (step) => offsetX >= step.x && offsetX <= step.x + 140 && offsetY >= step.y && offsetY <= step.y + 60,
-  );
+  const hit = getStepAt(offsetX, offsetY);
+  if (hit && event.shiftKey) {
+    state.draggingLink = { from: hit.id, x: offsetX, y: offsetY };
+    return;
+  }
   if (hit) {
     state.dragging = { id: hit.id, dx: offsetX - hit.x, dy: offsetY - hit.y };
+    selectStep(hit.id);
   }
 }
 
 function onDrag(event) {
-  if (!state.dragging) return;
   const { offsetX, offsetY } = event;
+  if (state.draggingLink) {
+    state.draggingLink.x = offsetX;
+    state.draggingLink.y = offsetY;
+    render();
+  }
+  if (!state.dragging) return;
   const step = state.steps[state.dragging.id];
   step.x = offsetX - state.dragging.dx;
   step.y = offsetY - state.dragging.dy;
@@ -232,6 +426,10 @@ function onDrag(event) {
 }
 
 function endDrag() {
+  if (state.draggingLink) {
+    state.draggingLink = null;
+    render();
+  }
   state.dragging = null;
 }
 
@@ -274,20 +472,31 @@ function populateFromDefinition(def) {
   state.steps = {};
   state.endStepIds = new Set(def.end_step_ids || []);
   state.entryStepId = def.entry_step_id || '';
+  state.selectedStepId = null;
   Object.entries(def.steps || {}).forEach(([id, step]) => {
     addStep({ id, ...step });
   });
   document.getElementById('entryStep').value = state.entryStepId;
+  const ids = Object.keys(state.steps);
+  if (state.entryStepId && state.steps[state.entryStepId]) {
+    selectStep(state.entryStepId);
+  } else if (ids.length) {
+    selectStep(ids[0]);
+  }
   updatePreview();
   render();
 }
 
 async function loadAgent() {
-  const agentName = document.getElementById('agentName').value.trim();
+  const manualName = document.getElementById('agentName').value.trim();
+  const selectedName = document.getElementById('agentSelect').value;
+  const agentName = typeof arguments[0] === 'string' ? arguments[0] : selectedName || manualName;
   if (!agentName) {
     alert('Provide an agent name to load.');
     return;
   }
+  document.getElementById('agentName').value = agentName;
+  document.getElementById('agentSelect').value = agentName;
   const res = await fetch(`/api/agents/${agentName}`);
   if (!res.ok) {
     alert('Agent not found.');
@@ -295,6 +504,31 @@ async function loadAgent() {
   }
   const data = await res.json();
   populateFromDefinition(data);
+}
+
+function newAgent(seedStep = false) {
+  const seed = typeof seedStep === 'boolean' ? seedStep : true;
+  if (seedStep && typeof seedStep.preventDefault === 'function') {
+    seedStep.preventDefault();
+  }
+  state.steps = {};
+  state.endStepIds = new Set();
+  state.entryStepId = '';
+  state.selectedStepId = null;
+  document.getElementById('agentName').value = 'new_agent';
+  document.getElementById('agentSelect').value = '';
+  document.getElementById('inspectorContent').textContent = 'Select a step to see details.';
+  if (seed) {
+    const tool = state.tools[0]?.name || state.tools[0];
+    const id = 'init';
+    addStep({ id, name: 'init', kind: 'tool', tool_name: tool });
+    state.entryStepId = id;
+    document.getElementById('entryStep').value = id;
+    selectStep(id);
+  }
+  refreshSelectors();
+  updatePreview();
+  render();
 }
 
 function addTransition(evt) {
@@ -343,6 +577,23 @@ function addStepFromForm(evt) {
   render();
 }
 
+function handleCanvasDrop(evt) {
+  evt.preventDefault();
+  const tool = evt.dataTransfer.getData('text/plain');
+  if (!tool) return;
+  const rect = canvas.getBoundingClientRect();
+  const x = evt.clientX - rect.left - 70;
+  const y = evt.clientY - rect.top - 30;
+  const id = nextStepId(tool || 'step');
+  addStep({ id, name: id, kind: 'tool', tool_name: tool, x, y });
+  if (!state.entryStepId) {
+    state.entryStepId = id;
+    document.getElementById('entryStep').value = id;
+  }
+  selectStep(id);
+  updatePreview();
+}
+
 function importJson() {
   try {
     const data = JSON.parse(document.getElementById('rawJson').value || '{}');
@@ -364,13 +615,18 @@ function exportJson() {
   URL.revokeObjectURL(url);
 }
 
-function init() {
-  fetchTools();
+async function init() {
+  await fetchTools();
   document.getElementById('stepForm').addEventListener('submit', addStepFromForm);
   document.getElementById('transitionForm').addEventListener('submit', addTransition);
   document.getElementById('saveAgent').addEventListener('click', saveAgent);
   document.getElementById('validateAgent').addEventListener('click', validateAgent);
   document.getElementById('loadAgent').addEventListener('click', loadAgent);
+  document.getElementById('newAgent').addEventListener('click', newAgent);
+  document.getElementById('refreshAgents').addEventListener('click', () => fetchAgents());
+  document.getElementById('agentSelect').addEventListener('change', (e) => {
+    document.getElementById('agentName').value = e.target.value;
+  });
   document.getElementById('entryStep').addEventListener('change', (e) => {
     state.entryStepId = e.target.value;
     render();
@@ -384,9 +640,33 @@ function init() {
 
   canvas.addEventListener('mousedown', startDrag);
   canvas.addEventListener('mousemove', onDrag);
-  canvas.addEventListener('mouseup', endDrag);
+  canvas.addEventListener('mouseup', (event) => {
+    if (state.draggingLink) {
+      const hit = getStepAt(event.offsetX, event.offsetY);
+      if (hit && hit.id !== state.draggingLink.from) {
+        const fromStep = state.steps[state.draggingLink.from];
+        fromStep.transitions = fromStep.transitions || [];
+        fromStep.transitions.push({ target_step_id: hit.id, condition: { type: 'always' } });
+        refreshSelectors();
+        updatePreview();
+      }
+      state.draggingLink = null;
+      render();
+      return;
+    }
+    endDrag();
+  });
   canvas.addEventListener('mouseleave', endDrag);
+  canvas.addEventListener('click', (event) => {
+    const hit = getStepAt(event.offsetX, event.offsetY);
+    if (hit) {
+      selectStep(hit.id);
+    }
+  });
+  canvas.addEventListener('dragover', (e) => e.preventDefault());
+  canvas.addEventListener('drop', handleCanvasDrop);
 
+  await fetchAgents(true);
   render();
 }
 
