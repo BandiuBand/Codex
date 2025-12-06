@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Agent Graph Editor</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Agent Graph Editor</h1>
+      <p>Create and validate agent definitions with a simple canvas editor.</p>
+    </header>
+
+    <section class="panel">
+      <div class="field-group">
+        <label for="agentName">Agent name</label>
+        <input id="agentName" type="text" placeholder="my_agent" />
+        <button id="loadAgent">Load</button>
+        <button id="saveAgent">Save</button>
+        <button id="validateAgent">Run preview</button>
+      </div>
+      <div class="field-group">
+        <label for="entryStep">Entry step</label>
+        <select id="entryStep"></select>
+      </div>
+      <div class="field-group">
+        <label>End steps</label>
+        <div id="endSteps"></div>
+      </div>
+    </section>
+
+    <section class="panel grid">
+      <div>
+        <h2>Add step</h2>
+        <form id="stepForm">
+          <div class="field-group">
+            <label for="stepId">ID</label>
+            <input id="stepId" required />
+          </div>
+          <div class="field-group">
+            <label for="stepName">Name</label>
+            <input id="stepName" />
+          </div>
+          <div class="field-group">
+            <label for="stepKind">Kind</label>
+            <input id="stepKind" placeholder="action/validator" />
+          </div>
+          <div class="field-group">
+            <label for="toolName">Tool</label>
+            <select id="toolName"></select>
+          </div>
+          <div class="field-group">
+            <label for="toolParams">Tool params (JSON)</label>
+            <textarea id="toolParams" rows="2" placeholder='{"prompt": "hi"}'></textarea>
+          </div>
+          <div class="field-group">
+            <label for="saveMapping">Save mapping (JSON)</label>
+            <textarea id="saveMapping" rows="2" placeholder='{"var": "from"}'></textarea>
+          </div>
+          <div class="field-group">
+            <label for="validatorAgent">Validator agent</label>
+            <input id="validatorAgent" />
+          </div>
+          <div class="field-group">
+            <label for="validatorParams">Validator params (JSON)</label>
+            <textarea id="validatorParams" rows="2"></textarea>
+          </div>
+          <div class="field-group">
+            <label for="validatorPolicy">Validator policy (JSON)</label>
+            <textarea id="validatorPolicy" rows="2"></textarea>
+          </div>
+          <button type="submit">Add / Update step</button>
+        </form>
+      </div>
+      <div>
+        <h2>Add transition</h2>
+        <form id="transitionForm">
+          <div class="field-group">
+            <label for="fromStep">From</label>
+            <select id="fromStep"></select>
+          </div>
+          <div class="field-group">
+            <label for="toStep">To</label>
+            <select id="toStep"></select>
+          </div>
+          <div class="field-group">
+            <label for="conditionType">Condition type</label>
+            <select id="conditionType"></select>
+          </div>
+          <div class="field-group">
+            <label for="conditionValueFrom">Value from</label>
+            <input id="conditionValueFrom" />
+          </div>
+          <div class="field-group">
+            <label for="conditionValue">Value</label>
+            <input id="conditionValue" />
+          </div>
+          <div class="field-group">
+            <label for="conditionExpression">Expression</label>
+            <input id="conditionExpression" />
+          </div>
+          <div class="field-group">
+            <label for="conditionExtra">Extra (JSON)</label>
+            <textarea id="conditionExtra" rows="2"></textarea>
+          </div>
+          <button type="submit">Link steps</button>
+        </form>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="field-group">
+        <label for="rawJson">JSON preview</label>
+        <textarea id="rawJson" rows="6"></textarea>
+      </div>
+      <div class="field-group actions">
+        <button id="importJson">Import JSON</button>
+        <button id="exportJson">Export JSON</button>
+      </div>
+    </section>
+
+    <section class="canvas-wrapper">
+      <canvas id="graphCanvas" width="900" height="520"></canvas>
+    </section>
+
+    <footer>
+      <p>Use drag &amp; drop to move steps. Add transitions to draw arrows between nodes.</p>
+    </footer>
+
+    <script src="app.js"></script>
+  </body>
+</html>
