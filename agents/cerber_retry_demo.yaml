@@ -16,7 +16,7 @@ end_step_ids:
 steps:
   decide:
     kind: tool
-    tool_name: retry_validator
+    tool_name: attempt_threshold_validator
     tool_params: {}
     save_mapping:
       validation: validation

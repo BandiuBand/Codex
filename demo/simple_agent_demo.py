@@ -48,9 +48,8 @@ tool_registry.register("math_add", MathAddTool())
 tool_registry.register("llm", LLMTool(client=llm_client))
 tool_registry.register("cerber_accept", AcceptValidatorTool())
 tool_registry.register("flaky", FlakyTool())
-tool_registry.register("retry_validator", AttemptThresholdValidatorTool())
+tool_registry.register("attempt_threshold_validator", AttemptThresholdValidatorTool())
 tool_registry.register("shell", ShellTool())
-tool_registry.register("flaky", FlakyTool())
 
 
 def main() -> None:
@@ -79,6 +78,12 @@ def main() -> None:
         input_json={},
     )
     print("Shell demo variables:", state_shell.variables)
+
+    state_flaky_demo = engine.run_to_completion(
+        agent_name="flaky_demo_agent",
+        input_json={},
+    )
+    print("Flaky demo variables:", state_flaky_demo.variables)
 
     state1 = engine.run_to_completion(
         agent_name="simple_demo_agent",

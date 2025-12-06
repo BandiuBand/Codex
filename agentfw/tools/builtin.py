@@ -107,7 +107,8 @@ class ShellTool(BaseTool):
         else:
             raise ValueError("ShellTool 'command' must be a string or list")
 
-        allow_failure = bool(params.get("allow_failure", True))
+        # Conservative default: treat non-zero return codes as errors unless explicitly allowed.
+        allow_failure = bool(params.get("allow_failure", False))
         cwd = params.get("cwd")
         timeout = params.get("timeout")
         env = params.get("env")
