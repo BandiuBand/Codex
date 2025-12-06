@@ -39,10 +39,29 @@
       </div>
     </section>
 
-    <section class="panel">
-      <h2>Tool palette</h2>
-      <p class="muted">Drag a tool onto the canvas to create a step.</p>
-      <div id="toolPalette" class="tool-palette"></div>
+    <section class="workspace">
+      <aside class="panel palette">
+        <div class="palette-header">
+          <div>
+            <h2>Tool palette</h2>
+            <p class="muted">Drag tools to the canvas to create steps.</p>
+          </div>
+        </div>
+        <div id="toolPalette" class="tool-palette"></div>
+      </aside>
+
+      <div class="canvas-stack">
+        <div class="canvas-legend">
+          <span>Shift + drag from a step to create a transition</span>
+          <span>Drag steps to rearrange</span>
+        </div>
+        <canvas id="graphCanvas" width="1100" height="640"></canvas>
+      </div>
+
+      <aside class="panel inspector">
+        <h2>Step inspector</h2>
+        <div id="inspectorContent" class="inspector-content">Select a step to see details.</div>
+      </aside>
     </section>
 
     <section class="panel grid">
@@ -133,10 +152,6 @@
         <button id="importJson">Import JSON</button>
         <button id="exportJson">Export JSON</button>
       </div>
-    </section>
-
-    <section class="canvas-wrapper">
-      <canvas id="graphCanvas" width="900" height="520"></canvas>
     </section>
 
     <footer>

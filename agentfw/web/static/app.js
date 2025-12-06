@@ -6,6 +6,8 @@ const state = {
   tools: [],
   conditions: [],
   dragging: null,
+  draggingLink: null,
+  selectedStepId: null,
   counter: 1,
 };
 
@@ -43,7 +45,13 @@ function renderToolPalette() {
     const pill = document.createElement('div');
     pill.className = 'tool-pill';
     pill.draggable = true;
-    pill.textContent = tool.name || tool;
+    const title = document.createElement('strong');
+    title.textContent = tool.name || tool;
+    const desc = document.createElement('span');
+    desc.textContent = tool.description || '';
+    desc.className = 'muted';
+    pill.appendChild(title);
+    if (desc.textContent) pill.appendChild(desc);
     pill.title = tool.description || '';
     pill.dataset.tool = tool.name || tool;
     pill.addEventListener('dragstart', (e) => {
@@ -154,6 +162,103 @@ function refreshSelectors() {
   }
 }
 
+function getStepAt(x, y) {
+  return Object.values(state.steps).find(
+    (step) => x >= step.x && x <= step.x + 140 && y >= step.y && y <= step.y + 60,
+  );
+}
+
+function selectStep(stepId) {
+  state.selectedStepId = stepId;
+  const step = state.steps[stepId];
+  if (!step) {
+    document.getElementById('inspectorContent').textContent = 'Select a step to see details.';
+    return;
+  }
+
+  document.getElementById('stepId').value = step.id;
+  document.getElementById('stepName').value = step.name || '';
+  document.getElementById('stepKind').value = step.kind || '';
+  document.getElementById('toolName').value = step.tool_name || '';
+  document.getElementById('toolParams').value = JSON.stringify(step.tool_params || {}, null, 2);
+  document.getElementById('saveMapping').value = JSON.stringify(step.save_mapping || {}, null, 2);
+  document.getElementById('validatorAgent').value = step.validator_agent_name || '';
+  document.getElementById('validatorParams').value = JSON.stringify(step.validator_params || {}, null, 2);
+  document.getElementById('validatorPolicy').value = JSON.stringify(step.validator_policy || {}, null, 2);
+
+  renderInspector(step);
+  render();
+}
+
+function renderInspector(step) {
+  const panel = document.getElementById('inspectorContent');
+  if (!step) {
+    panel.textContent = 'Select a step to see details.';
+    return;
+  }
+
+  const inputKeys = Object.keys(step.tool_params || {});
+  const outputKeys = Object.keys(step.save_mapping || {});
+
+  panel.innerHTML = `
+    <div class="inspector-row"><strong>${step.id}</strong><span class="badge">${
+    state.entryStepId === step.id ? 'entry' : 'step'
+  }</span></div>
+    <div class="inspector-row"><span>Tool</span><span>${step.tool_name || '—'}</span></div>
+    <div class="inspector-row"><span>Kind</span><span>${step.kind || 'tool'}</span></div>
+    <div class="inspector-row"><span>Validator</span><span>${
+      step.validator_agent_name || '—'
+    }</span></div>
+    <div class="inspector-row"><span>Inputs</span><span class="pill-list" data-role="inputs"></span></div>
+    <div class="inspector-row"><span>Outputs</span><span class="pill-list" data-role="outputs"></span></div>
+    <div class="connector-hint">Hold Shift and drag from this step to another to link them.</div>
+    <div class="actions">
+      <button id="setEntryBtn">Set as entry</button>
+      <button id="toggleEndBtn">${state.endStepIds.has(step.id) ? 'Unset end' : 'Mark as end'}</button>
+    </div>
+  `;
+
+  const inputsContainer = document.createElement('div');
+  inputsContainer.className = 'pill-list';
+  (inputKeys.length ? inputKeys : ['—']).forEach((k) => {
+    const span = document.createElement('span');
+    span.className = 'badge';
+    span.textContent = k;
+    inputsContainer.appendChild(span);
+  });
+
+  const outputsContainer = document.createElement('div');
+  outputsContainer.className = 'pill-list';
+  (outputKeys.length ? outputKeys : ['—']).forEach((k) => {
+    const span = document.createElement('span');
+    span.className = 'badge';
+    span.textContent = k;
+    outputsContainer.appendChild(span);
+  });
+
+  panel.querySelector('[data-role="inputs"]')?.replaceWith(inputsContainer);
+  panel.querySelector('[data-role="outputs"]')?.replaceWith(outputsContainer);
+
+  panel.querySelector('#setEntryBtn')?.addEventListener('click', () => {
+    state.entryStepId = step.id;
+    document.getElementById('entryStep').value = step.id;
+    render();
+    updatePreview();
+  });
+
+  panel.querySelector('#toggleEndBtn')?.addEventListener('click', () => {
+    if (state.endStepIds.has(step.id)) {
+      state.endStepIds.delete(step.id);
+    } else {
+      state.endStepIds.add(step.id);
+    }
+    refreshSelectors();
+    renderInspector(step);
+    render();
+    updatePreview();
+  });
+}
+
 function parseJsonField(value) {
   if (!value || !value.trim()) return {};
   try {
@@ -236,8 +341,32 @@ function render() {
       ctx.closePath();
       ctx.fillStyle = '#1d5dff';
       ctx.fill();
+
+      if (tr.condition?.type) {
+        const midX = (startX + endX) / 2;
+        const midY = (startY + endY) / 2;
+        ctx.fillStyle = 'rgba(13, 27, 42, 0.7)';
+        ctx.font = '11px Inter';
+        ctx.fillText(tr.condition.type, midX + 4, midY - 4);
+      }
     });
   });
+
+  if (state.draggingLink) {
+    const source = state.steps[state.draggingLink.from];
+    if (source) {
+      const startX = source.x + 70;
+      const startY = source.y + 30;
+      const { x, y } = state.draggingLink;
+      ctx.strokeStyle = '#f39c12';
+      ctx.setLineDash([6, 4]);
+      ctx.beginPath();
+      ctx.moveTo(startX, startY);
+      ctx.lineTo(x, y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
 
   // Draw nodes
   Object.values(state.steps).forEach((step) => {
@@ -245,7 +374,7 @@ function render() {
     const height = 60;
     ctx.fillStyle = state.entryStepId === step.id ? '#e8f1ff' : '#ffffff';
     ctx.strokeStyle = '#1d5dff';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = state.selectedStepId === step.id ? 3 : 2;
     ctx.beginPath();
     if (ctx.roundRect) {
       ctx.roundRect(step.x, step.y, width, height, 10);
@@ -271,17 +400,25 @@ function render() {
 
 function startDrag(event) {
   const { offsetX, offsetY } = event;
-  const hit = Object.values(state.steps).find(
-    (step) => offsetX >= step.x && offsetX <= step.x + 140 && offsetY >= step.y && offsetY <= step.y + 60,
-  );
+  const hit = getStepAt(offsetX, offsetY);
+  if (hit && event.shiftKey) {
+    state.draggingLink = { from: hit.id, x: offsetX, y: offsetY };
+    return;
+  }
   if (hit) {
     state.dragging = { id: hit.id, dx: offsetX - hit.x, dy: offsetY - hit.y };
+    selectStep(hit.id);
   }
 }
 
 function onDrag(event) {
-  if (!state.dragging) return;
   const { offsetX, offsetY } = event;
+  if (state.draggingLink) {
+    state.draggingLink.x = offsetX;
+    state.draggingLink.y = offsetY;
+    render();
+  }
+  if (!state.dragging) return;
   const step = state.steps[state.dragging.id];
   step.x = offsetX - state.dragging.dx;
   step.y = offsetY - state.dragging.dy;
@@ -289,6 +426,10 @@ function onDrag(event) {
 }
 
 function endDrag() {
+  if (state.draggingLink) {
+    state.draggingLink = null;
+    render();
+  }
   state.dragging = null;
 }
 
@@ -331,10 +472,17 @@ function populateFromDefinition(def) {
   state.steps = {};
   state.endStepIds = new Set(def.end_step_ids || []);
   state.entryStepId = def.entry_step_id || '';
+  state.selectedStepId = null;
   Object.entries(def.steps || {}).forEach(([id, step]) => {
     addStep({ id, ...step });
   });
   document.getElementById('entryStep').value = state.entryStepId;
+  const ids = Object.keys(state.steps);
+  if (state.entryStepId && state.steps[state.entryStepId]) {
+    selectStep(state.entryStepId);
+  } else if (ids.length) {
+    selectStep(ids[0]);
+  }
   updatePreview();
   render();
 }
@@ -366,14 +514,17 @@ function newAgent(seedStep = false) {
   state.steps = {};
   state.endStepIds = new Set();
   state.entryStepId = '';
+  state.selectedStepId = null;
   document.getElementById('agentName').value = 'new_agent';
   document.getElementById('agentSelect').value = '';
+  document.getElementById('inspectorContent').textContent = 'Select a step to see details.';
   if (seed) {
     const tool = state.tools[0]?.name || state.tools[0];
     const id = 'init';
     addStep({ id, name: 'init', kind: 'tool', tool_name: tool });
     state.entryStepId = id;
     document.getElementById('entryStep').value = id;
+    selectStep(id);
   }
   refreshSelectors();
   updatePreview();
@@ -439,6 +590,7 @@ function handleCanvasDrop(evt) {
     state.entryStepId = id;
     document.getElementById('entryStep').value = id;
   }
+  selectStep(id);
   updatePreview();
 }
 
@@ -488,8 +640,29 @@ async function init() {
 
   canvas.addEventListener('mousedown', startDrag);
   canvas.addEventListener('mousemove', onDrag);
-  canvas.addEventListener('mouseup', endDrag);
+  canvas.addEventListener('mouseup', (event) => {
+    if (state.draggingLink) {
+      const hit = getStepAt(event.offsetX, event.offsetY);
+      if (hit && hit.id !== state.draggingLink.from) {
+        const fromStep = state.steps[state.draggingLink.from];
+        fromStep.transitions = fromStep.transitions || [];
+        fromStep.transitions.push({ target_step_id: hit.id, condition: { type: 'always' } });
+        refreshSelectors();
+        updatePreview();
+      }
+      state.draggingLink = null;
+      render();
+      return;
+    }
+    endDrag();
+  });
   canvas.addEventListener('mouseleave', endDrag);
+  canvas.addEventListener('click', (event) => {
+    const hit = getStepAt(event.offsetX, event.offsetY);
+    if (hit) {
+      selectStep(hit.id);
+    }
+  });
   canvas.addEventListener('dragover', (e) => e.preventDefault());
   canvas.addEventListener('drop', handleCanvasDrop);
 
