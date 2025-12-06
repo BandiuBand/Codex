@@ -12,16 +12,17 @@ import yaml
 from agentfw.config.loader import AgentConfigLoader
 from agentfw.core.models import AgentDefinition, ConditionDefinition, StepDefinition, TransitionDefinition
 from agentfw.tools import builtin as builtin_tools
+from agentfw.tools.base import BaseTool
 
 
-DEFAULT_CONDITIONS = [
-    "always",
-    "equals",
-    "not_equals",
-    "greater_than",
-    "less_than",
-    "contains",
-    "expression",
+DEFAULT_CONDITIONS: List[Dict[str, object]] = [
+    {"type": "always"},
+    {"type": "equals", "fields": ["value_from", "value"]},
+    {"type": "not_equals", "fields": ["value_from", "value"]},
+    {"type": "greater_than", "fields": ["value_from", "value"]},
+    {"type": "less_than", "fields": ["value_from", "value"]},
+    {"type": "contains", "fields": ["value_from", "value"]},
+    {"type": "expression", "fields": ["expression"]},
 ]
 
 
@@ -30,11 +31,14 @@ def _find_agents_dir() -> Path:
     if env_dir:
         return Path(env_dir)
 
+    cwd = Path.cwd()
+    for parent in [cwd] + list(cwd.parents):
+        candidate = parent / "agents"
+        if candidate.exists() and candidate.is_dir():
+            return candidate
+
     project_root = Path(__file__).resolve().parents[2]
-    default = project_root / "agents"
-    if default.exists() or project_root.exists():
-        return default
-    return Path.cwd() / "agents"
+    return project_root / "agents"
 
 
 def _condition_to_dict(condition: ConditionDefinition) -> Dict[str, object]:
@@ -161,16 +165,38 @@ def _write_yaml_definition(path: Path, definition: AgentDefinition) -> None:
         yaml.safe_dump(payload, fp, sort_keys=False, allow_unicode=True)
 
 
-def _list_available_tools() -> List[str]:
-    tools = []
-    for name in dir(builtin_tools):
-        if name.endswith("Tool") and name[0].isupper():
-            tools.append(name)
-    return sorted(tools)
+def _camel_to_snake(name: str) -> str:
+    result = []
+    for char in name:
+        if char.isupper() and result:
+            result.append("_")
+        result.append(char.lower())
+    return "".join(result)
 
 
-class AgentWebHandler(SimpleHTTPRequestHandler):
-    server_version = "AgentWeb/0.1"
+def _list_available_tools() -> List[Dict[str, str]]:
+    registry = getattr(builtin_tools, "tool_registry", None)
+    tools: List[Dict[str, str]] = []
+
+    if isinstance(registry, dict):
+        for name, tool in registry.items():
+            tools.append({"name": name, "description": (tool.__doc__ or "").strip()})
+    else:
+        for attr in dir(builtin_tools):
+            obj = getattr(builtin_tools, attr)
+            if not isinstance(obj, type):
+                continue
+            if not issubclass(obj, BaseTool) or obj is BaseTool:
+                continue
+
+            tool_name = _camel_to_snake(attr.removesuffix("Tool"))
+            tools.append({"name": tool_name, "description": (obj.__doc__ or "").strip()})
+
+    return sorted(tools, key=lambda t: t["name"])
+
+
+class AgentEditorHandler(SimpleHTTPRequestHandler):
+    server_version = "AgentEditor/0.1"
 
     def __init__(self, *args, **kwargs):
         self.agents_dir = _find_agents_dir()
@@ -180,7 +206,7 @@ class AgentWebHandler(SimpleHTTPRequestHandler):
 
     def end_headers(self) -> None:  # type: ignore[override]
         self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
         super().end_headers()
 
@@ -189,21 +215,24 @@ class AgentWebHandler(SimpleHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self) -> None:  # noqa: N802
-        if self.path.startswith("/api/tools"):
+        if self.path == "/api/tools":
             return self._handle_tools()
         if self.path.startswith("/api/agents"):
-            return self._handle_agents_get()
+            return self._handle_agent_get()
+        if self.path.startswith("/api/"):
+            return self._json_error("Unknown API endpoint", status=HTTPStatus.NOT_FOUND)
+
+        if self.path == "/":
+            self.path = "/index.html"
+
         return super().do_GET()
 
     def do_POST(self) -> None:  # noqa: N802
-        if self.path.startswith("/api/agents/validate"):
+        if self.path == "/api/agents/validate":
             return self._handle_validate()
         if self.path.startswith("/api/agents/"):
             return self._handle_agent_save()
-        self.send_error(HTTPStatus.NOT_FOUND, "Unknown API endpoint")
-
-    def do_PUT(self) -> None:  # noqa: N802
-        return self.do_POST()
+        self._json_error("Unknown API endpoint", status=HTTPStatus.NOT_FOUND)
 
     def _read_json_body(self) -> Dict[str, object]:
         length = int(self.headers.get("Content-Length", "0"))
@@ -221,13 +250,16 @@ class AgentWebHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _json_error(self, message: str, status: HTTPStatus) -> None:
+        self._send_json({"ok": False, "error": message}, status=status)
+
     def _handle_tools(self) -> None:
         payload = {"tools": self.tools, "conditions": DEFAULT_CONDITIONS}
         self._send_json(payload)
 
-    def _handle_agents_get(self) -> None:
+    def _handle_agent_get(self) -> None:
         base = "/api/agents/"
-        if self.path == "/api/agents" or self.path == base:
+        if self.path.rstrip("/") == "/api/agents":
             names = []
             if self.agents_dir.exists():
                 for file in self.agents_dir.glob("*.yml"):
@@ -239,11 +271,11 @@ class AgentWebHandler(SimpleHTTPRequestHandler):
 
         agent_name = self.path[len(base) :]
         if not agent_name:
-            return self.send_error(HTTPStatus.BAD_REQUEST, "Agent name required")
+            return self._json_error("Agent name required", status=HTTPStatus.BAD_REQUEST)
 
         path = self._agent_path(agent_name)
         if not path.exists():
-            return self.send_error(HTTPStatus.NOT_FOUND, "Agent not found")
+            return self._json_error("agent not found", status=HTTPStatus.NOT_FOUND)
 
         definition = _load_yaml_definition(path)
         return self._send_json(definition_to_dict(definition))
@@ -251,19 +283,21 @@ class AgentWebHandler(SimpleHTTPRequestHandler):
     def _handle_agent_save(self) -> None:
         agent_name = self.path.split("/api/agents/")[-1]
         if not agent_name:
-            return self.send_error(HTTPStatus.BAD_REQUEST, "Agent name required")
+            return self._json_error("Agent name required", status=HTTPStatus.BAD_REQUEST)
 
         try:
             payload = self._read_json_body()
             payload["name"] = agent_name
             definition = definition_from_dict(payload)
         except Exception as exc:  # pylint: disable=broad-except
-            return self._send_json({"error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
+            return self._send_json(
+                {"ok": False, "error": str(exc)}, status=HTTPStatus.BAD_REQUEST
+            )
 
         self.agents_dir.mkdir(parents=True, exist_ok=True)
         target_path = self._agent_path(agent_name)
         _write_yaml_definition(target_path, definition)
-        return self._send_json({"ok": True, "path": str(target_path)})
+        return self._send_json({"ok": True})
 
     def _handle_validate(self) -> None:
         try:
@@ -281,9 +315,13 @@ class AgentWebHandler(SimpleHTTPRequestHandler):
 
 
 def run_server(host: str = "127.0.0.1", port: int = 8000) -> None:
-    handler = AgentWebHandler
+    static_dir = Path(__file__).parent / "static"
+    os.chdir(static_dir)
+
+    handler = AgentEditorHandler
     server = ThreadingHTTPServer((host, port), handler)
-    print(f"Serving web editor on http://{host}:{port}")
+    bound_host, bound_port = server.server_address
+    print(f"Serving web editor on http://{bound_host}:{bound_port}")
     print(f"Agents directory: {_find_agents_dir()}")
     try:
         server.serve_forever()
