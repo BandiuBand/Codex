@@ -2,6 +2,7 @@ const state = {
   steps: {},
   entryStepId: '',
   endStepIds: new Set(),
+  agents: [],
   tools: [],
   conditions: [],
   dragging: null,
@@ -18,13 +19,26 @@ async function fetchTools() {
   populateToolAndConditionOptions();
 }
 
+async function fetchAgents(autoLoadFirst = false) {
+  const res = await fetch('/api/agents');
+  if (!res.ok) return;
+  const data = await res.json();
+  state.agents = data.agents || [];
+  populateAgentOptions();
+
+  if (autoLoadFirst && state.agents.length) {
+    await loadAgent(state.agents[0]);
+    document.getElementById('agentSelect').value = state.agents[0];
+  }
+}
+
 function populateToolAndConditionOptions() {
   const toolSelect = document.getElementById('toolName');
   toolSelect.innerHTML = '<option value="">--</option>';
   state.tools.forEach((tool) => {
     const opt = document.createElement('option');
-    opt.value = tool;
-    opt.textContent = tool;
+    opt.value = tool.name || tool;
+    opt.textContent = tool.name || tool;
     toolSelect.appendChild(opt);
   });
 
@@ -32,9 +46,21 @@ function populateToolAndConditionOptions() {
   condSelect.innerHTML = '';
   state.conditions.forEach((cond) => {
     const opt = document.createElement('option');
-    opt.value = cond;
-    opt.textContent = cond;
+    const value = cond.type || cond;
+    opt.value = value;
+    opt.textContent = value;
     condSelect.appendChild(opt);
+  });
+}
+
+function populateAgentOptions() {
+  const select = document.getElementById('agentSelect');
+  select.innerHTML = '<option value="">-- select existing --</option>';
+  state.agents.forEach((name) => {
+    const opt = document.createElement('option');
+    opt.value = name;
+    opt.textContent = name;
+    select.appendChild(opt);
   });
 }
 
@@ -283,11 +309,15 @@ function populateFromDefinition(def) {
 }
 
 async function loadAgent() {
-  const agentName = document.getElementById('agentName').value.trim();
+  const manualName = document.getElementById('agentName').value.trim();
+  const selectedName = document.getElementById('agentSelect').value;
+  const agentName = typeof arguments[0] === 'string' ? arguments[0] : selectedName || manualName;
   if (!agentName) {
     alert('Provide an agent name to load.');
     return;
   }
+  document.getElementById('agentName').value = agentName;
+  document.getElementById('agentSelect').value = agentName;
   const res = await fetch(`/api/agents/${agentName}`);
   if (!res.ok) {
     alert('Agent not found.');
@@ -295,6 +325,17 @@ async function loadAgent() {
   }
   const data = await res.json();
   populateFromDefinition(data);
+}
+
+function newAgent() {
+  state.steps = {};
+  state.endStepIds = new Set();
+  state.entryStepId = '';
+  document.getElementById('agentName').value = 'new_agent';
+  document.getElementById('agentSelect').value = '';
+  refreshSelectors();
+  updatePreview();
+  render();
 }
 
 function addTransition(evt) {
@@ -371,6 +412,11 @@ function init() {
   document.getElementById('saveAgent').addEventListener('click', saveAgent);
   document.getElementById('validateAgent').addEventListener('click', validateAgent);
   document.getElementById('loadAgent').addEventListener('click', loadAgent);
+  document.getElementById('newAgent').addEventListener('click', newAgent);
+  document.getElementById('refreshAgents').addEventListener('click', () => fetchAgents());
+  document.getElementById('agentSelect').addEventListener('change', (e) => {
+    document.getElementById('agentName').value = e.target.value;
+  });
   document.getElementById('entryStep').addEventListener('change', (e) => {
     state.entryStepId = e.target.value;
     render();
@@ -387,6 +433,7 @@ function init() {
   canvas.addEventListener('mouseup', endDrag);
   canvas.addEventListener('mouseleave', endDrag);
 
+  fetchAgents(true);
   render();
 }
 

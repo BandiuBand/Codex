@@ -15,10 +15,19 @@
     <section class="panel">
       <div class="field-group">
         <label for="agentName">Agent name</label>
+        <div class="agent-row">
+          <select id="agentSelect">
+            <option value="">-- select existing --</option>
+          </select>
+          <button id="refreshAgents" title="Refresh list">↻</button>
+        </div>
         <input id="agentName" type="text" placeholder="my_agent" />
-        <button id="loadAgent">Load</button>
-        <button id="saveAgent">Save</button>
-        <button id="validateAgent">Run preview</button>
+        <div class="agent-actions">
+          <button id="loadAgent">Load</button>
+          <button id="newAgent">New</button>
+          <button id="saveAgent">Save</button>
+          <button id="validateAgent">Run preview</button>
+        </div>
       </div>
       <div class="field-group">
         <label for="entryStep">Entry step</label>

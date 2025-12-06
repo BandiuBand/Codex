@@ -85,6 +85,23 @@ button:hover {
   gap: 0.75rem;
 }
 
+.agent-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.agent-row select {
+  flex: 1;
+}
+
+.agent-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+}
+
 .canvas-wrapper {
   background: #fff;
   padding: 0.5rem;
