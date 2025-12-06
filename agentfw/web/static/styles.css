@@ -85,6 +85,23 @@ button:hover {
   gap: 0.75rem;
 }
 
+.agent-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.agent-row select {
+  flex: 1;
+}
+
+.agent-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+}
+
 .canvas-wrapper {
   background: #fff;
   padding: 0.5rem;
@@ -113,4 +130,29 @@ button:hover {
 footer {
   margin-top: 1rem;
   color: #5c677d;
+}
+
+.tool-palette {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.tool-pill {
+  padding: 0.45rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid #c8d1e1;
+  background: #eef3ff;
+  cursor: grab;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+.tool-pill:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 14px rgba(13, 27, 42, 0.08);
+}
+
+.muted {
+  color: #5c677d;
+  margin-top: 0;
 }

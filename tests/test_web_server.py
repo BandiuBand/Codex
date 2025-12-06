@@ -45,6 +45,11 @@ class TestWebServerIntegration:
         assert tools_resp["json"]["tools"]
         assert isinstance(tools_resp["json"].get("conditions"), list)
 
+        agents_resp = self._request("GET", "/api/agents")
+        assert agents_resp["status"] == 200
+        assert "agents" in agents_resp["json"]
+        assert "simple_demo_agent" in agents_resp["json"]["agents"]
+
         minimal_agent = {
             "name": "integration_agent",
             "entry_step_id": "init",
