@@ -2,9 +2,11 @@ const state = {
   steps: {},
   entryStepId: '',
   endStepIds: new Set(),
+  agents: [],
   tools: [],
   conditions: [],
   dragging: null,
+  counter: 1,
 };
 
 const canvas = document.getElementById('graphCanvas');
@@ -16,6 +18,39 @@ async function fetchTools() {
   state.tools = data.tools || [];
   state.conditions = data.conditions || [];
   populateToolAndConditionOptions();
+  renderToolPalette();
+}
+
+async function fetchAgents(autoLoadFirst = false) {
+  const res = await fetch('/api/agents');
+  if (!res.ok) return;
+  const data = await res.json();
+  state.agents = data.agents || [];
+  populateAgentOptions();
+
+  if (autoLoadFirst && state.agents.length) {
+    await loadAgent(state.agents[0]);
+    document.getElementById('agentSelect').value = state.agents[0];
+  } else if (!state.agents.length) {
+    newAgent(true);
+  }
+}
+
+function renderToolPalette() {
+  const palette = document.getElementById('toolPalette');
+  palette.innerHTML = '';
+  state.tools.forEach((tool) => {
+    const pill = document.createElement('div');
+    pill.className = 'tool-pill';
+    pill.draggable = true;
+    pill.textContent = tool.name || tool;
+    pill.title = tool.description || '';
+    pill.dataset.tool = tool.name || tool;
+    pill.addEventListener('dragstart', (e) => {
+      e.dataTransfer.setData('text/plain', pill.dataset.tool);
+    });
+    palette.appendChild(pill);
+  });
 }
 
 function populateToolAndConditionOptions() {
@@ -23,8 +58,8 @@ function populateToolAndConditionOptions() {
   toolSelect.innerHTML = '<option value="">--</option>';
   state.tools.forEach((tool) => {
     const opt = document.createElement('option');
-    opt.value = tool;
-    opt.textContent = tool;
+    opt.value = tool.name || tool;
+    opt.textContent = tool.name || tool;
     toolSelect.appendChild(opt);
   });
 
@@ -32,9 +67,21 @@ function populateToolAndConditionOptions() {
   condSelect.innerHTML = '';
   state.conditions.forEach((cond) => {
     const opt = document.createElement('option');
-    opt.value = cond;
-    opt.textContent = cond;
+    const value = cond.type || cond;
+    opt.value = value;
+    opt.textContent = value;
     condSelect.appendChild(opt);
+  });
+}
+
+function populateAgentOptions() {
+  const select = document.getElementById('agentSelect');
+  select.innerHTML = '<option value="">-- select existing --</option>';
+  state.agents.forEach((name) => {
+    const opt = document.createElement('option');
+    opt.value = name;
+    opt.textContent = name;
+    select.appendChild(opt);
   });
 }
 
@@ -49,6 +96,16 @@ function addStep(step) {
   };
   refreshSelectors();
   render();
+}
+
+function nextStepId(base = 'step') {
+  let id = `${base}_${state.counter}`;
+  while (state.steps[id]) {
+    state.counter += 1;
+    id = `${base}_${state.counter}`;
+  }
+  state.counter += 1;
+  return id;
 }
 
 function refreshSelectors() {
@@ -283,11 +340,15 @@ function populateFromDefinition(def) {
 }
 
 async function loadAgent() {
-  const agentName = document.getElementById('agentName').value.trim();
+  const manualName = document.getElementById('agentName').value.trim();
+  const selectedName = document.getElementById('agentSelect').value;
+  const agentName = typeof arguments[0] === 'string' ? arguments[0] : selectedName || manualName;
   if (!agentName) {
     alert('Provide an agent name to load.');
     return;
   }
+  document.getElementById('agentName').value = agentName;
+  document.getElementById('agentSelect').value = agentName;
   const res = await fetch(`/api/agents/${agentName}`);
   if (!res.ok) {
     alert('Agent not found.');
@@ -295,6 +356,28 @@ async function loadAgent() {
   }
   const data = await res.json();
   populateFromDefinition(data);
+}
+
+function newAgent(seedStep = false) {
+  const seed = typeof seedStep === 'boolean' ? seedStep : true;
+  if (seedStep && typeof seedStep.preventDefault === 'function') {
+    seedStep.preventDefault();
+  }
+  state.steps = {};
+  state.endStepIds = new Set();
+  state.entryStepId = '';
+  document.getElementById('agentName').value = 'new_agent';
+  document.getElementById('agentSelect').value = '';
+  if (seed) {
+    const tool = state.tools[0]?.name || state.tools[0];
+    const id = 'init';
+    addStep({ id, name: 'init', kind: 'tool', tool_name: tool });
+    state.entryStepId = id;
+    document.getElementById('entryStep').value = id;
+  }
+  refreshSelectors();
+  updatePreview();
+  render();
 }
 
 function addTransition(evt) {
@@ -343,6 +426,22 @@ function addStepFromForm(evt) {
   render();
 }
 
+function handleCanvasDrop(evt) {
+  evt.preventDefault();
+  const tool = evt.dataTransfer.getData('text/plain');
+  if (!tool) return;
+  const rect = canvas.getBoundingClientRect();
+  const x = evt.clientX - rect.left - 70;
+  const y = evt.clientY - rect.top - 30;
+  const id = nextStepId(tool || 'step');
+  addStep({ id, name: id, kind: 'tool', tool_name: tool, x, y });
+  if (!state.entryStepId) {
+    state.entryStepId = id;
+    document.getElementById('entryStep').value = id;
+  }
+  updatePreview();
+}
+
 function importJson() {
   try {
     const data = JSON.parse(document.getElementById('rawJson').value || '{}');
@@ -364,13 +463,18 @@ function exportJson() {
   URL.revokeObjectURL(url);
 }
 
-function init() {
-  fetchTools();
+async function init() {
+  await fetchTools();
   document.getElementById('stepForm').addEventListener('submit', addStepFromForm);
   document.getElementById('transitionForm').addEventListener('submit', addTransition);
   document.getElementById('saveAgent').addEventListener('click', saveAgent);
   document.getElementById('validateAgent').addEventListener('click', validateAgent);
   document.getElementById('loadAgent').addEventListener('click', loadAgent);
+  document.getElementById('newAgent').addEventListener('click', newAgent);
+  document.getElementById('refreshAgents').addEventListener('click', () => fetchAgents());
+  document.getElementById('agentSelect').addEventListener('change', (e) => {
+    document.getElementById('agentName').value = e.target.value;
+  });
   document.getElementById('entryStep').addEventListener('change', (e) => {
     state.entryStepId = e.target.value;
     render();
@@ -386,7 +490,10 @@ function init() {
   canvas.addEventListener('mousemove', onDrag);
   canvas.addEventListener('mouseup', endDrag);
   canvas.addEventListener('mouseleave', endDrag);
+  canvas.addEventListener('dragover', (e) => e.preventDefault());
+  canvas.addEventListener('drop', handleCanvasDrop);
 
+  await fetchAgents(true);
   render();
 }
 
