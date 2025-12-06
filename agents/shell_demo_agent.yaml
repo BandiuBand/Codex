@@ -23,9 +23,9 @@ steps:
         - -c
         - print(1+1)
     save_mapping:
-      rc: rc
-      out: out
-      err: err
+      rc: return_code
+      out: stdout
+      err: stderr
     validator_agent_name: null
     validator_params: {}
     validator_policy: {}

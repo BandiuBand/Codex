@@ -1,0 +1,45 @@
+name: flaky_demo_agent
+description: Simple flaky demo with retry validator and capped retries.
+
+input_schema: null
+output_schema: null
+
+serialize:
+  enabled: true
+  base_dir: "./data/runs"
+  per_step: true
+
+entry_step_id: flaky_step
+end_step_ids:
+  - done
+  - failed
+
+steps:
+  flaky_step:
+    kind: tool
+    tool_name: flaky
+    tool_params: {}
+    save_mapping:
+      attempt: attempt
+    validator_agent_name: cerber_retry_demo
+    validator_params:
+      accept_after: 3
+      force_fail: false
+    validator_policy:
+      max_retries: "5"
+    transitions:
+      - target_step_id: done
+        condition:
+          type: always
+
+  done:
+    kind: terminal
+    result:
+      attempt_var: attempt
+    transitions: []
+
+  failed:
+    kind: terminal
+    result:
+      attempt_var: attempt
+    transitions: []
