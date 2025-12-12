@@ -5,24 +5,82 @@ import os
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 import yaml
 
+from agentfw.conditions.evaluator import ConditionEvaluator
 from agentfw.config.loader import AgentConfigLoader
+from agentfw.config.settings import LLMConfig
 from agentfw.core.models import AgentDefinition, ConditionDefinition, StepDefinition, TransitionDefinition
+from agentfw.core.registry import AgentRegistry, ToolRegistry
+from agentfw.llm.base import DummyLLMClient, OllamaLLMClient
+from agentfw.persistence.storage import FileRunStorage
+from agentfw.runtime.engine import ExecutionEngine
 from agentfw.tools import builtin as builtin_tools
 from agentfw.tools.base import BaseTool
+from agentfw.tools.builtin import (
+    AcceptValidatorTool,
+    AgentCallTool,
+    AttemptThresholdValidatorTool,
+    EchoTool,
+    FlakyTool,
+    LLMTool,
+    MathAddTool,
+    ShellTool,
+)
+from agentfw.tools.metadata import TOOL_META
 
 
 DEFAULT_CONDITIONS: List[Dict[str, object]] = [
-    {"type": "always"},
-    {"type": "equals", "fields": ["value_from", "value"]},
-    {"type": "not_equals", "fields": ["value_from", "value"]},
-    {"type": "greater_than", "fields": ["value_from", "value"]},
-    {"type": "less_than", "fields": ["value_from", "value"]},
-    {"type": "contains", "fields": ["value_from", "value"]},
-    {"type": "expression", "fields": ["expression"]},
+    {"type": "always", "label_uk": "завжди", "fields": []},
+    {
+        "type": "equals",
+        "label_uk": "змінна дорівнює значенню",
+        "fields": [
+            {"name": "value_from", "label_uk": "Ім’я змінної"},
+            {"name": "value", "label_uk": "Значення"},
+        ],
+    },
+    {
+        "type": "not_equals",
+        "label_uk": "змінна не дорівнює значенню",
+        "fields": [
+            {"name": "value_from", "label_uk": "Ім’я змінної"},
+            {"name": "value", "label_uk": "Значення"},
+        ],
+    },
+    {
+        "type": "greater_than",
+        "label_uk": "більше за значення",
+        "fields": [
+            {"name": "value_from", "label_uk": "Ім’я змінної"},
+            {"name": "value", "label_uk": "Значення"},
+        ],
+    },
+    {
+        "type": "less_than",
+        "label_uk": "менше за значення",
+        "fields": [
+            {"name": "value_from", "label_uk": "Ім’я змінної"},
+            {"name": "value", "label_uk": "Значення"},
+        ],
+    },
+    {
+        "type": "contains",
+        "label_uk": "список/рядок містить значення",
+        "fields": [
+            {"name": "value_from", "label_uk": "Ім’я змінної"},
+            {"name": "value", "label_uk": "Значення"},
+        ],
+    },
+    {
+        "type": "expression",
+        "label_uk": "вираз на Python",
+        "fields": [
+            {"name": "expression", "label_uk": "Вираз (наприклад: sum > 10)"},
+        ],
+    },
 ]
 
 
@@ -39,6 +97,17 @@ def _find_agents_dir() -> Path:
 
     project_root = Path(__file__).resolve().parents[2]
     return project_root / "agents"
+
+
+def _llm_client_from_env() -> object:
+    llm_config = LLMConfig.from_env()
+    if llm_config.backend == "ollama":
+        return OllamaLLMClient(
+            base_url=llm_config.base_url or "http://localhost:11434",
+            model=llm_config.model or "qwen3:32b",
+            api_key=llm_config.api_key,
+        )
+    return DummyLLMClient()
 
 
 def _condition_to_dict(condition: ConditionDefinition) -> Dict[str, object]:
@@ -180,7 +249,16 @@ def _list_available_tools() -> List[Dict[str, str]]:
 
     if isinstance(registry, dict):
         for name, tool in registry.items():
-            tools.append({"name": name, "description": (tool.__doc__ or "").strip()})
+            meta = TOOL_META.get(name, {})
+            tools.append(
+                {
+                    "name": name,
+                    "description": (tool.__doc__ or "").strip(),
+                    "label_uk": meta.get("label_uk"),
+                    "description_uk": meta.get("description_uk"),
+                    "category": meta.get("category"),
+                }
+            )
     else:
         for attr in dir(builtin_tools):
             obj = getattr(builtin_tools, attr)
@@ -190,9 +268,48 @@ def _list_available_tools() -> List[Dict[str, str]]:
                 continue
 
             tool_name = _camel_to_snake(attr.removesuffix("Tool"))
-            tools.append({"name": tool_name, "description": (obj.__doc__ or "").strip()})
+            meta = TOOL_META.get(tool_name, {})
+            tools.append(
+                {
+                    "name": tool_name,
+                    "description": (obj.__doc__ or "").strip(),
+                    "label_uk": meta.get("label_uk"),
+                    "description_uk": meta.get("description_uk"),
+                    "category": meta.get("category"),
+                }
+            )
 
     return sorted(tools, key=lambda t: t["name"])
+
+
+def _build_runtime() -> Tuple[ExecutionEngine, AgentRegistry]:
+    agents_dir = _find_agents_dir()
+
+    agent_registry = AgentRegistry(agents={}, config_dirs=[str(agents_dir)])
+    agent_registry.load_all()
+
+    tool_registry = ToolRegistry(tools={})
+    tool_registry.register("echo", EchoTool())
+    tool_registry.register("math_add", MathAddTool())
+    tool_registry.register("llm", LLMTool(client=_llm_client_from_env()))
+    tool_registry.register("shell", ShellTool())
+    tool_registry.register("flaky", FlakyTool())
+    tool_registry.register("attempt_threshold_validator", AttemptThresholdValidatorTool())
+    tool_registry.register("accept_validator", AcceptValidatorTool())
+    tool_registry.register("cerber_accept", AcceptValidatorTool())
+
+    storage = FileRunStorage(base_dir="./data/runs")
+    condition_evaluator = ConditionEvaluator()
+    engine = ExecutionEngine(
+        agent_registry=agent_registry,
+        tool_registry=tool_registry,
+        storage=storage,
+        condition_evaluator=condition_evaluator,
+    )
+
+    tool_registry.register("agent_call", AgentCallTool(engine=engine))
+
+    return engine, agent_registry
 
 
 class AgentEditorHandler(SimpleHTTPRequestHandler):
@@ -217,6 +334,8 @@ class AgentEditorHandler(SimpleHTTPRequestHandler):
     def do_GET(self) -> None:  # noqa: N802
         if self.path == "/api/tools":
             return self._handle_tools()
+        if self.path == "/api/agents_graph":
+            return self._handle_agents_graph()
         if self.path.startswith("/api/agents"):
             return self._handle_agent_get()
         if self.path.startswith("/api/"):
@@ -230,6 +349,8 @@ class AgentEditorHandler(SimpleHTTPRequestHandler):
     def do_POST(self) -> None:  # noqa: N802
         if self.path == "/api/agents/validate":
             return self._handle_validate()
+        if self.path == "/api/run":
+            return self._handle_run()
         if self.path.startswith("/api/agents/"):
             return self._handle_agent_save()
         self._json_error("Unknown API endpoint", status=HTTPStatus.NOT_FOUND)
@@ -277,7 +398,15 @@ class AgentEditorHandler(SimpleHTTPRequestHandler):
         if not path.exists():
             return self._json_error("agent not found", status=HTTPStatus.NOT_FOUND)
 
-        definition = _load_yaml_definition(path)
+        try:
+            definition = _load_yaml_definition(path)
+        except FileNotFoundError:
+            return self._json_error("agent not found", status=HTTPStatus.NOT_FOUND)
+        except Exception as exc:  # pylint: disable=broad-except
+            return self._send_json(
+                {"error": f"invalid YAML: {exc}"}, status=HTTPStatus.INTERNAL_SERVER_ERROR
+            )
+
         return self._send_json(definition_to_dict(definition))
 
     def _handle_agent_save(self) -> None:
@@ -289,9 +418,13 @@ class AgentEditorHandler(SimpleHTTPRequestHandler):
             payload = self._read_json_body()
             payload["name"] = agent_name
             definition = definition_from_dict(payload)
-        except Exception as exc:  # pylint: disable=broad-except
+        except ValueError as exc:
             return self._send_json(
                 {"ok": False, "error": str(exc)}, status=HTTPStatus.BAD_REQUEST
+            )
+        except Exception as exc:  # pylint: disable=broad-except
+            return self._send_json(
+                {"ok": False, "error": str(exc)}, status=HTTPStatus.INTERNAL_SERVER_ERROR
             )
 
         self.agents_dir.mkdir(parents=True, exist_ok=True)
@@ -304,10 +437,95 @@ class AgentEditorHandler(SimpleHTTPRequestHandler):
             payload = self._read_json_body()
             definition = definition_from_dict(payload)
             _ = definition  # explicit use
+        except ValueError as exc:
+            return self._send_json({"ok": False, "error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
+        except Exception as exc:  # pylint: disable=broad-except
+            return self._send_json({"ok": False, "error": str(exc)}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
+
+        return self._send_json({"ok": True})
+
+    def _handle_run(self) -> None:
+        try:
+            payload = self._read_json_body()
+            agent_name = str(payload.get("agent", "")).strip()
+            input_payload = payload.get("input", {}) or {}
+            if not agent_name:
+                raise ValueError("agent is required")
+            if not isinstance(input_payload, dict):
+                raise ValueError("input must be an object")
         except Exception as exc:  # pylint: disable=broad-except
             return self._send_json({"ok": False, "error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
 
-        return self._send_json({"ok": True})
+        try:
+            engine, agent_registry = _build_runtime()
+            state = engine.run_to_completion(agent_name=agent_name, input_json=input_payload)
+            definition = agent_registry.get(agent_name)
+        except Exception as exc:  # pylint: disable=broad-except
+            return self._send_json({"ok": False, "error": str(exc)}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
+
+        history = []
+        for record in state.history:
+            step_def = definition.steps.get(record.step_id)
+            history.append(
+                {
+                    "step_id": record.step_id,
+                    "tool_name": step_def.tool_name if step_def else None,
+                    "input_variables": record.input_variables_snapshot,
+                    "tool_result": record.tool_result,
+                    "validator_result": record.validator_result,
+                    "chosen_transition": record.chosen_transition,
+                    "error": record.error,
+                }
+            )
+
+        payload = {
+            "ok": True,
+            "failed": state.failed,
+            "final_state": state.variables,
+            "history": history,
+        }
+
+        return self._send_json(payload)
+
+    def _handle_agents_graph(self) -> None:
+        agents_dir = self.agents_dir
+        nodes: List[Dict[str, str]] = []
+        edges: List[Dict[str, str]] = []
+        edge_seen = set()
+
+        try:
+            agent_registry = AgentRegistry(agents={}, config_dirs=[str(agents_dir)])
+            agent_registry.load_all()
+        except Exception as exc:  # pylint: disable=broad-except
+            return self._send_json(
+                {"error": f"failed to load agents: {exc}"},
+                status=HTTPStatus.INTERNAL_SERVER_ERROR,
+            )
+
+        for name, definition in agent_registry.agents.items():
+            nodes.append({"id": name})
+
+            for step in definition.steps.values():
+                if step.tool_name == "agent_call":
+                    target_agent = step.tool_params.get("agent_name") if step.tool_params else None
+                    if target_agent:
+                        edge_key = (name, str(target_agent), "call")
+                        if edge_key not in edge_seen:
+                            edges.append({"from": name, "to": str(target_agent), "kind": "call"})
+                            edge_seen.add(edge_key)
+                if step.validator_agent_name:
+                    edge_key = (name, step.validator_agent_name, "validator")
+                    if edge_key not in edge_seen:
+                        edges.append(
+                            {
+                                "from": name,
+                                "to": step.validator_agent_name,
+                                "kind": "validator",
+                            }
+                        )
+                        edge_seen.add(edge_key)
+
+        return self._send_json({"nodes": nodes, "edges": edges})
 
     def _agent_path(self, agent_name: str) -> Path:
         safe_name = agent_name.replace("/", "_").replace("\\", "_")
