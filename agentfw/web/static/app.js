@@ -242,31 +242,37 @@ function renderToolPalette() {
   });
 }
 
-function populateToolAndConditionOptions() {
-  const toolSelect = document.getElementById('toolName');
-  if (toolSelect) {
-    toolSelect.innerHTML = '<option value="">—</option>';
-    state.tools.forEach((tool) => {
-      const opt = document.createElement('option');
-      opt.value = tool.name || tool;
-      opt.textContent = toolLabel(tool);
-      opt.dataset.description = toolDescription(tool);
-      toolSelect.appendChild(opt);
-    });
-  }
+  function populateToolAndConditionOptions() {
+    const toolSelect = document.getElementById('toolName');
+    const condSelect = document.getElementById('conditionType');
 
-  const condSelect = document.getElementById('conditionType');
-  if (condSelect) {
-    condSelect.innerHTML = '';
-    state.conditions.forEach((cond) => {
-      const opt = document.createElement('option');
-      opt.value = cond.type || cond;
-      opt.textContent = cond.label_uk || cond.type;
-      condSelect.appendChild(opt);
-    });
-    renderConditionFields(condSelect.value);
+    if (!toolSelect && !condSelect) {
+      console.warn('Форми для інструментів/умов не знайдено; пропускаємо заповнення.');
+      return;
+    }
+
+    if (toolSelect) {
+      toolSelect.innerHTML = '<option value="">—</option>';
+      state.tools.forEach((tool) => {
+        const opt = document.createElement('option');
+        opt.value = tool.name || tool;
+        opt.textContent = toolLabel(tool);
+        opt.dataset.description = toolDescription(tool);
+        toolSelect.appendChild(opt);
+      });
+    }
+
+    if (condSelect) {
+      condSelect.innerHTML = '';
+      state.conditions.forEach((cond) => {
+        const opt = document.createElement('option');
+        opt.value = cond.type || cond;
+        opt.textContent = cond.label_uk || cond.type;
+        condSelect.appendChild(opt);
+      });
+      renderConditionFields(condSelect.value);
+    }
   }
-}
 
 function renderConditionFields(selectedType) {
   const container = document.getElementById('conditionFields');
