@@ -1,0 +1,48 @@
+name: task_complexity_classifier
+id: task_complexity_classifier
+description: "Класифікатор складності завдань"
+
+input_schema: null
+output_schema: null
+
+serialize:
+  enabled: true
+  base_dir: "./data/runs"
+  per_step: true
+
+entry_step_id: classify
+end_step_ids:
+  - classify
+
+steps:
+  classify:
+    id: classify
+    kind: action
+    name: "Класифікація завдання"
+    tool_name: llm
+    tool_params:
+      prompt: |
+        Ти — класифікатор завдань для агента.
+
+        Користувач дав таке завдання:
+
+        ---
+        {task_text}
+        ---
+
+        Визначи, чи це:
+        - складне завдання, яке потребує планування, розбиття на підзадачі або кількох кроків виконання (needs_planning = true),
+        - чи просте завдання, яке можна виконати одним кроком без складного планування (needs_planning = false).
+
+        ВАЖЛИВО:
+        - відповідай ТІЛЬКИ ЧИСТИМ JSON, без пояснень і без додаткового тексту.
+        - формат відповіді:
+
+        {
+          "needs_planning": true | false
+        }
+      parse_json: true
+    save_mapping:
+      task_text: task_text
+      needs_planning: parsed_json.needs_planning
+    transitions: []
