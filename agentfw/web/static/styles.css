@@ -10,6 +10,25 @@ body {
   background: #f6f8fb;
 }
 
+.status-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  border-radius: 10px;
+  border: 1px solid #f5c6cb;
+  background: #fff5f5;
+  color: #8b1a1a;
+  font-weight: 600;
+}
+
+.status-banner.info {
+  border-color: #c6d7ff;
+  background: #f3f6ff;
+  color: #123189;
+}
+
 .workspace {
   display: grid;
   grid-template-columns: 240px 1fr 280px;
