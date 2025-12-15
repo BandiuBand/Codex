@@ -56,6 +56,10 @@ DEFAULT_CONDITIONS: List[Dict[str, object]] = [
         "fields": [
             {"name": "value_from", "label_uk": "Ім’я змінної"},
             {"name": "value", "label_uk": "Значення"},
+            {
+                "name": "right_var",
+                "label_uk": "Ім’я змінної справа (необов’язково)",
+            },
         ],
     },
     {
@@ -64,6 +68,10 @@ DEFAULT_CONDITIONS: List[Dict[str, object]] = [
         "fields": [
             {"name": "value_from", "label_uk": "Ім’я змінної"},
             {"name": "value", "label_uk": "Значення"},
+            {
+                "name": "right_var",
+                "label_uk": "Ім’я змінної справа (необов’язково)",
+            },
         ],
     },
     {
@@ -116,6 +124,8 @@ def _condition_to_dict(condition: ConditionDefinition) -> Dict[str, object]:
         data["value_from"] = condition.value_from
     if condition.value is not None:
         data["value"] = condition.value
+    if condition.right_var is not None:
+        data["right_var"] = condition.right_var
     if condition.expression is not None:
         data["expression"] = condition.expression
     for key, value in (condition.extra or {}).items():

@@ -117,11 +117,31 @@ class ConditionEvaluator:
 
         if condition.type == "greater_than":
             value = state.variables.get(condition.value_from)
-            return value is not None and value > condition.value
+            if value is None:
+                return False
+
+            if condition.right_var:
+                if condition.right_var not in state.variables:
+                    return False
+                right_value = state.variables.get(condition.right_var)
+            else:
+                right_value = condition.value
+
+            return right_value is not None and value > right_value
 
         if condition.type == "less_than":
             value = state.variables.get(condition.value_from)
-            return value is not None and value < condition.value
+            if value is None:
+                return False
+
+            if condition.right_var:
+                if condition.right_var not in state.variables:
+                    return False
+                right_value = state.variables.get(condition.right_var)
+            else:
+                right_value = condition.value
+
+            return right_value is not None and value < right_value
 
         if condition.type == "contains":
             container = state.variables.get(condition.value_from)

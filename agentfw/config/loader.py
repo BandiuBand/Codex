@@ -138,13 +138,14 @@ class AgentConfigLoader:
         if not cond_type:
             raise ValueError("Condition type is required")
 
-        known_keys = {"type", "value_from", "value", "expression"}
+        known_keys = {"type", "value_from", "value", "right_var", "expression"}
         extra = {k: v for k, v in data.items() if k not in known_keys}
 
         return ConditionDefinition(
             type=cond_type,
             value_from=data.get("value_from"),
             value=data.get("value"),
+            right_var=data.get("right_var"),
             expression=data.get("expression"),
             extra=extra,
         )
