@@ -18,11 +18,41 @@ const state = {
   draggingLink: null,
   selectedStepId: null,
   counter: 1,
+  transitionCounter: 1,
   agentsGraph: { agents: [], edges: [] },
 };
 
 const canvas = document.getElementById('graphCanvas');
 const ctx = canvas.getContext('2d');
+
+function defaultNameFromKind(kind) {
+  switch (kind) {
+    case 'decision':
+      return 'Розгалуження';
+    case 'loop':
+      return 'Цикл';
+    case 'validator':
+      return 'Валідатор';
+    default:
+      return 'Крок дії';
+  }
+}
+
+function generateStepId(base = 'step') {
+  let id = `${base}_${state.counter}`;
+  while (state.steps[id]) {
+    state.counter += 1;
+    id = `${base}_${state.counter}`;
+  }
+  state.counter += 1;
+  return id;
+}
+
+function generateTransitionId() {
+  const id = `tr_${state.transitionCounter}`;
+  state.transitionCounter += 1;
+  return id;
+}
 
 function toolLabel(tool) {
   if (typeof tool === 'string') return tool;
@@ -55,9 +85,73 @@ function fetchConditionFieldValue(container, name) {
 function knownVariables() {
   const vars = new Set();
   Object.values(state.steps).forEach((step) => {
-    Object.keys(step.save_mapping || {}).forEach((k) => vars.add(k));
+    (step.saveMapping || []).forEach((m) => {
+      if (m.varName) vars.add(m.varName);
+    });
   });
   return Array.from(vars);
+}
+
+function normalizeCondition(raw = {}) {
+  const type = raw.type || 'always';
+  const params = { ...(raw.params || {}) };
+  Object.entries(raw).forEach(([k, v]) => {
+    if (k !== 'type' && k !== 'params') params[k] = v;
+  });
+  return { type, params };
+}
+
+function normalizeTransition(raw, parentStepId) {
+  const normalized = {
+    id: raw?.id || generateTransitionId(),
+    targetStepId: raw?.target_step_id || raw?.targetStepId || raw?.target || parentStepId,
+    condition: normalizeCondition(raw?.condition || raw || {}),
+  };
+  return normalized;
+}
+
+function normalizeSaveMapping(rawMapping) {
+  if (Array.isArray(rawMapping)) return rawMapping;
+  if (!rawMapping) return [];
+  return Object.entries(rawMapping).map(([varName, resultKey]) => ({ varName, resultKey, description: '' }));
+}
+
+function normalizeStep(raw) {
+  const id = raw.id;
+  const defaultPosition = Object.keys(state.steps).length;
+  const kind = raw.kind === 'tool' ? 'action' : raw.kind || 'action';
+  return {
+    id,
+    name: raw.name || defaultNameFromKind(kind),
+    kind,
+    toolName: raw.toolName || raw.tool_name || raw.tool || null,
+    toolParams: raw.toolParams || raw.tool_params || {},
+    inputs: Array.isArray(raw.inputs) ? raw.inputs : [],
+    saveMapping: normalizeSaveMapping(raw.saveMapping || raw.save_mapping),
+    validatorAgentName: raw.validator_agent_name || raw.validatorAgentName || '',
+    validatorParams: raw.validator_params || raw.validatorParams || {},
+    validatorPolicy: raw.validator_policy || raw.validatorPolicy || {},
+    transitions: (raw.transitions || []).map((tr) => normalizeTransition(tr, id)),
+    x: raw.x ?? 80 + (defaultPosition % 4) * 180,
+    y: raw.y ?? 80 + Math.floor(defaultPosition / 4) * 140,
+  };
+}
+
+function createStep(kind) {
+  const id = generateStepId(kind);
+  const base = normalizeStep({ id, kind, name: defaultNameFromKind(kind) });
+  if (kind === 'loop') {
+    base.transitions.push({
+      id: generateTransitionId(),
+      targetStepId: id,
+      condition: { type: 'always', params: {} },
+    });
+  }
+  state.steps[id] = base;
+  state.entryStepId ??= id;
+  state.selectedStepId = id;
+  refreshSelectors();
+  renderAll();
 }
 
 async function fetchTools() {
@@ -110,29 +204,33 @@ function renderToolPalette() {
 
 function populateToolAndConditionOptions() {
   const toolSelect = document.getElementById('toolName');
-  toolSelect.innerHTML = '<option value="">—</option>';
-  state.tools.forEach((tool) => {
-    const opt = document.createElement('option');
-    opt.value = tool.name || tool;
-    opt.textContent = toolLabel(tool);
-    opt.dataset.description = toolDescription(tool);
-    toolSelect.appendChild(opt);
-  });
+  if (toolSelect) {
+    toolSelect.innerHTML = '<option value="">—</option>';
+    state.tools.forEach((tool) => {
+      const opt = document.createElement('option');
+      opt.value = tool.name || tool;
+      opt.textContent = toolLabel(tool);
+      opt.dataset.description = toolDescription(tool);
+      toolSelect.appendChild(opt);
+    });
+  }
 
   const condSelect = document.getElementById('conditionType');
-  condSelect.innerHTML = '';
-  state.conditions.forEach((cond) => {
-    const opt = document.createElement('option');
-    opt.value = cond.type || cond;
-    opt.textContent = cond.label_uk || cond.type;
-    condSelect.appendChild(opt);
-  });
-
-  renderConditionFields(condSelect.value);
+  if (condSelect) {
+    condSelect.innerHTML = '';
+    state.conditions.forEach((cond) => {
+      const opt = document.createElement('option');
+      opt.value = cond.type || cond;
+      opt.textContent = cond.label_uk || cond.type;
+      condSelect.appendChild(opt);
+    });
+    renderConditionFields(condSelect.value);
+  }
 }
 
 function renderConditionFields(selectedType) {
   const container = document.getElementById('conditionFields');
+  if (!container) return;
   container.innerHTML = '';
   const meta = getConditionMeta(selectedType) || { fields: [] };
   (meta.fields || []).forEach((field) => {
@@ -161,29 +259,9 @@ function populateAgentOptions() {
 
 function addStep(step) {
   if (!step.id) return;
-  const defaultPosition = Object.keys(state.steps).length;
-  state.steps[step.id] = {
-    ...step,
-    transitions: step.transitions || [],
-    tool_params: step.tool_params || {},
-    save_mapping: step.save_mapping || {},
-    validator_params: step.validator_params || {},
-    validator_policy: step.validator_policy || {},
-    x: step.x ?? 80 + (defaultPosition % 4) * 180,
-    y: step.y ?? 80 + Math.floor(defaultPosition / 4) * 140,
-  };
+  state.steps[step.id] = normalizeStep(step);
   refreshSelectors();
   render();
-}
-
-function nextStepId(base = 'step') {
-  let id = `${base}_${state.counter}`;
-  while (state.steps[id]) {
-    state.counter += 1;
-    id = `${base}_${state.counter}`;
-  }
-  state.counter += 1;
-  return id;
 }
 
 function refreshSelectors() {
@@ -299,18 +377,6 @@ function selectStep(stepId) {
     document.getElementById('inspectorContent').textContent = t.selectStep;
     return;
   }
-
-  document.getElementById('stepId').value = step.id;
-  document.getElementById('stepName').value = step.name || '';
-  document.getElementById('stepKind').value = step.kind || '';
-  document.getElementById('toolName').value = step.tool_name || '';
-  updateToolDescription(step.tool_name || '');
-  document.getElementById('toolParams').value = JSON.stringify(step.tool_params || {}, null, 2);
-  document.getElementById('validatorAgent').value = step.validator_agent_name || '';
-  document.getElementById('validatorParams').value = JSON.stringify(step.validator_params || {}, null, 2);
-  document.getElementById('validatorPolicy').value = JSON.stringify(step.validator_policy || {}, null, 2);
-
-  renderSaveMappingRows(step);
   renderInspector(step);
   render();
 }
@@ -322,82 +388,401 @@ function renderInspector(step) {
     return;
   }
 
-  const inputs = Object.keys(step.tool_params || {});
-  const outputs = Object.keys(step.save_mapping || {});
-  const vars = knownVariables();
-
-  panel.innerHTML = `
-    <div class="inspector-row"><strong>${step.id}</strong><span class="badge">${
-    state.entryStepId === step.id ? 'entry' : 'step'
-  }</span></div>
-    <div class="inspector-row"><span>Інструмент</span><span>${toolLabel(
-      state.tools.find((t) => t.name === step.tool_name) || step.tool_name || '—',
-    )}</span></div>
-    <div class="inspector-row"><span>Тип</span><span>${step.kind || 'tool'}</span></div>
-    <div class="inspector-row"><span>Валідатор</span><span>${
-      step.validator_agent_name || '—'
-    }</span></div>
-    <div class="inspector-row"><span>Відомі змінні</span><span class="pill-list" data-role="known-vars"></span></div>
-    <div class="inspector-row"><span>Вхідні поля</span><span class="pill-list" data-role="inputs"></span></div>
-    <div class="inspector-row"><span>Результати</span><span class="pill-list" data-role="outputs"></span></div>
-    <div class="connector-hint">Утримуйте Shift і тягніть зі step, щоб створити перехід.</div>
-    <div class="actions">
-      <button id="setEntryBtn">Зробити початковим</button>
-      <button id="toggleEndBtn">${state.endStepIds.has(step.id) ? 'Прибрати кінець' : 'Позначити завершальним'}</button>
+  panel.innerHTML = '';
+  const header = document.createElement('div');
+  header.className = 'inspector-row title-row';
+  header.innerHTML = `
+    <div>
+      <div class="muted">Ідентифікатор</div>
+      <strong>${step.id}</strong>
     </div>
+    <span class="badge">${step.kind || 'action'}</span>
   `;
 
-  const knownContainer = document.createElement('div');
-  knownContainer.className = 'pill-list';
-  (vars.length ? vars : ['—']).forEach((k) => {
-    const span = document.createElement('span');
-    span.className = 'badge';
-    span.textContent = k;
-    knownContainer.appendChild(span);
-  });
-
-  const inputsContainer = document.createElement('div');
-  inputsContainer.className = 'pill-list';
-  (inputs.length ? inputs : ['—']).forEach((k) => {
-    const span = document.createElement('span');
-    span.className = 'badge';
-    span.textContent = k;
-    inputsContainer.appendChild(span);
-  });
-
-  const outputsContainer = document.createElement('div');
-  outputsContainer.className = 'pill-list';
-  (outputs.length ? outputs : ['—']).forEach((k) => {
-    const span = document.createElement('span');
-    span.className = 'badge';
-    span.textContent = k;
-    outputsContainer.appendChild(span);
-  });
-
-  panel.querySelector('[data-role="inputs"]')?.replaceWith(inputsContainer);
-  panel.querySelector('[data-role="outputs"]')?.replaceWith(outputsContainer);
-  panel.querySelector('[data-role="known-vars"]')?.replaceWith(knownContainer);
-
-  panel.querySelector('#setEntryBtn')?.addEventListener('click', () => {
-    state.entryStepId = step.id;
-    document.getElementById('entryStep').value = step.id;
+  const nameField = document.createElement('div');
+  nameField.className = 'field-group';
+  nameField.innerHTML = '<label>Назва кроку</label>';
+  const nameInput = document.createElement('input');
+  nameInput.value = step.name || '';
+  nameInput.placeholder = defaultNameFromKind(step.kind);
+  nameInput.addEventListener('input', () => {
+    step.name = nameInput.value;
     render();
     updatePreview();
   });
+  nameField.appendChild(nameInput);
 
-  panel.querySelector('#toggleEndBtn')?.addEventListener('click', () => {
+  const badgesRow = document.createElement('div');
+  badgesRow.className = 'actions';
+  const entryBtn = document.createElement('button');
+  entryBtn.textContent = 'Зробити початковим';
+  entryBtn.addEventListener('click', () => {
+    state.entryStepId = step.id;
+    document.getElementById('entryStep').value = step.id;
+    renderAll();
+  });
+  const endBtn = document.createElement('button');
+  endBtn.textContent = state.endStepIds.has(step.id) ? 'Прибрати завершальний' : 'Позначити завершальним';
+  endBtn.addEventListener('click', () => {
     if (state.endStepIds.has(step.id)) {
       state.endStepIds.delete(step.id);
     } else {
       state.endStepIds.add(step.id);
     }
     refreshSelectors();
-    renderInspector(step);
-    render();
+    renderAll();
+  });
+  badgesRow.append(entryBtn, endBtn);
+
+  const inputsSection = document.createElement('div');
+  inputsSection.className = 'inspector-block';
+  inputsSection.innerHTML = '<h3>Вхідні параметри</h3><p class="muted">Змінні, які крок читає перед виконанням.</p>';
+  const inputsContainer = document.createElement('div');
+  inputsContainer.className = 'table-list';
+
+  const renderInputs = () => {
+    inputsContainer.innerHTML = '';
+    (step.inputs || []).forEach((inp, idx) => {
+      const row = document.createElement('div');
+      row.className = 'table-row';
+
+      const name = document.createElement('input');
+      name.placeholder = 'Ім’я змінної';
+      name.value = inp.name || '';
+      name.addEventListener('input', () => {
+        step.inputs[idx].name = name.value;
+        updatePreview();
+      });
+
+      const from = document.createElement('input');
+      from.placeholder = 'Брати зі змінної агента';
+      from.value = inp.fromVar || '';
+      from.addEventListener('input', () => {
+        step.inputs[idx].fromVar = from.value;
+        updatePreview();
+      });
+
+      const def = document.createElement('input');
+      def.placeholder = 'Значення за замовчуванням';
+      def.value = inp.defaultValue ?? '';
+      def.addEventListener('input', () => {
+        step.inputs[idx].defaultValue = def.value;
+        updatePreview();
+      });
+
+      const desc = document.createElement('input');
+      desc.placeholder = 'Опис';
+      desc.value = inp.description || '';
+      desc.addEventListener('input', () => {
+        step.inputs[idx].description = desc.value;
+        updatePreview();
+      });
+
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.textContent = '✕';
+      remove.addEventListener('click', () => {
+        step.inputs.splice(idx, 1);
+        renderInputs();
+        updatePreview();
+      });
+
+      row.append(name, from, def, desc, remove);
+      inputsContainer.appendChild(row);
+    });
+    if (!step.inputs || !step.inputs.length) {
+      const empty = document.createElement('p');
+      empty.className = 'muted';
+      empty.textContent = 'Додайте параметри, які читає крок.';
+      inputsContainer.appendChild(empty);
+    }
+  };
+  renderInputs();
+
+  const addInputBtn = document.createElement('button');
+  addInputBtn.type = 'button';
+  addInputBtn.textContent = '+ Додати параметр';
+  addInputBtn.addEventListener('click', () => {
+    step.inputs = step.inputs || [];
+    step.inputs.push({ name: '', fromVar: '', defaultValue: '', description: '' });
+    renderInputs();
+    updatePreview();
+  });
+  inputsSection.append(inputsContainer, addInputBtn);
+
+  const bodySection = document.createElement('div');
+  bodySection.className = 'inspector-block';
+  bodySection.innerHTML = '<h3>Тіло кроку</h3><p class="muted">Оберіть атомарний інструмент та його параметри.</p>';
+
+  const toolSelect = document.createElement('select');
+  const emptyOpt = document.createElement('option');
+  emptyOpt.value = '';
+  emptyOpt.textContent = '— Оберіть інструмент —';
+  toolSelect.appendChild(emptyOpt);
+  state.tools.forEach((tool) => {
+    const opt = document.createElement('option');
+    opt.value = tool.name || tool;
+    opt.textContent = toolLabel(tool);
+    opt.title = toolDescription(tool);
+    toolSelect.appendChild(opt);
+  });
+  toolSelect.value = step.toolName || '';
+
+  const toolDesc = document.createElement('p');
+  toolDesc.className = 'muted';
+  const updateToolInfo = () => {
+    const meta = state.tools.find((t) => t.name === toolSelect.value);
+    toolDesc.textContent = toolDescription(meta) || 'Оберіть інструмент для налаштування.';
+  };
+  updateToolInfo();
+
+  const paramsWrapper = document.createElement('div');
+  paramsWrapper.className = 'field-group';
+
+  function renderToolParams() {
+    paramsWrapper.innerHTML = '';
+    const meta = state.tools.find((t) => t.name === step.toolName) || {};
+    const schema = meta.schema || {};
+    const props = schema.properties || null;
+    if (!props) {
+      const label = document.createElement('label');
+      label.textContent = 'Сирі параметри (JSON)';
+      const textarea = document.createElement('textarea');
+      textarea.rows = 4;
+      textarea.value = JSON.stringify(step.toolParams || {}, null, 2);
+      textarea.addEventListener('input', () => {
+        try {
+          step.toolParams = JSON.parse(textarea.value || '{}');
+          textarea.classList.remove('error');
+          updatePreview();
+        } catch (err) {
+          textarea.classList.add('error');
+        }
+      });
+      paramsWrapper.append(label, textarea);
+      return;
+    }
+
+    Object.entries(props).forEach(([key, cfg]) => {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'field-group';
+      const label = document.createElement('label');
+      label.textContent = cfg.title || cfg.label_uk || key;
+      const inputType = cfg.type === 'boolean' ? 'checkbox' : 'input';
+      let input;
+      if (inputType === 'checkbox') {
+        input = document.createElement('input');
+        input.type = 'checkbox';
+        input.checked = Boolean(step.toolParams?.[key]);
+        input.addEventListener('change', () => {
+          step.toolParams = step.toolParams || {};
+          step.toolParams[key] = input.checked;
+          updatePreview();
+        });
+      } else {
+        input = document.createElement('textarea');
+        input.rows = 2;
+        input.value = step.toolParams?.[key] ?? '';
+        input.placeholder = cfg.description_uk || cfg.description || '';
+        input.addEventListener('input', () => {
+          step.toolParams = step.toolParams || {};
+          step.toolParams[key] = input.value;
+          updatePreview();
+        });
+      }
+      wrapper.append(label, input);
+      paramsWrapper.appendChild(wrapper);
+    });
+  }
+
+  toolSelect.addEventListener('change', () => {
+    step.toolName = toolSelect.value || null;
+    updateToolInfo();
+    renderToolParams();
     updatePreview();
   });
 
-  renderTransitionList(step);
+  bodySection.append(toolSelect, toolDesc, paramsWrapper);
+  renderToolParams();
+
+  const outputsSection = document.createElement('div');
+  outputsSection.className = 'inspector-block';
+  outputsSection.innerHTML = '<h3>Вихідні параметри</h3><p class="muted">Куди записати результати інструмента.</p>';
+  const outputsContainer = document.createElement('div');
+  outputsContainer.className = 'table-list';
+
+  const renderOutputs = () => {
+    outputsContainer.innerHTML = '';
+    (step.saveMapping || []).forEach((m, idx) => {
+      const row = document.createElement('div');
+      row.className = 'table-row';
+
+      const resultInput = document.createElement('input');
+      resultInput.placeholder = 'Поле результату (наприклад parsed_json.decision)';
+      resultInput.value = m.resultKey || '';
+      resultInput.addEventListener('input', () => {
+        step.saveMapping[idx].resultKey = resultInput.value;
+        updatePreview();
+      });
+
+      const varInput = document.createElement('input');
+      varInput.placeholder = 'Записати в змінну агента';
+      varInput.value = m.varName || '';
+      varInput.addEventListener('input', () => {
+        step.saveMapping[idx].varName = varInput.value;
+        updatePreview();
+      });
+
+      const descInput = document.createElement('input');
+      descInput.placeholder = 'Опис';
+      descInput.value = m.description || '';
+      descInput.addEventListener('input', () => {
+        step.saveMapping[idx].description = descInput.value;
+        updatePreview();
+      });
+
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.textContent = '✕';
+      remove.addEventListener('click', () => {
+        step.saveMapping.splice(idx, 1);
+        renderOutputs();
+        updatePreview();
+      });
+
+      row.append(resultInput, varInput, descInput, remove);
+      outputsContainer.appendChild(row);
+    });
+    if (!step.saveMapping || !step.saveMapping.length) {
+      const empty = document.createElement('p');
+      empty.className = 'muted';
+      empty.textContent = 'Додайте принаймні один вихід для збереження результату.';
+      outputsContainer.appendChild(empty);
+    }
+  };
+  renderOutputs();
+
+  const addOutputBtn = document.createElement('button');
+  addOutputBtn.type = 'button';
+  addOutputBtn.textContent = '+ Додати вихід';
+  addOutputBtn.addEventListener('click', () => {
+    step.saveMapping = step.saveMapping || [];
+    step.saveMapping.push({ resultKey: '', varName: '', description: '' });
+    renderOutputs();
+    updatePreview();
+  });
+  outputsSection.append(outputsContainer, addOutputBtn);
+
+  const transitionsSection = document.createElement('div');
+  transitionsSection.className = 'inspector-block';
+  transitionsSection.innerHTML = `<h3>Переходи (розгалуження / цикл)</h3>
+    <p class="muted">${
+      step.kind === 'decision'
+        ? 'Додайте щонайменше дві гілки з умовами для if/else.'
+        : step.kind === 'loop'
+          ? 'Перша гілка спрямована на себе. Додайте умову виходу з циклу.'
+          : 'Опишіть, куди переходить виконання після кроку.'
+    }</p>`;
+  const trContainer = document.createElement('div');
+  trContainer.className = 'table-list';
+
+  const renderTransitions = () => {
+    trContainer.innerHTML = '';
+    (step.transitions || []).forEach((tr, idx) => {
+      const row = document.createElement('div');
+      row.className = 'table-row';
+
+      const targetSelect = document.createElement('select');
+      Object.keys(state.steps).forEach((id) => {
+        const opt = document.createElement('option');
+        opt.value = id;
+        opt.textContent = id;
+        targetSelect.appendChild(opt);
+      });
+      targetSelect.value = tr.targetStepId || '';
+      targetSelect.addEventListener('change', () => {
+        tr.targetStepId = targetSelect.value;
+        render();
+        updatePreview();
+      });
+
+      const condSelect = document.createElement('select');
+      state.conditions.forEach((cond) => {
+        const opt = document.createElement('option');
+        opt.value = cond.type;
+        opt.textContent = cond.label_uk || cond.type;
+        condSelect.appendChild(opt);
+      });
+      condSelect.value = tr.condition?.type || 'always';
+
+      const fieldsWrapper = document.createElement('div');
+      fieldsWrapper.className = 'transition-fields';
+
+      const renderFields = () => {
+        fieldsWrapper.innerHTML = '';
+        const meta = getConditionMeta(condSelect.value) || { fields: [] };
+        (meta.fields || []).forEach((f) => {
+          const input = document.createElement('input');
+          input.placeholder = f.label_uk || f.name;
+          input.value = tr.condition?.params?.[f.name] ?? '';
+          input.addEventListener('input', () => {
+            tr.condition = tr.condition || { type: condSelect.value, params: {} };
+            tr.condition.params = tr.condition.params || {};
+            tr.condition.params[f.name] = input.value;
+            updatePreview();
+          });
+          fieldsWrapper.appendChild(input);
+        });
+      };
+      renderFields();
+
+      condSelect.addEventListener('change', () => {
+        tr.condition = { type: condSelect.value, params: {} };
+        renderFields();
+        render();
+        updatePreview();
+      });
+
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.textContent = 'Видалити';
+      remove.addEventListener('click', () => {
+        step.transitions.splice(idx, 1);
+        renderTransitions();
+        render();
+        updatePreview();
+      });
+
+      row.append(targetSelect, condSelect, fieldsWrapper, remove);
+      trContainer.appendChild(row);
+    });
+
+    if (!step.transitions || !step.transitions.length) {
+      const empty = document.createElement('p');
+      empty.className = 'muted';
+      empty.textContent = 'Додайте перехід, щоб визначити наступний крок.';
+      trContainer.appendChild(empty);
+    }
+  };
+  renderTransitions();
+
+  const addTransitionBtn = document.createElement('button');
+  addTransitionBtn.type = 'button';
+  addTransitionBtn.textContent = '+ Додати перехід';
+  addTransitionBtn.addEventListener('click', () => {
+    const firstId = Object.keys(state.steps)[0];
+    step.transitions = step.transitions || [];
+    step.transitions.push({
+      id: generateTransitionId(),
+      targetStepId: firstId || step.id,
+      condition: { type: 'always', params: {} },
+    });
+    renderTransitions();
+    updatePreview();
+  });
+  transitionsSection.append(trContainer, addTransitionBtn);
+
+  panel.append(header, nameField, badgesRow, inputsSection, bodySection, outputsSection, transitionsSection);
 }
 
 function parseJsonField(value) {
@@ -410,16 +795,31 @@ function collectDefinition() {
   const entryStepId = document.getElementById('entryStep').value || state.entryStepId;
   const stepsPayload = {};
   Object.values(state.steps).forEach((step) => {
+    const saveMapping = {};
+    (step.saveMapping || []).forEach((m) => {
+      if (m.varName && m.resultKey) saveMapping[m.varName] = m.resultKey;
+    });
+    const transitions = (step.transitions || []).map((tr) => {
+      const condition = tr.condition || {};
+      const params = condition.params || {};
+      const conditionPayload = { type: condition.type || 'always', ...params };
+      return {
+        id: tr.id,
+        target_step_id: tr.targetStepId,
+        condition: conditionPayload,
+      };
+    });
     stepsPayload[step.id] = {
       name: step.name,
       kind: step.kind,
-      tool_name: step.tool_name,
-      tool_params: step.tool_params || {},
-      save_mapping: step.save_mapping || {},
-      validator_agent_name: step.validator_agent_name,
-      validator_params: step.validator_params || {},
-      validator_policy: step.validator_policy || {},
-      transitions: step.transitions || [],
+      tool_name: step.toolName,
+      tool_params: step.toolParams || {},
+      inputs: step.inputs || [],
+      save_mapping: saveMapping,
+      validator_agent_name: step.validatorAgentName,
+      validator_params: step.validatorParams || {},
+      validator_policy: step.validatorPolicy || {},
+      transitions,
     };
   });
 
@@ -455,7 +855,7 @@ function render() {
 
   Object.values(state.steps).forEach((step) => {
     (step.transitions || []).forEach((tr) => {
-      const target = state.steps[tr.target_step_id];
+      const target = state.steps[tr.targetStepId];
       if (!target) return;
       const startX = step.x + 70;
       const startY = step.y + 30;
@@ -464,8 +864,14 @@ function render() {
       ctx.strokeStyle = '#1d5dff';
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.moveTo(startX, startY);
-      ctx.lineTo(endX, endY);
+      if (step.id === target.id) {
+        ctx.moveTo(startX, startY);
+        ctx.quadraticCurveTo(startX + 60, startY - 60, startX, startY - 10);
+        ctx.quadraticCurveTo(startX - 60, startY - 60, startX, startY);
+      } else {
+        ctx.moveTo(startX, startY);
+        ctx.lineTo(endX, endY);
+      }
       ctx.stroke();
       const angle = Math.atan2(endY - startY, endX - startX);
       ctx.beginPath();
@@ -479,8 +885,8 @@ function render() {
       if (tr.condition?.type) {
         const meta = getConditionMeta(tr.condition.type);
         const label = meta?.label_uk || tr.condition.type;
-        const midX = (startX + endX) / 2;
-        const midY = (startY + endY) / 2;
+        const midX = step.id === target.id ? startX + 10 : (startX + endX) / 2;
+        const midY = step.id === target.id ? startY - 50 : (startY + endY) / 2;
         ctx.fillStyle = 'rgba(13, 27, 42, 0.7)';
         ctx.font = '11px Inter';
         ctx.fillText(label, midX + 4, midY - 4);
@@ -518,9 +924,11 @@ function render() {
     ctx.stroke();
     ctx.fillStyle = '#0d1b2a';
     ctx.font = 'bold 13px Inter';
-    ctx.fillText(step.id, step.x + 10, step.y + 20);
+    ctx.fillText(step.name || step.id, step.x + 10, step.y + 20);
     ctx.font = '12px Inter';
-    ctx.fillText(step.tool_name || '', step.x + 10, step.y + 38);
+    const meta = state.tools.find((t) => t.name === step.toolName);
+    const label = meta ? toolLabel(meta) : step.toolName || '';
+    ctx.fillText(label, step.x + 10, step.y + 38);
   });
 }
 
@@ -607,6 +1015,8 @@ function populateFromDefinition(def) {
   Object.entries(def.steps || {}).forEach(([id, step]) => {
     addStep({ id, ...step });
   });
+  state.transitionCounter =
+    Object.values(state.steps).reduce((acc, s) => acc + (s.transitions?.length || 0), 0) + 1;
   document.getElementById('entryStep').value = state.entryStepId;
   const ids = Object.keys(state.steps);
   if (state.entryStepId && state.steps[state.entryStepId]) {
@@ -653,7 +1063,7 @@ function newAgent(seedStep = false) {
   if (seed) {
     const tool = state.tools[0]?.name || state.tools[0];
     const id = 'init';
-    addStep({ id, name: 'init', kind: 'tool', tool_name: tool });
+    addStep({ id, name: 'Початковий крок', kind: 'action', toolName: tool });
     state.entryStepId = id;
     document.getElementById('entryStep').value = id;
     selectStep(id);
@@ -727,8 +1137,8 @@ function handleCanvasDrop(evt) {
   const rect = canvas.getBoundingClientRect();
   const x = evt.clientX - rect.left - 70;
   const y = evt.clientY - rect.top - 30;
-  const id = nextStepId(tool || 'step');
-  addStep({ id, name: id, kind: 'tool', tool_name: tool, x, y });
+  const id = generateStepId(tool || 'step');
+  addStep({ id, name: defaultNameFromKind('action'), kind: 'action', toolName: tool, x, y });
   if (!state.entryStepId) {
     state.entryStepId = id;
     document.getElementById('entryStep').value = id;
@@ -866,7 +1276,7 @@ function renderRunOutput(data) {
   container.innerHTML = '';
   const status = document.createElement('div');
   status.className = data.failed ? 'status-badge bad' : 'status-badge good';
-  status.textContent = data.failed ? 'failed' : 'ok';
+  status.textContent = data.failed ? 'невдача' : 'успіх';
   container.appendChild(status);
 
   const finalState = document.createElement('div');
@@ -943,15 +1353,25 @@ function renderAgentsGraph() {
   container.appendChild(edgesWrap);
 }
 
+function renderAll() {
+  render();
+  updatePreview();
+  if (state.selectedStepId) {
+    renderInspector(state.steps[state.selectedStepId]);
+  }
+}
+
 async function init() {
   await fetchTools();
-  document.getElementById('stepForm').addEventListener('submit', addStepFromForm);
-  document.getElementById('transitionForm').addEventListener('submit', addTransition);
   document.getElementById('saveAgent').addEventListener('click', saveAgent);
   document.getElementById('validateAgent').addEventListener('click', validateAgent);
   document.getElementById('loadAgent').addEventListener('click', loadAgent);
   document.getElementById('newAgent').addEventListener('click', newAgent);
   document.getElementById('refreshAgents').addEventListener('click', () => fetchAgents());
+  document.getElementById('addActionStep').addEventListener('click', () => createStep('action'));
+  document.getElementById('addDecisionStep').addEventListener('click', () => createStep('decision'));
+  document.getElementById('addLoopStep').addEventListener('click', () => createStep('loop'));
+  document.getElementById('addValidatorStep').addEventListener('click', () => createStep('validator'));
   document.getElementById('agentSelect').addEventListener('change', (e) => {
     document.getElementById('agentName').value = e.target.value;
   });
@@ -962,22 +1382,6 @@ async function init() {
   });
   document.getElementById('importJson').addEventListener('click', importJson);
   document.getElementById('exportJson').addEventListener('click', exportJson);
-  document.getElementById('conditionType').addEventListener('change', (e) => {
-    renderConditionFields(e.target.value);
-  });
-  document.getElementById('toolName').addEventListener('change', (e) => {
-    updateToolDescription(e.target.value);
-  });
-  document.getElementById('addSaveMapping').addEventListener('click', () => {
-    const step = state.steps[state.selectedStepId];
-    if (!step) return;
-    step.save_mapping = step.save_mapping || {};
-    const index = Object.keys(step.save_mapping).length + 1;
-    step.save_mapping[`var_${index}`] = 'result_key';
-    renderSaveMappingRows(step);
-    renderInspector(step);
-    updatePreview();
-  });
   document.getElementById('runAgent').addEventListener('click', runAgent);
 
   canvas.addEventListener('mousedown', startDrag);
@@ -988,9 +1392,13 @@ async function init() {
       if (hit && hit.id !== state.draggingLink.from) {
         const fromStep = state.steps[state.draggingLink.from];
         fromStep.transitions = fromStep.transitions || [];
-        fromStep.transitions.push({ target_step_id: hit.id, condition: { type: 'always' } });
+        fromStep.transitions.push({
+          id: generateTransitionId(),
+          targetStepId: hit.id,
+          condition: { type: 'always', params: {} },
+        });
         refreshSelectors();
-        renderTransitionList(fromStep);
+        renderInspector(fromStep);
         updatePreview();
       }
       state.draggingLink = null;
@@ -1010,7 +1418,7 @@ async function init() {
   canvas.addEventListener('drop', handleCanvasDrop);
 
   await fetchAgents(true);
-  render();
+  renderAll();
 }
 
 init();
