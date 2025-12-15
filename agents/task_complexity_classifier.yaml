@@ -1,14 +1,7 @@
-name: task_complexity_classifier
 id: task_complexity_classifier
-description: "Класифікатор складності завдань"
-
-input_schema: null
-output_schema: null
-
-serialize:
-  enabled: true
-  base_dir: "./data/runs"
-  per_step: true
+name: Класифікатор складності завдань
+description: >
+  Отримує текст завдання і вирішує, чи потрібне багатокрокове планування.
 
 entry_step_id: classify
 end_step_ids:
@@ -18,8 +11,13 @@ steps:
   classify:
     id: classify
     kind: action
-    name: "Класифікація завдання"
+    name: Класифікація завдання
+    description: >
+      Викликає LLM, який повертає JSON з полем needs_planning: true/false.
+
+    # ІМʼЯ ІНСТРУМЕНТА, який має бути зареєстрований у ExecutionEngine
     tool_name: llm
+
     tool_params:
       prompt: |
         Ти — класифікатор завдань для агента.
@@ -31,18 +29,27 @@ steps:
         ---
 
         Визначи, чи це:
-        - складне завдання, яке потребує планування, розбиття на підзадачі або кількох кроків виконання (needs_planning = true),
-        - чи просте завдання, яке можна виконати одним кроком без складного планування (needs_planning = false).
+        - складне завдання, яке потребує планування, розбиття на підзадачі
+          або кількох кроків виконання (needs_planning = true),
+        - чи просте завдання, яке можна виконати одним кроком без складного планування
+          (needs_planning = false).
 
         ВАЖЛИВО:
-        - відповідай ТІЛЬКИ ЧИСТИМ JSON, без пояснень і без додаткового тексту.
-        - формат відповіді:
+        - Відповідай ТІЛЬКИ ЧИСТИМ JSON, без пояснень і без додаткового тексту.
+        - Формат відповіді:
 
         {
           "needs_planning": true | false
         }
+
+      # цей прапорець ти/вони мали реалізувати у LLMTool — парсинг JSON з тексту
       parse_json: true
+
+    # ЩО ЗБЕРЕГТИ В СТАН АГЕНТА
     save_mapping:
+      # початковий текст — просто проброс змінної
       task_text: task_text
+      # булева ознака — з розпарсеного JSON
       needs_planning: parsed_json.needs_planning
+
     transitions: []

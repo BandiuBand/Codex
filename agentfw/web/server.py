@@ -1,34 +1,21 @@
 from __future__ import annotations
 
 import json
-import os
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+import os
 from pathlib import Path
 from typing import Dict, List, Tuple
 
 import yaml
 
-from agentfw.conditions.evaluator import ConditionEvaluator, ExpressionEvaluator
 from agentfw.config.loader import AgentConfigLoader
-from agentfw.config.settings import LLMConfig
 from agentfw.core.models import AgentDefinition, ConditionDefinition, StepDefinition, TransitionDefinition
-from agentfw.core.registry import AgentRegistry, ToolRegistry
-from agentfw.llm.base import DummyLLMClient, OllamaLLMClient
-from agentfw.persistence.storage import FileRunStorage
+from agentfw.core.registry import AgentRegistry
 from agentfw.runtime.engine import ExecutionEngine
+from agentfw.runtime.factory import build_default_engine, find_agents_dir
 from agentfw.tools import builtin as builtin_tools
 from agentfw.tools.base import BaseTool
-from agentfw.tools.builtin import (
-    AcceptValidatorTool,
-    AgentCallTool,
-    AttemptThresholdValidatorTool,
-    EchoTool,
-    FlakyTool,
-    LLMTool,
-    MathAddTool,
-    ShellTool,
-)
 from agentfw.tools.metadata import TOOL_META
 
 
@@ -90,32 +77,6 @@ DEFAULT_CONDITIONS: List[Dict[str, object]] = [
         ],
     },
 ]
-
-
-def _find_agents_dir() -> Path:
-    env_dir = os.environ.get("AGENTFW_AGENTS_DIR")
-    if env_dir:
-        return Path(env_dir)
-
-    cwd = Path.cwd()
-    for parent in [cwd] + list(cwd.parents):
-        candidate = parent / "agents"
-        if candidate.exists() and candidate.is_dir():
-            return candidate
-
-    project_root = Path(__file__).resolve().parents[2]
-    return project_root / "agents"
-
-
-def _llm_client_from_env() -> object:
-    llm_config = LLMConfig.from_env()
-    if llm_config.backend == "ollama":
-        return OllamaLLMClient(
-            base_url=llm_config.base_url or "http://localhost:11434",
-            model=llm_config.model or "qwen3:32b",
-            api_key=llm_config.api_key,
-        )
-    return DummyLLMClient()
 
 
 def _condition_to_dict(condition: ConditionDefinition) -> Dict[str, object]:
@@ -295,41 +256,14 @@ def _list_available_tools() -> List[Dict[str, str]]:
 
 
 def _build_runtime() -> Tuple[ExecutionEngine, AgentRegistry]:
-    agents_dir = _find_agents_dir()
-
-    agent_registry = AgentRegistry(agents={}, config_dirs=[str(agents_dir)])
-    agent_registry.load_all()
-
-    tool_registry = ToolRegistry(tools={})
-    tool_registry.register("echo", EchoTool())
-    tool_registry.register("math_add", MathAddTool())
-    tool_registry.register("llm", LLMTool(client=_llm_client_from_env()))
-    tool_registry.register("shell", ShellTool())
-    tool_registry.register("flaky", FlakyTool())
-    tool_registry.register("attempt_threshold_validator", AttemptThresholdValidatorTool())
-    tool_registry.register("accept_validator", AcceptValidatorTool())
-    tool_registry.register("cerber_accept", AcceptValidatorTool())
-
-    storage = FileRunStorage(base_dir="./data/runs")
-    expression_evaluator = ExpressionEvaluator()
-    condition_evaluator = ConditionEvaluator(expression_evaluator=expression_evaluator)
-    engine = ExecutionEngine(
-        agent_registry=agent_registry,
-        tool_registry=tool_registry,
-        storage=storage,
-        condition_evaluator=condition_evaluator,
-    )
-
-    tool_registry.register("agent_call", AgentCallTool(engine=engine))
-
-    return engine, agent_registry
+    return build_default_engine()
 
 
 class AgentEditorHandler(SimpleHTTPRequestHandler):
     server_version = "AgentEditor/0.1"
 
     def __init__(self, *args, **kwargs):
-        self.agents_dir = _find_agents_dir()
+        self.agents_dir = find_agents_dir()
         self.static_dir = Path(__file__).parent / "static"
         self.tools = _list_available_tools()
         super().__init__(*args, directory=str(self.static_dir), **kwargs)
@@ -576,7 +510,7 @@ def run_server(host: str = "127.0.0.1", port: int = 8000) -> None:
     server = ThreadingHTTPServer((host, port), handler)
     bound_host, bound_port = server.server_address
     print(f"Serving web editor on http://{bound_host}:{bound_port}")
-    print(f"Agents directory: {_find_agents_dir()}")
+    print(f"Agents directory: {find_agents_dir()}")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
