@@ -1,40 +1,40 @@
 <!doctype html>
-<html lang="en">
+<html lang="uk">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Agent Graph Editor</title>
+    <title>Редактор агентів</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
     <header>
-      <h1>Agent Graph Editor</h1>
-      <p>Create and validate agent definitions with a simple canvas editor.</p>
+      <h1>Редактор агентів</h1>
+      <p>Будуйте, перевіряйте й запускайте агентів у інтерактивному редакторі.</p>
     </header>
 
     <section class="panel">
       <div class="field-group">
-        <label for="agentName">Agent name</label>
+        <label for="agentName">Ім’я агента</label>
         <div class="agent-row">
           <select id="agentSelect">
-            <option value="">-- select existing --</option>
+            <option value="">— оберіть наявного —</option>
           </select>
-          <button id="refreshAgents" title="Refresh list">↻</button>
+          <button id="refreshAgents" title="Оновити список">↻</button>
         </div>
         <input id="agentName" type="text" placeholder="my_agent" />
         <div class="agent-actions">
-          <button id="loadAgent">Load</button>
-          <button id="newAgent">New</button>
-          <button id="saveAgent">Save</button>
-          <button id="validateAgent">Run preview</button>
+          <button id="loadAgent">Завантажити</button>
+          <button id="newAgent">Новий</button>
+          <button id="saveAgent">Зберегти</button>
+          <button id="validateAgent">Перевірити агента</button>
         </div>
       </div>
       <div class="field-group">
-        <label for="entryStep">Entry step</label>
+        <label for="entryStep">Початковий крок</label>
         <select id="entryStep"></select>
       </div>
       <div class="field-group">
-        <label>End steps</label>
+        <label>Завершальні кроки</label>
         <div id="endSteps"></div>
       </div>
     </section>
@@ -43,8 +43,8 @@
       <aside class="panel palette">
         <div class="palette-header">
           <div>
-            <h2>Tool palette</h2>
-            <p class="muted">Drag tools to the canvas to create steps.</p>
+            <h2>Палітра інструментів</h2>
+            <p class="muted">Перетягніть інструмент на канву, щоб створити крок.</p>
           </div>
         </div>
         <div id="toolPalette" class="tool-palette"></div>
@@ -52,110 +52,128 @@
 
       <div class="canvas-stack">
         <div class="canvas-legend">
-          <span>Shift + drag from a step to create a transition</span>
-          <span>Drag steps to rearrange</span>
+          <span>Shift + drag — створити перехід</span>
+          <span>Перетягуйте кроки, щоб їх вирівняти</span>
         </div>
         <canvas id="graphCanvas" width="1100" height="640"></canvas>
       </div>
 
       <aside class="panel inspector">
-        <h2>Step inspector</h2>
-        <div id="inspectorContent" class="inspector-content">Select a step to see details.</div>
+        <h2>Інспектор кроку</h2>
+        <div id="inspectorContent" class="inspector-content">Оберіть крок, щоб редагувати.</div>
       </aside>
     </section>
 
     <section class="panel grid">
       <div>
-        <h2>Add step</h2>
+        <h2>Додати / оновити крок</h2>
         <form id="stepForm">
           <div class="field-group">
-            <label for="stepId">ID</label>
+            <label for="stepId">Ідентифікатор</label>
             <input id="stepId" required />
           </div>
           <div class="field-group">
-            <label for="stepName">Name</label>
+            <label for="stepName">Назва</label>
             <input id="stepName" />
           </div>
           <div class="field-group">
-            <label for="stepKind">Kind</label>
-            <input id="stepKind" placeholder="action/validator" />
+            <label for="stepKind">Тип</label>
+            <input id="stepKind" placeholder="tool/terminal/validator" />
           </div>
           <div class="field-group">
-            <label for="toolName">Tool</label>
+            <label for="toolName">Інструмент</label>
             <select id="toolName"></select>
+            <p id="toolDescription" class="muted"></p>
           </div>
           <div class="field-group">
-            <label for="toolParams">Tool params (JSON)</label>
+            <label for="toolParams">Параметри інструмента (JSON)</label>
             <textarea id="toolParams" rows="2" placeholder='{"prompt": "hi"}'></textarea>
           </div>
           <div class="field-group">
-            <label for="saveMapping">Save mapping (JSON)</label>
-            <textarea id="saveMapping" rows="2" placeholder='{"var": "from"}'></textarea>
+            <label>Збереження результатів</label>
+            <div id="saveMappingRows"></div>
+            <button type="button" id="addSaveMapping">Додати правило</button>
           </div>
           <div class="field-group">
-            <label for="validatorAgent">Validator agent</label>
+            <label for="validatorAgent">Агент-валідатор</label>
             <input id="validatorAgent" />
           </div>
           <div class="field-group">
-            <label for="validatorParams">Validator params (JSON)</label>
+            <label for="validatorParams">Параметри валідатора (JSON)</label>
             <textarea id="validatorParams" rows="2"></textarea>
           </div>
           <div class="field-group">
-            <label for="validatorPolicy">Validator policy (JSON)</label>
+            <label for="validatorPolicy">Політика валідатора (JSON)</label>
             <textarea id="validatorPolicy" rows="2"></textarea>
           </div>
-          <button type="submit">Add / Update step</button>
+          <button type="submit">Зберегти крок</button>
         </form>
       </div>
       <div>
-        <h2>Add transition</h2>
+        <h2>Переходи</h2>
         <form id="transitionForm">
           <div class="field-group">
-            <label for="fromStep">From</label>
+            <label for="fromStep">Звідки</label>
             <select id="fromStep"></select>
           </div>
           <div class="field-group">
-            <label for="toStep">To</label>
+            <label for="toStep">Куди</label>
             <select id="toStep"></select>
           </div>
           <div class="field-group">
-            <label for="conditionType">Condition type</label>
+            <label for="conditionType">Тип умови</label>
             <select id="conditionType"></select>
           </div>
-          <div class="field-group">
-            <label for="conditionValueFrom">Value from</label>
-            <input id="conditionValueFrom" />
-          </div>
-          <div class="field-group">
-            <label for="conditionValue">Value</label>
-            <input id="conditionValue" />
-          </div>
-          <div class="field-group">
-            <label for="conditionExpression">Expression</label>
-            <input id="conditionExpression" />
-          </div>
-          <div class="field-group">
-            <label for="conditionExtra">Extra (JSON)</label>
-            <textarea id="conditionExtra" rows="2"></textarea>
-          </div>
-          <button type="submit">Link steps</button>
+          <div id="conditionFields"></div>
+          <button type="submit">Додати перехід</button>
         </form>
+        <div class="field-group">
+          <label>Переходи обраного кроку</label>
+          <div id="transitionList" class="transition-list"></div>
+        </div>
       </div>
     </section>
 
     <section class="panel">
       <div class="field-group">
-        <label for="rawJson">JSON preview</label>
+        <label for="rawJson">Попередній перегляд JSON</label>
         <textarea id="rawJson" rows="6"></textarea>
       </div>
       <div class="field-group actions">
-        <button id="importJson">Import JSON</button>
-        <button id="exportJson">Export JSON</button>
+        <button id="importJson">Імпорт JSON</button>
+        <button id="exportJson">Експорт JSON</button>
       </div>
     </section>
 
+    <section class="panel grid">
+      <div>
+        <h2>Запуск агента</h2>
+        <div class="field-group">
+          <label for="runAgentName">Агент</label>
+          <input id="runAgentName" placeholder="simple_demo_agent" />
+        </div>
+        <div class="field-group">
+          <label for="runInput">Вхідні змінні (JSON)</label>
+          <textarea id="runInput" rows="4" placeholder='{"x": 3, "y": 4}'></textarea>
+        </div>
+        <div class="actions">
+          <button id="runAgent">Запустити</button>
+        </div>
+      </div>
+      <div>
+        <h2>Результат виконання</h2>
+        <div id="runOutput" class="run-output"></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Граф зв’язків агентів</h2>
+      <p class="muted">Візуалізація викликів між агентами та валідаторами.</p>
+      <div id="agentsGraph" class="agents-graph"></div>
+    </section>
+
     <footer>
-      <p>Use drag &amp; drop to move steps. Add transitions to draw arrows between nodes.</p>
+      <p>Перетягуйте кроки для розміщення. Додавайте переходи, щоб будувати розгалуження й цикли.</p>
     </footer>
 
     <script src="app.js"></script>
