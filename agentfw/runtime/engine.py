@@ -126,9 +126,41 @@ class ExecutionEngine:
             ctx.state.failed = True
             return
 
+        missing = object()
+
+        def _resolve_result_key(container: Dict[str, object], path: str) -> object:
+            """Resolve dot-delimited paths (e.g. ``parsed_json.decision``)."""
+
+            value: object = container
+            for part in path.split("."):
+                if isinstance(value, dict):
+                    if part in value:
+                        value = value[part]
+                        continue
+                    return missing
+
+                if isinstance(value, (list, tuple)):
+                    try:
+                        idx = int(part)
+                    except ValueError:
+                        return missing
+
+                    if 0 <= idx < len(value):
+                        value = value[idx]
+                        continue
+                    return missing
+
+                return missing
+
+            return value
+
         for var_name, result_key in step_def.save_mapping.items():
-            if tool_result and result_key in tool_result:
-                ctx.state.variables[var_name] = tool_result[result_key]
+            if not tool_result:
+                continue
+
+            value = _resolve_result_key(tool_result, result_key)
+            if value is not missing:
+                ctx.state.variables[var_name] = value
 
         if step_def.validator_agent_name:
             retry_counts = ctx.state.retry_counts
