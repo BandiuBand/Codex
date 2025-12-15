@@ -257,6 +257,7 @@ def _list_available_tools() -> List[Dict[str, str]]:
                     "label_uk": meta.get("label_uk"),
                     "description_uk": meta.get("description_uk"),
                     "category": meta.get("category"),
+                    "schema": meta.get("schema"),
                 }
             )
     else:
@@ -276,6 +277,7 @@ def _list_available_tools() -> List[Dict[str, str]]:
                     "label_uk": meta.get("label_uk"),
                     "description_uk": meta.get("description_uk"),
                     "category": meta.get("category"),
+                    "schema": meta.get("schema"),
                 }
             )
 
