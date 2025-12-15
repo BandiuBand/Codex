@@ -39,6 +39,18 @@ function withElement(id, handler) {
   return el;
 }
 
+function setBanner(message, kind = 'error') {
+  const banner = document.getElementById('statusBanner');
+  if (!banner) return;
+  if (!message) {
+    banner.hidden = true;
+    return;
+  }
+  banner.textContent = message;
+  banner.classList.toggle('info', kind === 'info');
+  banner.hidden = false;
+}
+
 function defaultNameFromKind(kind) {
   switch (kind) {
     case 'decision':
@@ -1404,8 +1416,7 @@ function renderAll() {
   }
 }
 
-async function init() {
-  await fetchTools();
+function registerEventHandlers() {
   withElement('saveAgent', (el) => el.addEventListener('click', saveAgent));
   withElement('validateAgent', (el) => el.addEventListener('click', validateAgent));
   withElement('loadAgent', (el) => el.addEventListener('click', loadAgent));
@@ -1467,8 +1478,29 @@ async function init() {
     canvas.addEventListener('dragover', (e) => e.preventDefault());
     canvas.addEventListener('drop', handleCanvasDrop);
   }
+}
 
-  await fetchAgents(true);
+async function init() {
+  setBanner('');
+  registerEventHandlers();
+
+  try {
+    await fetchTools();
+  } catch (err) {
+    console.error('Не вдалося завантажити інструменти', err);
+    setBanner('Не вдалося завантажити інструменти. Переконайтеся, що бекенд запущено.');
+  }
+
+  try {
+    await fetchAgents(true);
+  } catch (err) {
+    console.error('Не вдалося отримати список агентів', err);
+    setBanner('Не вдалося отримати список агентів. Переконайтеся, що бекенд запущено.', 'info');
+    if (!Object.keys(state.steps).length) {
+      newAgent(true);
+    }
+  }
+
   renderAll();
 }
 
