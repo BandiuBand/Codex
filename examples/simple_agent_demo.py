@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from agentfw.conditions.evaluator import ConditionEvaluator
+from agentfw.conditions.evaluator import ConditionEvaluator, ExpressionEvaluator
 from agentfw.core.models import (
     AgentDefinition,
     ConditionDefinition,
@@ -159,7 +159,7 @@ def main() -> None:
     agent_registry.register(agent_def)
 
     storage = FileRunStorage(base_dir=str(DATA_DIR))
-    condition_evaluator = ConditionEvaluator()
+    condition_evaluator = ConditionEvaluator(expression_evaluator=ExpressionEvaluator())
     engine = ExecutionEngine(
         agent_registry=agent_registry,
         tool_registry=tool_registry,
