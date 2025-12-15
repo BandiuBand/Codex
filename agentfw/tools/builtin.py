@@ -8,6 +8,7 @@ from agentfw.core.state import ExecutionContext
 from agentfw.runtime.engine import ExecutionEngine
 from agentfw.tools.base import BaseTool
 from agentfw.llm.base import LLMClient
+from agentfw.llm.json_utils import extract_json_from_text
 
 
 @dataclass
@@ -16,6 +17,13 @@ class LLMTool(BaseTool):
     Tool that calls an LLMClient to generate text based on a prompt template.
 
     The behavior is controlled entirely by 'params' from the step definition.
+
+    Supported params:
+      - prompt / prompt_var: source for the rendered prompt (existing behavior)
+      - options: client-specific generation options
+      - parse_json (bool, optional): when True, attempts to parse a JSON object
+        from the LLM output and expose it under ``parsed_json``; parsing errors
+        are reported via ``json_error`` instead of raising.
     """
 
     client: LLMClient
@@ -41,10 +49,19 @@ class LLMTool(BaseTool):
 
         output_text = self.client.generate(prompt, **options)
 
-        return {
+        result: Dict[str, Any] = {
             "prompt": prompt,
             "output_text": output_text,
         }
+
+        parse_json = bool(params.get("parse_json", False))
+        if parse_json:
+            parsed, error = extract_json_from_text(output_text)
+            result["parsed_json"] = parsed
+            if error is not None:
+                result["json_error"] = error
+
+        return result
 
 
 @dataclass
