@@ -1,12 +1,15 @@
 import json
 import os
+import shutil
 import threading
 from http.client import HTTPConnection
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 from typing import Dict
 
-from agentfw.web.server import AgentEditorHandler
+import yaml
+
+from agentfw.web.server import AgentEditorHandler, _find_agents_dir
 
 
 class TestWebServerIntegration:
@@ -87,3 +90,117 @@ class TestWebServerIntegration:
         validate_resp = self._request("POST", "/api/agents/validate", body=minimal_agent)
         assert validate_resp["status"] == 200
         assert validate_resp["json"].get("ok") is True
+
+    def test_agents_graph_includes_sources_and_step_metadata(self) -> None:
+        agents_dir = _find_agents_dir()
+        temp_dir = agents_dir / "tmp_graph_tests"
+        nested_dir = temp_dir / "nested"
+        nested_dir.mkdir(parents=True, exist_ok=True)
+
+        parent_agent = {
+            "name": "graph_parent",
+            "entry_step_id": "start",
+            "end_step_ids": ["done"],
+            "steps": {
+                "start": {
+                    "name": "start",
+                    "kind": "tool",
+                    "tool_name": "agent_call",
+                    "tool_params": {"agent_name": "graph_child"},
+                    "save_mapping": {},
+                    "validator_agent_name": None,
+                    "validator_params": {},
+                    "validator_policy": {},
+                    "transitions": [
+                        {"target_step_id": "done", "condition": {"type": "always"}},
+                    ],
+                },
+                "done": {
+                    "name": "done",
+                    "kind": "end",
+                    "tool_params": {},
+                    "save_mapping": {},
+                    "validator_agent_name": None,
+                    "validator_params": {},
+                    "validator_policy": {},
+                    "transitions": [],
+                },
+            },
+        }
+
+        child_agent = {
+            "name": "graph_child",
+            "entry_step_id": "validate",
+            "end_step_ids": ["validate"],
+            "steps": {
+                "validate": {
+                    "name": "validate",
+                    "kind": "validator",
+                    "tool_params": {},
+                    "save_mapping": {},
+                    "validator_agent_name": "simple_demo_agent",
+                    "validator_params": {},
+                    "validator_policy": {},
+                    "transitions": [],
+                }
+            },
+        }
+
+        duplicate_child = {
+            "name": "graph_child",
+            "entry_step_id": "validate",
+            "end_step_ids": ["validate"],
+            "steps": {
+                "validate": {
+                    "name": "validate",
+                    "kind": "validator",
+                    "tool_params": {},
+                    "save_mapping": {},
+                    "validator_agent_name": None,
+                    "validator_params": {},
+                    "validator_policy": {},
+                    "transitions": [],
+                }
+            },
+        }
+
+        parent_path = temp_dir / "graph_parent.yaml"
+        child_path = nested_dir / "graph_child.yaml"
+        duplicate_path = temp_dir / "graph_child_duplicate.yaml"
+
+        try:
+            parent_path.write_text(yaml.safe_dump(parent_agent))
+            child_path.write_text(yaml.safe_dump(child_agent))
+            duplicate_path.write_text(yaml.safe_dump(duplicate_child))
+
+            graph_resp = self._request("GET", "/api/agents_graph")
+            assert graph_resp["status"] == 200
+
+            graph = graph_resp["json"]
+            assert "agents" in graph and "edges" in graph
+
+            parent = next(a for a in graph["agents"] if a["name"] == "graph_parent")
+            child = next(a for a in graph["agents"] if a["name"] == "graph_child")
+
+            assert str(parent_path.relative_to(agents_dir)) in parent.get("sources", [])
+            assert str(child_path.relative_to(agents_dir)) in child.get("sources", [])
+            assert str(duplicate_path.relative_to(agents_dir)) in child.get("sources", [])
+
+            edges = [e for e in graph["edges"] if e["from"] in {"graph_parent", "graph_child"}]
+            assert any(
+                e["kind"] == "agent_call"
+                and e["from"] == "graph_parent"
+                and e["to"] == "graph_child"
+                and e.get("step_id") == "start"
+                and e.get("tool_name") == "agent_call"
+                for e in edges
+            )
+            assert any(
+                e["kind"] == "validator"
+                and e["from"] == "graph_child"
+                and e["to"] == "simple_demo_agent"
+                and e.get("step_id") == "validate"
+                for e in edges
+            )
+        finally:
+            shutil.rmtree(temp_dir)
