@@ -37,7 +37,7 @@ def run_tests(pytest_args: list[str] | None = None) -> int:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Unified entry point for the web editor, demo suite, and tests.",
+        description="Unified entry point: start the web server, run the demo, or execute tests.",
     )
     subparsers = parser.add_subparsers(dest="command", required=False)
 
@@ -55,13 +55,14 @@ def main() -> None:
         run_demo()
     elif args.command == "test":
         raise SystemExit(run_tests(pytest_args=unknown))
-    else:
+    elif args.command == "web" or args.command is None:
         if unknown:
             parser.error(f"unrecognized arguments: {' '.join(unknown)}")
-        # Default to web to make `python run.py` immediately useful.
         host = getattr(args, "host", "127.0.0.1")
         port = getattr(args, "port", 8000)
         run_web(host=host, port=port)
+    else:
+        parser.error(f"unrecognized command: {args.command}")
 
 
 if __name__ == "__main__":

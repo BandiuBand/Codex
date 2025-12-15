@@ -9,10 +9,10 @@ pip install -r requirements.txt
 To verify the demos run end-to-end, execute one of the entry points below from the repository root:
 
 ```bash
-# Start the web graph editor (default command)
+# Start the web editor (default command)
 python run.py
 
-# Explicitly run the web editor on a different host/port
+# Run the web editor on a different host/port
 python run.py web --host 127.0.0.1 --port 8000
 
 # Run the bundled demo agents sequentially
