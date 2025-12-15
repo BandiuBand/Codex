@@ -6,10 +6,20 @@ This repository contains a small agent execution framework and demo agents. Befo
 pip install -r requirements.txt
 ```
 
-To verify the demos run end-to-end, execute:
+To verify the demos run end-to-end, execute one of the entry points below from the repository root:
 
 ```bash
-python demo/simple_agent_demo.py
+# Start the web graph editor (default command)
+python run.py
+
+# Explicitly run the web editor on a different host/port
+python run.py web --host 127.0.0.1 --port 8000
+
+# Run the bundled demo agents sequentially
+python run.py demo
+
+# Run backend + frontend integration tests
+python run.py test
 ```
 
 If you see `ModuleNotFoundError: No module named 'yaml'`, it means the `PyYAML` dependency has not been installed; running the install command above resolves it.
