@@ -47,6 +47,12 @@
             <p class="muted">Перетягніть інструмент на канву, щоб створити крок.</p>
           </div>
         </div>
+        <div class="step-toolbar">
+          <button id="addActionStep" type="button">+ Крок дії</button>
+          <button id="addDecisionStep" type="button">+ Розгалуження</button>
+          <button id="addLoopStep" type="button">+ Цикл</button>
+          <button id="addValidatorStep" type="button">+ Валідатор</button>
+        </div>
         <div id="toolPalette" class="tool-palette"></div>
       </aside>
 
@@ -62,76 +68,6 @@
         <h2>Інспектор кроку</h2>
         <div id="inspectorContent" class="inspector-content">Оберіть крок, щоб редагувати.</div>
       </aside>
-    </section>
-
-    <section class="panel grid">
-      <div>
-        <h2>Додати / оновити крок</h2>
-        <form id="stepForm">
-          <div class="field-group">
-            <label for="stepId">Ідентифікатор</label>
-            <input id="stepId" required />
-          </div>
-          <div class="field-group">
-            <label for="stepName">Назва</label>
-            <input id="stepName" />
-          </div>
-          <div class="field-group">
-            <label for="stepKind">Тип</label>
-            <input id="stepKind" placeholder="tool/terminal/validator" />
-          </div>
-          <div class="field-group">
-            <label for="toolName">Інструмент</label>
-            <select id="toolName"></select>
-            <p id="toolDescription" class="muted"></p>
-          </div>
-          <div class="field-group">
-            <label for="toolParams">Параметри інструмента (JSON)</label>
-            <textarea id="toolParams" rows="2" placeholder='{"prompt": "hi"}'></textarea>
-          </div>
-          <div class="field-group">
-            <label>Збереження результатів</label>
-            <div id="saveMappingRows"></div>
-            <button type="button" id="addSaveMapping">Додати правило</button>
-          </div>
-          <div class="field-group">
-            <label for="validatorAgent">Агент-валідатор</label>
-            <input id="validatorAgent" />
-          </div>
-          <div class="field-group">
-            <label for="validatorParams">Параметри валідатора (JSON)</label>
-            <textarea id="validatorParams" rows="2"></textarea>
-          </div>
-          <div class="field-group">
-            <label for="validatorPolicy">Політика валідатора (JSON)</label>
-            <textarea id="validatorPolicy" rows="2"></textarea>
-          </div>
-          <button type="submit">Зберегти крок</button>
-        </form>
-      </div>
-      <div>
-        <h2>Переходи</h2>
-        <form id="transitionForm">
-          <div class="field-group">
-            <label for="fromStep">Звідки</label>
-            <select id="fromStep"></select>
-          </div>
-          <div class="field-group">
-            <label for="toStep">Куди</label>
-            <select id="toStep"></select>
-          </div>
-          <div class="field-group">
-            <label for="conditionType">Тип умови</label>
-            <select id="conditionType"></select>
-          </div>
-          <div id="conditionFields"></div>
-          <button type="submit">Додати перехід</button>
-        </form>
-        <div class="field-group">
-          <label>Переходи обраного кроку</label>
-          <div id="transitionList" class="transition-list"></div>
-        </div>
-      </div>
     </section>
 
     <section class="panel">

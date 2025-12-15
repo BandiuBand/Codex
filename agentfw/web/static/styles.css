@@ -184,6 +184,32 @@ footer {
   gap: 0.4rem;
 }
 
+.step-toolbar {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.4rem;
+  margin-bottom: 0.75rem;
+}
+
+.inspector-block {
+  border-top: 1px solid #eef1f6;
+  padding-top: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.table-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.table-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.35rem;
+  align-items: center;
+}
+
 .tool-pill {
   padding: 0.45rem 0.7rem;
   border-radius: 999px;
