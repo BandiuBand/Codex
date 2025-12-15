@@ -8,7 +8,7 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from agentfw.conditions.evaluator import ConditionEvaluator
+from agentfw.conditions.evaluator import ConditionEvaluator, ExpressionEvaluator
 from agentfw.config.settings import LLMConfig
 from agentfw.core.registry import AgentRegistry, ToolRegistry
 from agentfw.llm.base import DummyLLMClient, OllamaLLMClient
@@ -63,7 +63,7 @@ def main() -> None:
     agent_registry.load_all()
 
     storage = FileRunStorage(base_dir="./data/runs")
-    condition_evaluator = ConditionEvaluator()
+    condition_evaluator = ConditionEvaluator(expression_evaluator=ExpressionEvaluator())
     engine = ExecutionEngine(
         agent_registry=agent_registry,
         tool_registry=tool_registry,

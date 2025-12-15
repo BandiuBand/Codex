@@ -9,7 +9,7 @@ from typing import Dict, List, Tuple
 
 import yaml
 
-from agentfw.conditions.evaluator import ConditionEvaluator
+from agentfw.conditions.evaluator import ConditionEvaluator, ExpressionEvaluator
 from agentfw.config.loader import AgentConfigLoader
 from agentfw.config.settings import LLMConfig
 from agentfw.core.models import AgentDefinition, ConditionDefinition, StepDefinition, TransitionDefinition
@@ -299,7 +299,8 @@ def _build_runtime() -> Tuple[ExecutionEngine, AgentRegistry]:
     tool_registry.register("cerber_accept", AcceptValidatorTool())
 
     storage = FileRunStorage(base_dir="./data/runs")
-    condition_evaluator = ConditionEvaluator()
+    expression_evaluator = ExpressionEvaluator()
+    condition_evaluator = ConditionEvaluator(expression_evaluator=expression_evaluator)
     engine = ExecutionEngine(
         agent_registry=agent_registry,
         tool_registry=tool_registry,
