@@ -60,7 +60,33 @@ class ExecutionEngine:
         return state
 
     def _execute_next_step(self, ctx: ExecutionContext) -> None:
-        """Execute the next step in the agent definition."""
+        """Execute the next step in the agent definition.
+
+        The execution flow is intentionally documented for downstream tooling (e.g.
+        frontend run visualizers):
+        1. Resolve the step definition and take a snapshot of the current
+           variables so we can record what the tool saw, even if later steps mutate
+           the state.
+        2. If a tool is configured, fetch it from the registry and execute it with
+           ``tool_params``. Any exception marks the run failed and is captured on
+           the execution record.
+        3. Persist selected outputs back into ``state.variables`` according to the
+           step's ``save_mapping`` (only keys present in the tool result are
+           copied).
+        4. When a validator agent is declared, call it with a payload that includes
+           input/output snapshots and retry metadata. The validator policy controls
+           retry attempts; a "retry" status short-circuits the step (recording a
+           history entry without a transition) so it can be re-run, while "fail"
+           marks the state failed. Accepted validations may optionally patch
+           variables before continuing.
+        5. Choose the next transition using ``_choose_transition`` and the current
+           state (which may include validator patches). "None" means terminal and
+           sets ``finished``.
+        6. Append a ``StepExecutionRecord`` to ``state.history`` (and persisted
+           storage when enabled) containing the input snapshot, tool/validator
+           outputs, chosen transition, timestamps, and any error string so the
+           entire step lifecycle is auditable.
+        """
         if not ctx.state.current_step_id:
             ctx.state.finished = True
             return
