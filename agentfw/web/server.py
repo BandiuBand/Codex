@@ -492,43 +492,66 @@ class AgentEditorHandler(SimpleHTTPRequestHandler):
 
     def _handle_agents_graph(self) -> None:
         agents_dir = self.agents_dir
-        nodes: List[Dict[str, str]] = []
-        edges: List[Dict[str, str]] = []
-        edge_seen = set()
+        agents: Dict[str, Dict[str, object]] = {}
+        definitions: Dict[str, AgentDefinition] = {}
+        edges: List[Dict[str, object]] = []
 
         try:
-            agent_registry = AgentRegistry(agents={}, config_dirs=[str(agents_dir)])
-            agent_registry.load_all()
+            loader = AgentConfigLoader([str(agents_dir)])
+            agent_files: List[Path] = []
+            for pattern in ("*.yaml", "*.yml"):
+                agent_files.extend(agents_dir.rglob(pattern))
+
+            for path in sorted(agent_files, key=lambda p: str(p)):
+                definition = loader.load_file(path)
+                rel_path = str(path.relative_to(agents_dir))
+
+                agent_entry = agents.setdefault(
+                    definition.name,
+                    {
+                        "name": definition.name,
+                        "description": definition.description,
+                        "sources": [],
+                    },
+                )
+                if not agent_entry.get("description") and definition.description:
+                    agent_entry["description"] = definition.description
+                agent_entry["sources"].append(rel_path)
+
+                definitions[definition.name] = definition
         except Exception as exc:  # pylint: disable=broad-except
             return self._send_json(
                 {"error": f"failed to load agents: {exc}"},
                 status=HTTPStatus.INTERNAL_SERVER_ERROR,
             )
 
-        for name, definition in agent_registry.agents.items():
-            nodes.append({"id": name})
-
-            for step in definition.steps.values():
+        for definition in definitions.values():
+            for step_id, step in definition.steps.items():
                 if step.tool_name == "agent_call":
                     target_agent = step.tool_params.get("agent_name") if step.tool_params else None
                     if target_agent:
-                        edge_key = (name, str(target_agent), "call")
-                        if edge_key not in edge_seen:
-                            edges.append({"from": name, "to": str(target_agent), "kind": "call"})
-                            edge_seen.add(edge_key)
-                if step.validator_agent_name:
-                    edge_key = (name, step.validator_agent_name, "validator")
-                    if edge_key not in edge_seen:
                         edges.append(
                             {
-                                "from": name,
-                                "to": step.validator_agent_name,
-                                "kind": "validator",
+                                "from": definition.name,
+                                "to": str(target_agent),
+                                "kind": "agent_call",
+                                "step_id": step_id,
+                                "tool_name": step.tool_name,
                             }
                         )
-                        edge_seen.add(edge_key)
+                if step.validator_agent_name:
+                    edges.append(
+                        {
+                            "from": definition.name,
+                            "to": step.validator_agent_name,
+                            "kind": "validator",
+                            "step_id": step_id,
+                            "tool_name": step.tool_name,
+                        }
+                    )
 
-        return self._send_json({"nodes": nodes, "edges": edges})
+        payload = {"agents": sorted(agents.values(), key=lambda a: a["name"]), "edges": edges}
+        return self._send_json(payload)
 
     def _agent_path(self, agent_name: str) -> Path:
         safe_name = agent_name.replace("/", "_").replace("\\", "_")

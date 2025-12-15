@@ -18,7 +18,7 @@ const state = {
   draggingLink: null,
   selectedStepId: null,
   counter: 1,
-  agentsGraph: { nodes: [], edges: [] },
+  agentsGraph: { agents: [], edges: [] },
 };
 
 const canvas = document.getElementById('graphCanvas');
@@ -919,11 +919,12 @@ function renderAgentsGraph() {
   container.innerHTML = '';
   const nodesWrap = document.createElement('div');
   nodesWrap.className = 'graph-nodes';
-  (state.agentsGraph.nodes || []).forEach((n) => {
+  (state.agentsGraph.agents || []).forEach((n) => {
     const node = document.createElement('button');
     node.className = 'agent-node';
-    node.textContent = n.id;
-    node.addEventListener('click', () => loadAgent(n.id));
+    node.textContent = n.name;
+    node.title = (n.sources || []).join(', ');
+    node.addEventListener('click', () => loadAgent(n.name));
     nodesWrap.appendChild(node);
   });
   container.appendChild(nodesWrap);
@@ -933,7 +934,10 @@ function renderAgentsGraph() {
   (state.agentsGraph.edges || []).forEach((e) => {
     const edge = document.createElement('div');
     edge.className = `edge edge-${e.kind}`;
-    edge.innerHTML = `<span>${e.from}</span> → <span>${e.to}</span> <span class="badge">${e.kind}</span>`;
+    const badge = `<span class="badge">${e.kind}</span>`;
+    const step = e.step_id ? `<code>${e.step_id}</code>` : '';
+    const tool = e.tool_name ? `<span class="muted">${e.tool_name}</span>` : '';
+    edge.innerHTML = `<span>${e.from}</span> → <span>${e.to}</span> ${badge} ${step} ${tool}`;
     edgesWrap.appendChild(edge);
   });
   container.appendChild(edgesWrap);
