@@ -182,6 +182,10 @@ function createStep(kind) {
 
 async function fetchTools() {
   const res = await fetch('/api/tools');
+  if (!res.ok) {
+    setBanner('Не вдалося завантажити інструменти. Переконайтеся, що бекенд запущено.');
+    return;
+  }
   const data = await res.json();
   state.tools = data.tools || [];
   state.conditions = data.conditions || [];
@@ -191,7 +195,13 @@ async function fetchTools() {
 
 async function fetchAgents(autoLoadFirst = false) {
   const res = await fetch('/api/agents');
-  if (!res.ok) return;
+  if (!res.ok) {
+    setBanner('Не вдалося отримати список агентів. Переконайтеся, що бекенд запущено.', 'info');
+    if (!Object.keys(state.steps).length) {
+      newAgent(true);
+    }
+    return;
+  }
   const data = await res.json();
   state.agents = data.agents || [];
   populateAgentOptions();
