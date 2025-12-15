@@ -189,7 +189,8 @@ async function fetchTools() {
   const data = await res.json();
   state.tools = data.tools || [];
   state.conditions = data.conditions || [];
-  populateToolAndConditionOptions();
+  // Старий інтерфейс більше не використовується, тому не чіпаємо DOM напряму тут
+  // populateToolAndConditionOptions();
   renderToolPalette();
 }
 
