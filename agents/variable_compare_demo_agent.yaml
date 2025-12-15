@@ -1,0 +1,88 @@
+name: variable_compare_demo_agent
+description: Demo agent showing greater_than comparison between variables.
+
+input_schema: null
+output_schema: null
+
+serialize:
+  enabled: true
+  base_dir: "./data/runs"
+  per_step: true
+
+entry_step_id: init
+end_step_ids:
+  - above_limit
+  - under_limit
+
+steps:
+  init:
+    kind: tool
+    tool_name: null
+    tool_params: {}
+    save_mapping: {}
+    validator_agent_name: null
+    validator_params: {}
+    validator_policy: {}
+    transitions:
+      - target_step_id: sum_step
+        condition:
+          type: always
+
+  sum_step:
+    kind: tool
+    tool_name: math_add
+    tool_params:
+      a_var: x
+      b_var: y
+    save_mapping:
+      sum: result
+    validator_agent_name: cerber_validator
+    validator_params: {}
+    validator_policy:
+      max_retries: "2"
+    transitions:
+      - target_step_id: branch_step
+        condition:
+          type: always
+
+  branch_step:
+    kind: tool
+    tool_name: null
+    tool_params: {}
+    save_mapping: {}
+    validator_agent_name: null
+    validator_params: {}
+    validator_policy: {}
+    transitions:
+      - target_step_id: above_limit
+        condition:
+          type: greater_than
+          value_from: sum
+          right_var: limit
+      - target_step_id: under_limit
+        condition:
+          type: always
+
+  above_limit:
+    kind: tool
+    tool_name: echo
+    tool_params:
+      text: "Sum {sum} is greater than limit {limit}"
+    save_mapping:
+      message: output_text
+    validator_agent_name: null
+    validator_params: {}
+    validator_policy: {}
+    transitions: []
+
+  under_limit:
+    kind: tool
+    tool_name: echo
+    tool_params:
+      text: "Sum {sum} did not exceed limit {limit}"
+    save_mapping:
+      message: output_text
+    validator_agent_name: null
+    validator_params: {}
+    validator_policy: {}
+    transitions: []

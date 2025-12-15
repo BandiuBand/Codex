@@ -11,6 +11,7 @@ class ConditionDefinition:
     type: str
     value_from: Optional[str] = None
     value: object | None = None
+    right_var: Optional[str] = None
     expression: Optional[str] = None
     extra: Dict[str, object] = field(default_factory=dict)
 
