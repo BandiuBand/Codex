@@ -1518,6 +1518,8 @@ async function runSelectedAgent() {
 
   const payload = collectRunAgentInput();
 
+  console.log('[Запуск агента] agent_id=', agentId, 'input_json=', payload);
+
   if (statusEl) statusEl.textContent = 'Виконується…';
   outputEl.textContent = '';
 
@@ -1527,25 +1529,34 @@ async function runSelectedAgent() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ agent_id: agentId, input_json: payload }),
     });
-    const data = await res.json().catch(() => ({}));
+    const rawText = await res.text();
+    let data = {};
+    try {
+      data = rawText ? JSON.parse(rawText) : {};
+    } catch (parseErr) {
+      console.error('[Запуск агента] Не вдалося розпарсити відповідь як JSON', parseErr, rawText);
+      data = { raw: rawText };
+    }
+
+    console.log('[Запуск агента] Статус відповіді', res.status, res.statusText, 'Тіло:', data);
 
     if (!res.ok) {
       if (statusEl) statusEl.textContent = 'Помилка';
-      outputEl.textContent = data.error || res.statusText || 'Невідома помилка запуску.';
+      outputEl.textContent = data.error || res.statusText || rawText || 'Невідома помилка запуску.';
       return;
     }
 
     if (data.failed || data.ok === false) {
-      if (statusEl) statusEl.textContent = 'Помилка';
-      outputEl.textContent = data.error || 'Запуск агента завершився з помилкою.';
+      if (statusEl) statusEl.textContent = `Помилка: ${data.error || 'невідомо чому'}`;
+      outputEl.textContent = JSON.stringify(data, null, 2);
       return;
     }
 
     if (statusEl) statusEl.textContent = 'Успіх';
     outputEl.textContent = JSON.stringify(data, null, 2);
   } catch (err) {
-    console.error('Помилка запуску агента', err);
-    if (statusEl) statusEl.textContent = 'Помилка';
+    console.error('[Запуск агента] Помилка виконання запиту', err);
+    if (statusEl) statusEl.textContent = `Помилка: ${err.message}`;
     outputEl.textContent = err.message;
   }
 }
