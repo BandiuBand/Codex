@@ -403,3 +403,24 @@ footer {
 .edge-validator {
   border-color: #b5e5cf;
 }
+
+.var-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.var-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.var-row input {
+  width: 100%;
+}
+
+.var-name-custom[hidden] {
+  display: none;
+}
