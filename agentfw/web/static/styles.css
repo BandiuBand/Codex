@@ -412,13 +412,22 @@ footer {
 
 .var-row {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr auto;
+  grid-template-columns: minmax(160px, 1fr) minmax(220px, 2fr) auto;
   gap: 8px;
   align-items: center;
 }
 
 .var-row input {
   width: 100%;
+}
+
+.var-name-label {
+  display: inline-block;
+  padding: 8px 12px;
+  background: #eef2ff;
+  border-radius: 6px;
+  border: 1px solid #d9e1ff;
+  font-weight: 600;
 }
 
 .var-name-custom[hidden] {

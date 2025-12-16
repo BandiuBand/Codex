@@ -101,57 +101,29 @@ function normalizeAgent(raw) {
   };
 }
 
-function addRunAgentVarRow(name = '', value = '') {
+function addRunAgentVarRow(name = '', value = '', kind = 'custom') {
   const container = document.getElementById('runAgentVars');
   if (!container) return;
 
   const row = document.createElement('div');
   row.className = 'var-row';
+  row.dataset.varKind = kind;
 
-  const nameSelect = document.createElement('select');
-  nameSelect.className = 'var-name-select';
-  nameSelect.innerHTML = '';
+  let nameNode = null;
 
-  const placeholderOpt = document.createElement('option');
-  placeholderOpt.value = '';
-  placeholderOpt.textContent = '— оберіть змінну —';
-  nameSelect.appendChild(placeholderOpt);
-
-  (state.runAgentKnownVars || []).forEach((varName) => {
-    const opt = document.createElement('option');
-    opt.value = varName;
-    opt.textContent = varName;
-    nameSelect.appendChild(opt);
-  });
-
-  const customOpt = document.createElement('option');
-  customOpt.value = '__custom';
-  customOpt.textContent = 'Інша змінна';
-  nameSelect.appendChild(customOpt);
-
-  const customNameInput = document.createElement('input');
-  customNameInput.className = 'var-name-custom';
-  customNameInput.placeholder = 'Введіть назву змінної';
-  customNameInput.value = '';
-  customNameInput.hidden = true;
-
-  if (name) {
-    if (state.runAgentKnownVars.includes(name)) {
-      nameSelect.value = name;
-    } else {
-      nameSelect.value = '__custom';
-      customNameInput.value = name;
-      customNameInput.hidden = false;
-    }
+  if (kind === 'known' && name) {
+    row.dataset.varName = name;
+    const nameLabel = document.createElement('span');
+    nameLabel.className = 'var-name-label';
+    nameLabel.textContent = name;
+    nameNode = nameLabel;
+  } else {
+    const customNameInput = document.createElement('input');
+    customNameInput.className = 'var-name-custom';
+    customNameInput.placeholder = 'Назва змінної';
+    customNameInput.value = name;
+    nameNode = customNameInput;
   }
-
-  nameSelect.addEventListener('change', () => {
-    if (nameSelect.value === '__custom') {
-      customNameInput.hidden = false;
-    } else {
-      customNameInput.hidden = true;
-    }
-  });
 
   const valueInput = document.createElement('input');
   valueInput.className = 'var-value-input';
@@ -166,8 +138,7 @@ function addRunAgentVarRow(name = '', value = '') {
     ensureRunAgentRow();
   });
 
-  row.appendChild(nameSelect);
-  row.appendChild(customNameInput);
+  row.appendChild(nameNode);
   row.appendChild(valueInput);
   row.appendChild(removeBtn);
   container.appendChild(row);
@@ -188,15 +159,8 @@ function collectRunAgentInput() {
 
   container.querySelectorAll('.var-row').forEach((row) => {
     const valueInput = row.querySelector('.var-value-input');
-    const nameSelect = row.querySelector('.var-name-select');
     const customNameInput = row.querySelector('.var-name-custom');
-
-    if (!valueInput || !nameSelect || !customNameInput) return;
-
-    const key =
-      nameSelect.value === '__custom'
-        ? customNameInput.value.trim()
-        : nameSelect.value.trim();
+    const key = row.dataset.varName || customNameInput?.value?.trim();
     if (!key) return;
     const raw = valueInput.value;
     try {
@@ -378,10 +342,9 @@ function renderRunAgentVarRows(varNames = []) {
   if (!container) return;
   container.innerHTML = '';
   if (varNames.length) {
-    varNames.forEach((name) => addRunAgentVarRow(name, ''));
-  } else {
-    addRunAgentVarRow();
+    varNames.forEach((name) => addRunAgentVarRow(name, '', 'known'));
   }
+  addRunAgentVarRow('', '', 'custom');
 }
 
 async function loadRunAgentDetails(agentId) {
