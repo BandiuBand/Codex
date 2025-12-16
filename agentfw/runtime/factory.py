@@ -40,12 +40,21 @@ def find_agents_dir() -> Path:
 def llm_client_from_env() -> LLMClient:
     llm_config = LLMConfig.from_env()
     if llm_config.backend == "ollama":
+        print(
+            f"[agentfw] Використовуємо Ollama (base_url={llm_config.base_url}, model={llm_config.model})"
+        )
         return OllamaLLMClient(
             base_url=llm_config.base_url or "http://localhost:11434",
             model=llm_config.model or "qwen3:32b",
             api_key=llm_config.api_key,
         )
-    return DummyLLMClient()
+    if llm_config.backend == "dummy":
+        print("[agentfw] Використовується DummyLLMClient (бекенд не налаштовано)")
+        return DummyLLMClient()
+
+    raise ValueError(
+        f"Невідомий LLM backend '{llm_config.backend}'. Підтримується: dummy, ollama"
+    )
 
 
 def build_default_engine() -> Tuple[ExecutionEngine, AgentRegistry]:

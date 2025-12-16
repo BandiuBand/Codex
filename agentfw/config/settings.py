@@ -18,7 +18,20 @@ class LLMConfig:
 
     @classmethod
     def from_env(cls) -> "LLMConfig":
-        backend = os.getenv("AGENTFW_LLM_BACKEND", "dummy").lower()
+        backend_env = os.getenv("AGENTFW_LLM_BACKEND")
+        # Якщо бекенд явно не вказано, але є ознаки налаштування Ollama, обираємо його.
+        backend = (
+            backend_env.lower()
+            if backend_env
+            else (
+                "ollama"
+                if any(
+                    key in os.environ
+                    for key in ("OLLAMA_MODEL", "OLLAMA_BASE_URL", "OLLAMA_API_KEY")
+                )
+                else "dummy"
+            )
+        )
 
         base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
         model = os.getenv("OLLAMA_MODEL", "qwen3:32b")
