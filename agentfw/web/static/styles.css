@@ -403,3 +403,33 @@ footer {
 .edge-validator {
   border-color: #b5e5cf;
 }
+
+.var-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.var-row {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) minmax(220px, 2fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.var-row input {
+  width: 100%;
+}
+
+.var-name-label {
+  display: inline-block;
+  padding: 8px 12px;
+  background: #eef2ff;
+  border-radius: 6px;
+  border: 1px solid #d9e1ff;
+  font-weight: 600;
+}
+
+.var-name-custom[hidden] {
+  display: none;
+}
