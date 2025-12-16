@@ -94,8 +94,10 @@
       </div>
 
       <div class="field-group">
-        <label for="runAgentInput">Вхідні дані (JSON)</label>
-        <textarea id="runAgentInput" rows="8">{}</textarea>
+        <label for="runAgentVars">Вхідні змінні</label>
+        <div id="runAgentVars" class="var-grid"></div>
+        <button id="addRunAgentVar" type="button">+ Додати змінну</button>
+        <p class="muted">Значення зберігаються як текст. Для складних структур використайте JSON у полі значення.</p>
       </div>
 
       <div class="actions">

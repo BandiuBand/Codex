@@ -100,6 +100,64 @@ function normalizeAgent(raw) {
   };
 }
 
+function addRunAgentVarRow(name = '', value = '') {
+  const container = document.getElementById('runAgentVars');
+  if (!container) return;
+
+  const row = document.createElement('div');
+  row.className = 'var-row';
+
+  const nameInput = document.createElement('input');
+  nameInput.placeholder = 'Назва змінної';
+  nameInput.value = name;
+
+  const valueInput = document.createElement('input');
+  valueInput.placeholder = 'Значення';
+  valueInput.value = value;
+
+  const removeBtn = document.createElement('button');
+  removeBtn.type = 'button';
+  removeBtn.textContent = '✕';
+  removeBtn.addEventListener('click', () => {
+    row.remove();
+    ensureRunAgentRow();
+  });
+
+  row.appendChild(nameInput);
+  row.appendChild(valueInput);
+  row.appendChild(removeBtn);
+  container.appendChild(row);
+}
+
+function ensureRunAgentRow() {
+  const container = document.getElementById('runAgentVars');
+  if (!container) return;
+  if (!container.children.length) {
+    addRunAgentVarRow();
+  }
+}
+
+function collectRunAgentInput() {
+  const container = document.getElementById('runAgentVars');
+  if (!container) return {};
+  const payload = {};
+
+  container.querySelectorAll('.var-row').forEach((row) => {
+    const [nameInput, valueInput] = row.querySelectorAll('input');
+    if (!nameInput || !valueInput) return;
+    const key = nameInput.value.trim();
+    if (!key) return;
+    const raw = valueInput.value;
+    try {
+      payload[key] = JSON.parse(raw);
+    } catch (err) {
+      payload[key] = raw;
+    }
+  });
+
+  return payload;
+}
+
 function updateToolDescription(name) {
   const el = document.getElementById('toolDescription');
   if (!el) return;
@@ -1357,11 +1415,10 @@ function renderTransitionList(step) {
 
 async function runSelectedAgent() {
   const select = document.getElementById('runAgentSelect');
-  const inputEl = document.getElementById('runAgentInput');
   const outputEl = document.getElementById('runAgentOutput');
   const statusEl = document.getElementById('runAgentStatus');
 
-  if (!select || !inputEl || !outputEl) return;
+  if (!select || !outputEl) return;
   const agentId = select.value;
   if (!agentId) {
     if (statusEl) statusEl.textContent = 'Оберіть агента для запуску.';
@@ -1369,14 +1426,7 @@ async function runSelectedAgent() {
     return;
   }
 
-  let payload;
-  try {
-    payload = inputEl.value.trim() ? JSON.parse(inputEl.value) : {};
-  } catch (err) {
-    if (statusEl) statusEl.textContent = 'Помилка розбору JSON.';
-    outputEl.textContent = `Некоректний JSON: ${err.message}`;
-    return;
-  }
+  const payload = collectRunAgentInput();
 
   if (statusEl) statusEl.textContent = 'Виконується…';
   outputEl.textContent = '';
@@ -1385,7 +1435,7 @@ async function runSelectedAgent() {
     const res = await fetch('/api/agents/run', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ agent_id: agentId, input: payload }),
+      body: JSON.stringify({ agent_id: agentId, input_json: payload }),
     });
     const data = await res.json().catch(() => ({}));
 
@@ -1483,6 +1533,7 @@ function registerEventHandlers() {
   withElement('importJson', (el) => el.addEventListener('click', importJson));
   withElement('exportJson', (el) => el.addEventListener('click', exportJson));
   withElement('runAgentBtn', (el) => el.addEventListener('click', runSelectedAgent));
+  withElement('addRunAgentVar', (el) => el.addEventListener('click', () => addRunAgentVarRow()));
 
   if (canvas) {
     canvas.addEventListener('mousedown', startDrag);
@@ -1546,6 +1597,8 @@ async function init() {
   } catch (err) {
     console.error('Не вдалося оновити список агентів для запуску', err);
   }
+
+  ensureRunAgentRow();
 
   renderAll();
 }
