@@ -90,6 +90,16 @@ function toolDescription(tool) {
   return tool.description_uk || tool.description || '';
 }
 
+function normalizeAgent(raw) {
+  if (typeof raw === 'string') {
+    return { id: raw, name: raw };
+  }
+  return {
+    id: raw?.id || raw?.name || '',
+    name: raw?.name || raw?.id || '',
+  };
+}
+
 function updateToolDescription(name) {
   const el = document.getElementById('toolDescription');
   if (!el) return;
@@ -207,15 +217,18 @@ async function fetchAgentsForRunPanel() {
       return;
     }
     const data = await res.json();
-    (data.agents || []).forEach((name, idx) => {
+    const agents = (data.agents || []).map(normalizeAgent).filter((a) => a.id);
+
+    agents.forEach((agent, idx) => {
       const opt = document.createElement('option');
-      opt.value = name;
-      opt.textContent = name;
+      opt.value = agent.id;
+      opt.textContent = agent.name || agent.id;
       select.appendChild(opt);
-      if (idx === 0) {
-        select.value = name;
-      }
     });
+
+    if (agents.length) {
+      select.value = agents[0].id;
+    }
   } catch (err) {
     console.error('Помилка завантаження агентів для запуску', err);
     if (statusEl) statusEl.textContent = 'Помилка завантаження агентів.';
@@ -232,12 +245,13 @@ async function fetchAgents(autoLoadFirst = false) {
     return;
   }
   const data = await res.json();
-  state.agents = data.agents || [];
+  state.agents = (data.agents || []).map(normalizeAgent).filter((a) => a.id);
   populateAgentOptions();
 
   if (autoLoadFirst && state.agents.length) {
-    await loadAgent(state.agents[0]);
-    document.getElementById('agentSelect').value = state.agents[0];
+    await loadAgent(state.agents[0].id);
+    document.getElementById('agentSelect').value = state.agents[0].id;
+    document.getElementById('agentName').value = state.agents[0].id;
   } else if (!state.agents.length) {
     newAgent(true);
   }
@@ -324,10 +338,10 @@ function renderConditionFields(selectedType) {
 function populateAgentOptions() {
   const select = document.getElementById('agentSelect');
   select.innerHTML = '<option value="">— оберіть наявного —</option>';
-  state.agents.forEach((name) => {
+  state.agents.forEach((agent) => {
     const opt = document.createElement('option');
-    opt.value = name;
-    opt.textContent = name;
+    opt.value = agent.id;
+    opt.textContent = agent.name || agent.id;
     select.appendChild(opt);
   });
 }
