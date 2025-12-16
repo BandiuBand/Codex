@@ -23,7 +23,7 @@
           </select>
           <button id="refreshAgents" title="Оновити список">↻</button>
         </div>
-        <input id="agentName" type="text" placeholder="my_agent" />
+        <input id="agentName" type="text" placeholder="мій_агент" />
         <div class="agent-actions">
           <button id="loadAgent">Завантажити</button>
           <button id="newAgent">Новий</button>
@@ -60,7 +60,7 @@
 
       <div class="canvas-stack">
         <div class="canvas-legend">
-          <span>Shift + drag — створити перехід</span>
+          <span>Shift + перетягування — створити перехід</span>
           <span>Перетягуйте кроки, щоб їх вирівняти</span>
         </div>
         <canvas id="graphCanvas" width="1100" height="640"></canvas>
@@ -83,24 +83,31 @@
       </div>
     </section>
 
-    <section class="panel grid">
-      <div>
-        <h2>Запуск агента</h2>
-        <div class="field-group">
-          <label for="runAgentName">Агент</label>
-          <input id="runAgentName" placeholder="simple_demo_agent" />
-        </div>
-        <div class="field-group">
-          <label for="runInput">Вхідні змінні (JSON)</label>
-          <textarea id="runInput" rows="4" placeholder='{"x": 3, "y": 4}'></textarea>
-        </div>
-        <div class="actions">
-          <button id="runAgent">Запустити</button>
-        </div>
+    <section id="runAgentPanel" class="panel">
+      <h2>Запуск агента</h2>
+
+      <div class="field-group">
+        <label for="runAgentSelect">Агент</label>
+        <select id="runAgentSelect">
+          <option value="">— оберіть агента —</option>
+        </select>
       </div>
-      <div>
-        <h2>Результат виконання</h2>
-        <div id="runOutput" class="run-output"></div>
+
+      <div class="field-group">
+        <label for="runAgentVars">Вхідні змінні</label>
+        <div id="runAgentVars" class="var-grid"></div>
+        <button id="addRunAgentVar" type="button">+ Додати змінну</button>
+        <p class="muted">Значення зберігаються як текст. Для складних структур використайте JSON у полі значення.</p>
+      </div>
+
+      <div class="actions">
+        <button id="runAgentBtn">Запустити</button>
+        <span id="runAgentStatus" class="muted" aria-live="polite"></span>
+      </div>
+
+      <div class="field-group">
+        <label for="runAgentOutput">Результат</label>
+        <pre id="runAgentOutput"></pre>
       </div>
     </section>
 

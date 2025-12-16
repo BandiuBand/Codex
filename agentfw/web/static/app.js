@@ -90,6 +90,74 @@ function toolDescription(tool) {
   return tool.description_uk || tool.description || '';
 }
 
+function normalizeAgent(raw) {
+  if (typeof raw === 'string') {
+    return { id: raw, name: raw };
+  }
+  return {
+    id: raw?.id || raw?.name || '',
+    name: raw?.name || raw?.id || '',
+  };
+}
+
+function addRunAgentVarRow(name = '', value = '') {
+  const container = document.getElementById('runAgentVars');
+  if (!container) return;
+
+  const row = document.createElement('div');
+  row.className = 'var-row';
+
+  const nameInput = document.createElement('input');
+  nameInput.placeholder = 'Назва змінної';
+  nameInput.value = name;
+
+  const valueInput = document.createElement('input');
+  valueInput.placeholder = 'Значення';
+  valueInput.value = value;
+
+  const removeBtn = document.createElement('button');
+  removeBtn.type = 'button';
+  removeBtn.textContent = '✕';
+  removeBtn.addEventListener('click', () => {
+    row.remove();
+    ensureRunAgentRow();
+  });
+
+  row.appendChild(nameInput);
+  row.appendChild(valueInput);
+  row.appendChild(removeBtn);
+  container.appendChild(row);
+}
+
+function ensureRunAgentRow() {
+  const container = document.getElementById('runAgentVars');
+  if (!container) return;
+  if (!container.children.length) {
+    addRunAgentVarRow();
+  }
+}
+
+function collectRunAgentInput() {
+  const container = document.getElementById('runAgentVars');
+  if (!container) return {};
+  const payload = {};
+
+  container.querySelectorAll('.var-row').forEach((row) => {
+    const [nameInput, valueInput] = row.querySelectorAll('input');
+    if (!nameInput || !valueInput) return;
+    const key = nameInput.value.trim();
+    if (!key) return;
+    const raw = valueInput.value;
+    try {
+      payload[key] = JSON.parse(raw);
+    } catch (err) {
+      payload[key] = raw;
+    }
+  });
+
+  return payload;
+}
+
 function updateToolDescription(name) {
   const el = document.getElementById('toolDescription');
   if (!el) return;
@@ -189,9 +257,40 @@ async function fetchTools() {
   const data = await res.json();
   state.tools = data.tools || [];
   state.conditions = data.conditions || [];
-  // Старий інтерфейс більше не використовується, тому не чіпаємо DOM напряму тут
-  // populateToolAndConditionOptions();
   renderToolPalette();
+}
+
+async function fetchAgentsForRunPanel() {
+  const select = document.getElementById('runAgentSelect');
+  const statusEl = document.getElementById('runAgentStatus');
+  if (!select) return;
+
+  select.innerHTML = '<option value="">— оберіть агента —</option>';
+  if (statusEl) statusEl.textContent = '';
+
+  try {
+    const res = await fetch('/api/agents');
+    if (!res.ok) {
+      if (statusEl) statusEl.textContent = 'Не вдалося завантажити агентів.';
+      return;
+    }
+    const data = await res.json();
+    const agents = (data.agents || []).map(normalizeAgent).filter((a) => a.id);
+
+    agents.forEach((agent, idx) => {
+      const opt = document.createElement('option');
+      opt.value = agent.id;
+      opt.textContent = agent.name || agent.id;
+      select.appendChild(opt);
+    });
+
+    if (agents.length) {
+      select.value = agents[0].id;
+    }
+  } catch (err) {
+    console.error('Помилка завантаження агентів для запуску', err);
+    if (statusEl) statusEl.textContent = 'Помилка завантаження агентів.';
+  }
 }
 
 async function fetchAgents(autoLoadFirst = false) {
@@ -204,12 +303,13 @@ async function fetchAgents(autoLoadFirst = false) {
     return;
   }
   const data = await res.json();
-  state.agents = data.agents || [];
+  state.agents = (data.agents || []).map(normalizeAgent).filter((a) => a.id);
   populateAgentOptions();
 
   if (autoLoadFirst && state.agents.length) {
-    await loadAgent(state.agents[0]);
-    document.getElementById('agentSelect').value = state.agents[0];
+    await loadAgent(state.agents[0].id);
+    document.getElementById('agentSelect').value = state.agents[0].id;
+    document.getElementById('agentName').value = state.agents[0].id;
   } else if (!state.agents.length) {
     newAgent(true);
   }
@@ -296,10 +396,10 @@ function renderConditionFields(selectedType) {
 function populateAgentOptions() {
   const select = document.getElementById('agentSelect');
   select.innerHTML = '<option value="">— оберіть наявного —</option>';
-  state.agents.forEach((name) => {
+  state.agents.forEach((agent) => {
     const opt = document.createElement('option');
-    opt.value = name;
-    opt.textContent = name;
+    opt.value = agent.id;
+    opt.textContent = agent.name || agent.id;
     select.appendChild(opt);
   });
 }
@@ -1122,9 +1222,6 @@ function newAgent(seedStep = false) {
   withElement('inspectorContent', (el) => {
     el.textContent = t.selectStep;
   });
-  withElement('runAgentName', (el) => {
-    el.value = '';
-  });
   if (seed) {
     const tool = state.tools[0]?.name || state.tools[0];
     const id = 'init';
@@ -1316,75 +1413,51 @@ function renderTransitionList(step) {
   });
 }
 
-async function runAgent() {
-  const agent = document.getElementById('runAgentName').value.trim() || document.getElementById('agentName').value.trim();
-  let inputObj = {};
+async function runSelectedAgent() {
+  const select = document.getElementById('runAgentSelect');
+  const outputEl = document.getElementById('runAgentOutput');
+  const statusEl = document.getElementById('runAgentStatus');
+
+  if (!select || !outputEl) return;
+  const agentId = select.value;
+  if (!agentId) {
+    if (statusEl) statusEl.textContent = 'Оберіть агента для запуску.';
+    outputEl.textContent = '';
+    return;
+  }
+
+  const payload = collectRunAgentInput();
+
+  if (statusEl) statusEl.textContent = 'Виконується…';
+  outputEl.textContent = '';
+
   try {
-    inputObj = parseJsonField(document.getElementById('runInput').value || '{}');
+    const res = await fetch('/api/agents/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agent_id: agentId, input_json: payload }),
+    });
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      if (statusEl) statusEl.textContent = 'Помилка';
+      outputEl.textContent = data.error || res.statusText || 'Невідома помилка запуску.';
+      return;
+    }
+
+    if (data.failed || data.ok === false) {
+      if (statusEl) statusEl.textContent = 'Помилка';
+      outputEl.textContent = data.error || 'Запуск агента завершився з помилкою.';
+      return;
+    }
+
+    if (statusEl) statusEl.textContent = 'Успіх';
+    outputEl.textContent = JSON.stringify(data, null, 2);
   } catch (err) {
-    alert(`Некоректний JSON вхідних даних: ${err}`);
-    return;
+    console.error('Помилка запуску агента', err);
+    if (statusEl) statusEl.textContent = 'Помилка';
+    outputEl.textContent = err.message;
   }
-  if (!agent) {
-    alert('Вкажіть агента для запуску.');
-    return;
-  }
-  const res = await fetch('/api/run', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ agent, input: inputObj }),
-  });
-  const data = await res.json();
-  if (!res.ok || data.ok === false) {
-    alert(`${t.agentRunError}: ${data.error || res.statusText}`);
-    return;
-  }
-  renderRunOutput(data);
-}
-
-function renderRunOutput(data) {
-  const container = document.getElementById('runOutput');
-  if (!container) return;
-  container.innerHTML = '';
-  const status = document.createElement('div');
-  status.className = data.failed ? 'status-badge bad' : 'status-badge good';
-  status.textContent = data.failed ? 'невдача' : 'успіх';
-  container.appendChild(status);
-
-  const finalState = document.createElement('div');
-  finalState.className = 'final-state';
-  finalState.innerHTML = '<h4>Фінальний стан</h4>';
-  const table = document.createElement('table');
-  Object.entries(data.final_state || {}).forEach(([k, v]) => {
-    const row = document.createElement('tr');
-    const keyCell = document.createElement('td');
-    keyCell.textContent = k;
-    const valCell = document.createElement('td');
-    valCell.textContent = typeof v === 'object' ? JSON.stringify(v) : v;
-    row.appendChild(keyCell);
-    row.appendChild(valCell);
-    table.appendChild(row);
-  });
-  finalState.appendChild(table);
-  container.appendChild(finalState);
-
-  const historyBlock = document.createElement('div');
-  historyBlock.innerHTML = '<h4>Історія кроків</h4>';
-  (data.history || []).forEach((h) => {
-    const card = document.createElement('div');
-    card.className = 'history-card';
-    card.innerHTML = `
-      <div><strong>Крок:</strong> ${h.step_id}</div>
-      <div><strong>Інструмент:</strong> ${h.tool_name || '—'}</div>
-      <div><strong>Вхідні:</strong> <code>${JSON.stringify(h.input_variables || {})}</code></div>
-      <div><strong>Результат:</strong> <code>${JSON.stringify(h.tool_result || {})}</code></div>
-      <div><strong>Валідатор:</strong> <code>${JSON.stringify(h.validator_result || {})}</code></div>
-      <div><strong>Перехід:</strong> ${h.chosen_transition || '—'}</div>
-      <div><strong>Помилка:</strong> ${h.error || '—'}</div>
-    `;
-    historyBlock.appendChild(card);
-  });
-  container.appendChild(historyBlock);
 }
 
 async function fetchAgentsGraph() {
@@ -1459,7 +1532,8 @@ function registerEventHandlers() {
   });
   withElement('importJson', (el) => el.addEventListener('click', importJson));
   withElement('exportJson', (el) => el.addEventListener('click', exportJson));
-  withElement('runAgent', (el) => el.addEventListener('click', runAgent));
+  withElement('runAgentBtn', (el) => el.addEventListener('click', runSelectedAgent));
+  withElement('addRunAgentVar', (el) => el.addEventListener('click', () => addRunAgentVarRow()));
 
   if (canvas) {
     canvas.addEventListener('mousedown', startDrag);
@@ -1517,6 +1591,14 @@ async function init() {
       newAgent(true);
     }
   }
+
+  try {
+    await fetchAgentsForRunPanel();
+  } catch (err) {
+    console.error('Не вдалося оновити список агентів для запуску', err);
+  }
+
+  ensureRunAgentRow();
 
   renderAll();
 }
