@@ -40,6 +40,37 @@ function withElement(id, handler) {
   return el;
 }
 
+function appendRunAgentLog(message, level = 'info', extra) {
+  const logEl = document.getElementById('runAgentLog');
+  const ts = new Date().toISOString();
+  const serializedExtra = (() => {
+    if (extra === undefined) return '';
+    if (typeof extra === 'string') return ` ${extra}`;
+    try {
+      return ` ${JSON.stringify(extra, null, 2)}`;
+    } catch (err) {
+      return ' [не вдалося серіалізувати додаткові дані]';
+    }
+  })();
+
+  const line = `[${ts}] ${message}${serializedExtra}`;
+  const consoleMethod = level === 'error' ? 'error' : level === 'warn' ? 'warn' : 'log';
+  console[consoleMethod](line);
+
+  if (!logEl) return;
+  const div = document.createElement('div');
+  div.textContent = line;
+  if (level === 'error') div.classList.add('log-error');
+  if (level === 'warn') div.classList.add('log-warn');
+  logEl.appendChild(div);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+function clearRunAgentLog() {
+  const logEl = document.getElementById('runAgentLog');
+  if (logEl) logEl.innerHTML = '';
+}
+
 function setBanner(message, kind = 'error') {
   const banner = document.getElementById('statusBanner');
   if (!banner) return;
@@ -282,15 +313,18 @@ async function fetchAgentsForRunPanel() {
 
   select.innerHTML = '<option value="">— оберіть агента —</option>';
   if (statusEl) statusEl.textContent = '';
+  appendRunAgentLog('Завантаження списку агентів для запуску…');
 
   try {
     const res = await fetch('/api/agents');
     if (!res.ok) {
       if (statusEl) statusEl.textContent = 'Не вдалося завантажити агентів.';
+      appendRunAgentLog('Не вдалося отримати список агентів', 'error', { status: res.status, statusText: res.statusText });
       return;
     }
     const data = await res.json();
     const agents = (data.agents || []).map(normalizeAgent).filter((a) => a.id);
+    appendRunAgentLog('Отримано список агентів', 'info', agents);
 
     agents.forEach((agent, idx) => {
       const opt = document.createElement('option');
@@ -301,10 +335,12 @@ async function fetchAgentsForRunPanel() {
 
     if (agents.length) {
       select.value = agents[0].id;
+      appendRunAgentLog('Автовибір першого агента для запуску', 'info', agents[0]);
       await loadRunAgentDetails(agents[0].id);
     }
   } catch (err) {
     console.error('Помилка завантаження агентів для запуску', err);
+    appendRunAgentLog('Помилка завантаження агентів для запуску', 'error', err.message);
     if (statusEl) statusEl.textContent = 'Помилка завантаження агентів.';
   }
 }
@@ -353,10 +389,12 @@ async function loadRunAgentDetails(agentId) {
     state.runAgentKnownVars = [];
     renderRunAgentVarRows([]);
     if (statusEl) statusEl.textContent = '';
+    appendRunAgentLog('Агент не вибраний — очищено форму запуску', 'warn');
     return;
   }
 
   if (statusEl) statusEl.textContent = 'Завантаження вхідних змінних…';
+  appendRunAgentLog('Завантаження опису агента', 'info', { agentId });
 
   try {
     const res = await fetch(`/api/agents/${encodeURIComponent(agentId)}`);
@@ -364,10 +402,13 @@ async function loadRunAgentDetails(agentId) {
       state.runAgentKnownVars = [];
       renderRunAgentVarRows([]);
       if (statusEl) statusEl.textContent = 'Не вдалося отримати опис агента.';
+      appendRunAgentLog('Не вдалося отримати опис агента', 'error', { status: res.status, statusText: res.statusText });
       return;
     }
     const definition = await res.json();
+    appendRunAgentLog('Отримано опис агента', 'info', definition);
     state.runAgentKnownVars = extractAgentInputVars(definition);
+    appendRunAgentLog('Виявлені вхідні змінні', 'info', state.runAgentKnownVars);
     renderRunAgentVarRows(state.runAgentKnownVars);
 
     if (statusEl) {
@@ -1509,16 +1550,17 @@ async function runSelectedAgent() {
   const statusEl = document.getElementById('runAgentStatus');
 
   if (!select || !outputEl) return;
+  clearRunAgentLog();
   const agentId = select.value;
   if (!agentId) {
     if (statusEl) statusEl.textContent = 'Оберіть агента для запуску.';
     outputEl.textContent = '';
+    appendRunAgentLog('Запуск скасовано: агент не вибраний', 'warn');
     return;
   }
 
   const payload = collectRunAgentInput();
-
-  console.log('[Запуск агента] agent_id=', agentId, 'input_json=', payload);
+  appendRunAgentLog('Запуск агента', 'info', { agent_id: agentId, input_json: payload });
 
   if (statusEl) statusEl.textContent = 'Виконується…';
   outputEl.textContent = '';
@@ -1529,33 +1571,40 @@ async function runSelectedAgent() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ agent_id: agentId, input_json: payload }),
     });
+    appendRunAgentLog('Отримано відповідь', 'info', { status: res.status, statusText: res.statusText });
     const rawText = await res.text();
+    appendRunAgentLog('Сире тіло відповіді', res.ok ? 'info' : 'warn', rawText || '[порожньо]');
     let data = {};
     try {
       data = rawText ? JSON.parse(rawText) : {};
     } catch (parseErr) {
       console.error('[Запуск агента] Не вдалося розпарсити відповідь як JSON', parseErr, rawText);
+      appendRunAgentLog('Не вдалося розпарсити JSON відповіді', 'error', parseErr.message);
       data = { raw: rawText };
     }
 
-    console.log('[Запуск агента] Статус відповіді', res.status, res.statusText, 'Тіло:', data);
+    appendRunAgentLog('Розібране тіло відповіді', res.ok ? 'info' : 'warn', data);
 
     if (!res.ok) {
       if (statusEl) statusEl.textContent = 'Помилка';
       outputEl.textContent = data.error || res.statusText || rawText || 'Невідома помилка запуску.';
+      appendRunAgentLog('Запуск завершився HTTP-помилкою', 'error', outputEl.textContent);
       return;
     }
 
     if (data.failed || data.ok === false) {
       if (statusEl) statusEl.textContent = `Помилка: ${data.error || 'невідомо чому'}`;
       outputEl.textContent = JSON.stringify(data, null, 2);
+      appendRunAgentLog('Агент повідомив про помилку', 'error', data);
       return;
     }
 
     if (statusEl) statusEl.textContent = 'Успіх';
     outputEl.textContent = JSON.stringify(data, null, 2);
+    appendRunAgentLog('Запуск успішний', 'info', data);
   } catch (err) {
     console.error('[Запуск агента] Помилка виконання запиту', err);
+    appendRunAgentLog('Помилка виконання запиту', 'error', err.message);
     if (statusEl) statusEl.textContent = `Помилка: ${err.message}`;
     outputEl.textContent = err.message;
   }

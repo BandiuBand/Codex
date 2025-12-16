@@ -325,6 +325,36 @@ footer {
   background: #f9fbff;
 }
 
+#runAgentOutput {
+  min-height: 160px;
+  background: #f7f7fb;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 12px;
+  white-space: pre-wrap;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+}
+
+#runAgentLog {
+  min-height: 120px;
+  background: #0f172a;
+  color: #e2e8f0;
+  border-radius: 6px;
+  padding: 10px;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 13px;
+  line-height: 1.45;
+  overflow: auto;
+}
+
+#runAgentLog .log-error {
+  color: #fca5a5;
+}
+
+#runAgentLog .log-warn {
+  color: #fcd34d;
+}
+
 .final-state table {
   width: 100%;
   border-collapse: collapse;
