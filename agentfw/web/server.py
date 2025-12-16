@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+import os
 import json
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
-import os
 from pathlib import Path
 from typing import Dict, List, Tuple
 
@@ -11,12 +11,16 @@ import yaml
 
 from agentfw.config.loader import AgentConfigLoader
 from agentfw.core.models import AgentDefinition, ConditionDefinition, StepDefinition, TransitionDefinition
+from agentfw.core.state import AgentState
 from agentfw.core.registry import AgentRegistry
 from agentfw.runtime.engine import ExecutionEngine
 from agentfw.runtime.factory import build_default_engine, find_agents_dir
 from agentfw.tools import builtin as builtin_tools
 from agentfw.tools.base import BaseTool
 from agentfw.tools.metadata import TOOL_META
+
+
+_find_agents_dir = find_agents_dir
 
 
 DEFAULT_CONDITIONS: List[Dict[str, object]] = [
@@ -124,7 +128,8 @@ def definition_to_dict(definition: AgentDefinition) -> Dict[str, object]:
     }
 
     return {
-        "name": definition.name,
+        "id": definition.name,
+        "name": definition.display_name or definition.name,
         "description": definition.description,
         "input_schema": definition.input_schema,
         "output_schema": definition.output_schema,
@@ -150,9 +155,12 @@ def _parse_step(loader: AgentConfigLoader, step_id: str, data: Dict[str, object]
 def definition_from_dict(data: Dict[str, object]) -> AgentDefinition:
     loader = AgentConfigLoader([])
 
-    name = str(data.get("name", "")).strip()
-    if not name:
+    agent_id = str(data.get("id") or data.get("name", "")).strip()
+    if not agent_id:
         raise ValueError("Agent name is required")
+
+    display_name_raw = data.get("name") if data.get("id") else data.get("display_name")
+    display_name = str(display_name_raw).strip() if display_name_raw else None
 
     steps_section = data.get("steps", {}) or {}
     if not isinstance(steps_section, dict):
@@ -166,7 +174,9 @@ def definition_from_dict(data: Dict[str, object]) -> AgentDefinition:
     if not entry_step_id:
         raise ValueError("entry_step_id is required")
     if entry_step_id not in steps:
-        raise ValueError(f"Entry step '{entry_step_id}' is not defined in steps for agent '{name}'")
+        raise ValueError(
+            f"Entry step '{entry_step_id}' is not defined in steps for agent '{agent_id}'"
+        )
 
     end_step_ids = set(map(str, data.get("end_step_ids", []) or []))
     unknown_end_steps = [step for step in end_step_ids if step not in steps]
@@ -174,14 +184,15 @@ def definition_from_dict(data: Dict[str, object]) -> AgentDefinition:
         unknown = "', '".join(unknown_end_steps)
         raise ValueError(f"End step '{unknown}' is not defined in steps")
 
-    loader._validate_transitions(steps, name)  # pylint: disable=protected-access
+    loader._validate_transitions(steps, agent_id)  # pylint: disable=protected-access
 
     serialize_cfg = data.get("serialize", {}) or {}
     if not isinstance(serialize_cfg, dict):
         raise ValueError("'serialize' must be a mapping")
 
     return AgentDefinition(
-        name=name,
+        name=agent_id,
+        display_name=display_name,
         description=data.get("description"),
         input_schema=data.get("input_schema"),
         output_schema=data.get("output_schema"),
@@ -296,6 +307,8 @@ class AgentEditorHandler(SimpleHTTPRequestHandler):
     def do_POST(self) -> None:  # noqa: N802
         if self.path == "/api/agents/validate":
             return self._handle_validate()
+        if self.path == "/api/agents/run":
+            return self._handle_agent_run()
         if self.path == "/api/run":
             return self._handle_run()
         if self.path.startswith("/api/agents/"):
@@ -321,6 +334,46 @@ class AgentEditorHandler(SimpleHTTPRequestHandler):
     def _json_error(self, message: str, status: HTTPStatus) -> None:
         self._send_json({"ok": False, "error": message}, status=status)
 
+    def _truncate_value(self, value: object, max_length: int = 500, max_items: int = 50) -> object:
+        """Recursively trim large strings/collections to keep payloads small."""
+
+        if isinstance(value, str):
+            return value if len(value) <= max_length else value[:max_length] + "…"
+
+        if isinstance(value, list):
+            trimmed = [self._truncate_value(v, max_length, max_items) for v in value[:max_items]]
+            if len(value) > max_items:
+                trimmed.append(f"… {len(value) - max_items} more items")
+            return trimmed
+
+        if isinstance(value, dict):
+            trimmed_dict: Dict[str, object] = {}
+            for i, (k, v) in enumerate(value.items()):
+                if i >= max_items:
+                    trimmed_dict["__truncated__"] = f"… {len(value) - max_items} more entries"
+                    break
+                trimmed_dict[str(k)] = self._truncate_value(v, max_length, max_items)
+            return trimmed_dict
+
+        return value
+
+    def _serialize_history(self, state: AgentState, definition: AgentDefinition) -> List[Dict[str, object]]:
+        history: List[Dict[str, object]] = []
+        for record in state.history:
+            step_def = definition.steps.get(record.step_id)
+            history.append(
+                {
+                    "step_id": record.step_id,
+                    "tool_name": step_def.tool_name if step_def else None,
+                    "input_variables": self._truncate_value(record.input_variables_snapshot),
+                    "tool_result": self._truncate_value(record.tool_result),
+                    "validator_result": self._truncate_value(record.validator_result),
+                    "chosen_transition": record.chosen_transition,
+                    "error": record.error,
+                }
+            )
+        return history
+
     def _handle_tools(self) -> None:
         payload = {"tools": self.tools, "conditions": DEFAULT_CONDITIONS}
         self._send_json(payload)
@@ -328,14 +381,24 @@ class AgentEditorHandler(SimpleHTTPRequestHandler):
     def _handle_agent_get(self) -> None:
         base = "/api/agents/"
         if self.path.rstrip("/") == "/api/agents":
-            names = []
+            definitions: Dict[str, Dict[str, str]] = {}
             if self.agents_dir.exists():
-                for file in self.agents_dir.glob("*.yml"):
-                    names.append(file.stem)
-                for file in self.agents_dir.glob("*.yaml"):
-                    names.append(file.stem)
-            names = sorted(set(names))
-            return self._send_json({"agents": names})
+                loader = AgentConfigLoader([str(self.agents_dir)])
+                files = list(self.agents_dir.glob("*.yml")) + list(
+                    self.agents_dir.glob("*.yaml")
+                )
+                for file in files:
+                    try:
+                        definition = loader.load_file(file)
+                    except Exception:
+                        continue
+                    definitions[definition.name] = {
+                        "id": definition.name,
+                        "name": definition.display_name or definition.name,
+                    }
+
+            agents_list = sorted(definitions.values(), key=lambda a: a["id"])
+            return self._send_json({"agents": agents_list})
 
         agent_name = self.path[len(base) :]
         if not agent_name:
@@ -363,7 +426,8 @@ class AgentEditorHandler(SimpleHTTPRequestHandler):
 
         try:
             payload = self._read_json_body()
-            payload["name"] = agent_name
+            payload.setdefault("name", payload.get("display_name"))
+            payload["id"] = agent_name
             definition = definition_from_dict(payload)
         except ValueError as exc:
             return self._send_json(
@@ -410,27 +474,69 @@ class AgentEditorHandler(SimpleHTTPRequestHandler):
         except Exception as exc:  # pylint: disable=broad-except
             return self._send_json({"ok": False, "error": str(exc)}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
 
-        history = []
-        for record in state.history:
-            step_def = definition.steps.get(record.step_id)
-            history.append(
-                {
-                    "step_id": record.step_id,
-                    "tool_name": step_def.tool_name if step_def else None,
-                    "input_variables": record.input_variables_snapshot,
-                    "tool_result": record.tool_result,
-                    "validator_result": record.validator_result,
-                    "chosen_transition": record.chosen_transition,
-                    "error": record.error,
-                }
-            )
+        history = self._serialize_history(state, definition)
 
         payload = {
             "ok": True,
             "failed": state.failed,
-            "final_state": state.variables,
+            "final_state": self._truncate_value(state.variables),
             "history": history,
         }
+
+        return self._send_json(payload)
+
+    def _handle_agent_run(self) -> None:
+        try:
+            payload = self._read_json_body()
+        except ValueError as exc:
+            return self._json_error(str(exc), status=HTTPStatus.BAD_REQUEST)
+
+        agent_id = str(payload.get("agent_id", "")).strip()
+        input_json = payload.get("input_json", {}) or {}
+
+        if not agent_id:
+            return self._json_error("agent_id is required", status=HTTPStatus.BAD_REQUEST)
+        if not isinstance(input_json, dict):
+            return self._json_error("input_json must be an object", status=HTTPStatus.BAD_REQUEST)
+
+        try:
+            engine, agent_registry = _build_runtime()
+            state = engine.run_to_completion(agent_name=agent_id, input_json=input_json)
+            definition = agent_registry.get(agent_id)
+        except KeyError as exc:
+            return self._json_error(str(exc), status=HTTPStatus.NOT_FOUND)
+        except Exception as exc:  # pylint: disable=broad-except
+            return self._send_json(
+                {
+                    "agent_id": agent_id,
+                    "run_id": None,
+                    "finished": False,
+                    "failed": True,
+                    "error": str(exc),
+                },
+                status=HTTPStatus.INTERNAL_SERVER_ERROR,
+            )
+
+        history = self._serialize_history(state, definition)
+
+        error_message = None
+        if state.failed:
+            for record in reversed(state.history):
+                if record.error:
+                    error_message = record.error
+                    break
+
+        payload = {
+            "agent_id": agent_id,
+            "run_id": state.run_id,
+            "finished": bool(state.finished),
+            "failed": bool(state.failed),
+            "variables": self._truncate_value(state.variables),
+            "steps": history,
+        }
+
+        if error_message:
+            payload["error"] = error_message
 
         return self._send_json(payload)
 

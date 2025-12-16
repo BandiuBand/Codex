@@ -51,7 +51,9 @@ class TestWebServerIntegration:
         agents_resp = self._request("GET", "/api/agents")
         assert agents_resp["status"] == 200
         assert "agents" in agents_resp["json"]
-        assert "simple_demo_agent" in agents_resp["json"]["agents"]
+        agents = agents_resp["json"]["agents"]
+        assert all("id" in a and "name" in a for a in agents)
+        assert any(a["id"] == "simple_demo_agent" for a in agents)
 
         minimal_agent = {
             "name": "integration_agent",
@@ -90,6 +92,22 @@ class TestWebServerIntegration:
         validate_resp = self._request("POST", "/api/agents/validate", body=minimal_agent)
         assert validate_resp["status"] == 200
         assert validate_resp["json"].get("ok") is True
+
+    def test_agent_run_endpoint_executes_agent(self) -> None:
+        run_resp = self._request(
+            "POST",
+            "/api/agents/run",
+            body={"agent_id": "simple_demo_agent", "input_json": {"x": 3, "y": 4}},
+        )
+
+        assert run_resp["status"] == 200
+        payload = run_resp["json"]
+        assert payload.get("agent_id") == "simple_demo_agent"
+        assert payload.get("finished") is True
+        assert payload.get("failed") is False
+        assert isinstance(payload.get("variables"), dict)
+        assert "message" in payload.get("variables", {})
+        assert isinstance(payload.get("steps"), list)
 
     def test_agents_graph_includes_sources_and_step_metadata(self) -> None:
         agents_dir = _find_agents_dir()
