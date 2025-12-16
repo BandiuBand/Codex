@@ -20,6 +20,7 @@ const state = {
   counter: 1,
   transitionCounter: 1,
   agentsGraph: { agents: [], edges: [] },
+  runAgentKnownVars: [],
 };
 
 const canvas = document.getElementById('graphCanvas');
@@ -107,11 +108,53 @@ function addRunAgentVarRow(name = '', value = '') {
   const row = document.createElement('div');
   row.className = 'var-row';
 
-  const nameInput = document.createElement('input');
-  nameInput.placeholder = 'Назва змінної';
-  nameInput.value = name;
+  const nameSelect = document.createElement('select');
+  nameSelect.className = 'var-name-select';
+  nameSelect.innerHTML = '';
+
+  const placeholderOpt = document.createElement('option');
+  placeholderOpt.value = '';
+  placeholderOpt.textContent = '— оберіть змінну —';
+  nameSelect.appendChild(placeholderOpt);
+
+  (state.runAgentKnownVars || []).forEach((varName) => {
+    const opt = document.createElement('option');
+    opt.value = varName;
+    opt.textContent = varName;
+    nameSelect.appendChild(opt);
+  });
+
+  const customOpt = document.createElement('option');
+  customOpt.value = '__custom';
+  customOpt.textContent = 'Інша змінна';
+  nameSelect.appendChild(customOpt);
+
+  const customNameInput = document.createElement('input');
+  customNameInput.className = 'var-name-custom';
+  customNameInput.placeholder = 'Введіть назву змінної';
+  customNameInput.value = '';
+  customNameInput.hidden = true;
+
+  if (name) {
+    if (state.runAgentKnownVars.includes(name)) {
+      nameSelect.value = name;
+    } else {
+      nameSelect.value = '__custom';
+      customNameInput.value = name;
+      customNameInput.hidden = false;
+    }
+  }
+
+  nameSelect.addEventListener('change', () => {
+    if (nameSelect.value === '__custom') {
+      customNameInput.hidden = false;
+    } else {
+      customNameInput.hidden = true;
+    }
+  });
 
   const valueInput = document.createElement('input');
+  valueInput.className = 'var-value-input';
   valueInput.placeholder = 'Значення';
   valueInput.value = value;
 
@@ -123,7 +166,8 @@ function addRunAgentVarRow(name = '', value = '') {
     ensureRunAgentRow();
   });
 
-  row.appendChild(nameInput);
+  row.appendChild(nameSelect);
+  row.appendChild(customNameInput);
   row.appendChild(valueInput);
   row.appendChild(removeBtn);
   container.appendChild(row);
@@ -143,9 +187,16 @@ function collectRunAgentInput() {
   const payload = {};
 
   container.querySelectorAll('.var-row').forEach((row) => {
-    const [nameInput, valueInput] = row.querySelectorAll('input');
-    if (!nameInput || !valueInput) return;
-    const key = nameInput.value.trim();
+    const valueInput = row.querySelector('.var-value-input');
+    const nameSelect = row.querySelector('.var-name-select');
+    const customNameInput = row.querySelector('.var-name-custom');
+
+    if (!valueInput || !nameSelect || !customNameInput) return;
+
+    const key =
+      nameSelect.value === '__custom'
+        ? customNameInput.value.trim()
+        : nameSelect.value.trim();
     if (!key) return;
     const raw = valueInput.value;
     try {
@@ -286,10 +337,86 @@ async function fetchAgentsForRunPanel() {
 
     if (agents.length) {
       select.value = agents[0].id;
+      await loadRunAgentDetails(agents[0].id);
     }
   } catch (err) {
     console.error('Помилка завантаження агентів для запуску', err);
     if (statusEl) statusEl.textContent = 'Помилка завантаження агентів.';
+  }
+}
+
+function extractAgentInputVars(definition = {}) {
+  const vars = new Set();
+  const schema = definition.input_schema;
+  if (schema && typeof schema === 'object') {
+    if (schema.properties && typeof schema.properties === 'object') {
+      Object.keys(schema.properties).forEach((k) => vars.add(k));
+    }
+    if (Array.isArray(schema.required)) {
+      schema.required.forEach((k) => vars.add(k));
+    }
+  }
+
+  const steps = definition.steps || {};
+  Object.values(steps).forEach((step = {}) => {
+    const params = step.tool_params || {};
+    Object.entries(params).forEach(([key, value]) => {
+      if (typeof value !== 'string') return;
+      if (key.endsWith('_var') || key.toLowerCase().includes('var')) {
+        vars.add(value);
+      }
+      const matches = value.match(/\{([^{}]+)\}/g) || [];
+      matches.forEach((m) => vars.add(m.replace(/\{|\}/g, '')));
+    });
+  });
+
+  return Array.from(vars);
+}
+
+function renderRunAgentVarRows(varNames = []) {
+  const container = document.getElementById('runAgentVars');
+  if (!container) return;
+  container.innerHTML = '';
+  if (varNames.length) {
+    varNames.forEach((name) => addRunAgentVarRow(name, ''));
+  } else {
+    addRunAgentVarRow();
+  }
+}
+
+async function loadRunAgentDetails(agentId) {
+  const statusEl = document.getElementById('runAgentStatus');
+  if (!agentId) {
+    state.runAgentKnownVars = [];
+    renderRunAgentVarRows([]);
+    if (statusEl) statusEl.textContent = '';
+    return;
+  }
+
+  if (statusEl) statusEl.textContent = 'Завантаження вхідних змінних…';
+
+  try {
+    const res = await fetch(`/api/agents/${encodeURIComponent(agentId)}`);
+    if (!res.ok) {
+      state.runAgentKnownVars = [];
+      renderRunAgentVarRows([]);
+      if (statusEl) statusEl.textContent = 'Не вдалося отримати опис агента.';
+      return;
+    }
+    const definition = await res.json();
+    state.runAgentKnownVars = extractAgentInputVars(definition);
+    renderRunAgentVarRows(state.runAgentKnownVars);
+
+    if (statusEl) {
+      statusEl.textContent = state.runAgentKnownVars.length
+        ? 'Вхідні змінні завантажено.'
+        : 'Змінні не визначені, додайте власні.';
+    }
+  } catch (err) {
+    console.error('Помилка завантаження опису агента', err);
+    state.runAgentKnownVars = [];
+    renderRunAgentVarRows([]);
+    if (statusEl) statusEl.textContent = 'Помилка завантаження опису агента.';
   }
 }
 
@@ -1533,6 +1660,7 @@ function registerEventHandlers() {
   withElement('importJson', (el) => el.addEventListener('click', importJson));
   withElement('exportJson', (el) => el.addEventListener('click', exportJson));
   withElement('runAgentBtn', (el) => el.addEventListener('click', runSelectedAgent));
+  withElement('runAgentSelect', (el) => el.addEventListener('change', (e) => loadRunAgentDetails(e.target.value)));
   withElement('addRunAgentVar', (el) => el.addEventListener('click', () => addRunAgentVarRow()));
 
   if (canvas) {
