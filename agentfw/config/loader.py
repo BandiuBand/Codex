@@ -41,9 +41,12 @@ class AgentConfigLoader:
         if not isinstance(data, dict):
             raise ValueError(f"Configuration in {path} must be a mapping")
 
-        name = str(data.get("name", "")).strip()
-        if not name:
+        agent_id = str(data.get("id") or data.get("name", "")).strip()
+        if not agent_id:
             raise ValueError(f"Agent name is required in {path}")
+
+        display_name_raw = data.get("name") if data.get("id") else data.get("display_name")
+        display_name = str(display_name_raw).strip() if display_name_raw else None
 
         steps_section = data.get("steps", {}) or {}
         if not isinstance(steps_section, dict):
@@ -56,11 +59,11 @@ class AgentConfigLoader:
 
         entry_step_id = str(data.get("entry_step_id", "")).strip()
         if not entry_step_id:
-            raise ValueError(f"entry_step_id is required for agent '{name}'")
+            raise ValueError(f"entry_step_id is required for agent '{agent_id}'")
 
         if entry_step_id not in steps:
             raise ValueError(
-                f"Entry step '{entry_step_id}' is not defined in steps for agent '{name}'"
+                f"Entry step '{entry_step_id}' is not defined in steps for agent '{agent_id}'"
             )
 
         end_step_ids = set(map(str, data.get("end_step_ids", []) or []))
@@ -69,14 +72,15 @@ class AgentConfigLoader:
             unknown = "', '".join(unknown_end_steps)
             raise ValueError(f"End step '{unknown}' is not defined in steps")
 
-        self._validate_transitions(steps, name)
+        self._validate_transitions(steps, agent_id)
 
         serialize_cfg = data.get("serialize", {}) or {}
         if not isinstance(serialize_cfg, dict):
             raise ValueError(f"'serialize' must be a mapping in {path}")
 
         definition = AgentDefinition(
-            name=name,
+            name=agent_id,
+            display_name=display_name,
             description=data.get("description"),
             input_schema=data.get("input_schema"),
             output_schema=data.get("output_schema"),

@@ -53,6 +53,7 @@ class AgentDefinition:
     """Defines an agent loaded from configuration files."""
 
     name: str
+    display_name: Optional[str] = None
     description: Optional[str] = None
     input_schema: Dict[str, object] | None = None
     output_schema: Dict[str, object] | None = None

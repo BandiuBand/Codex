@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
@@ -67,4 +68,14 @@ class ExecutionContext:
 
     def resolve_template(self, template: str) -> str:
         """Resolve placeholders in the template using current variables."""
-        return template.format(**self.state.variables)
+        _PLACEHOLDER = re.compile(r"\{([a-zA-Z_][a-zA-Z0-9_]*)\}")
+
+        vars_ = self.state.variables
+
+        def repl(m: re.Match) -> str:
+            key = m.group(1)
+            if key in vars_:
+                return str(vars_.get(key, ""))
+            return m.group(0)
+
+        return _PLACEHOLDER.sub(repl, template)
