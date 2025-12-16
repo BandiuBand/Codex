@@ -1,8 +1,10 @@
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Optional
+
+import yaml
 
 
 @dataclass
@@ -17,30 +19,26 @@ class LLMConfig:
     api_key: Optional[str] = None
 
     @classmethod
-    def from_env(cls) -> "LLMConfig":
-        backend_env = os.getenv("AGENTFW_LLM_BACKEND")
-        # Якщо бекенд явно не вказано, але є ознаки налаштування Ollama, обираємо його.
-        backend = (
-            backend_env.lower()
-            if backend_env
-            else (
-                "ollama"
-                if any(
-                    key in os.environ
-                    for key in ("OLLAMA_MODEL", "OLLAMA_BASE_URL", "OLLAMA_API_KEY")
-                )
-                else "dummy"
+    def from_file(cls, path: Path) -> "LLMConfig":
+        if not path.exists():
+            raise FileNotFoundError(
+                f"Не знайдено файл конфігурації LLM за шляхом {path}. "
+                "Додайте llm_config.yaml поряд з агентами."
             )
-        )
 
-        base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-        model = os.getenv("OLLAMA_MODEL", "qwen3:32b")
-        api_key = os.getenv("OLLAMA_API_KEY")
+        data = yaml.safe_load(path.read_text())
+        if not isinstance(data, dict):
+            raise ValueError("llm_config.yaml має бути мапою з полями backend/base_url/model")
 
-        # для backend="dummy" base_url/model не критичні, але все одно зчитуємо
+        backend_raw = data.get("backend") or "ollama"
+        backend = str(backend_raw).lower().strip()
+        base_url = data.get("base_url")
+        model = data.get("model")
+        api_key = data.get("api_key")
+
         return cls(
             backend=backend,
-            base_url=base_url,
-            model=model,
-            api_key=api_key,
+            base_url=str(base_url) if base_url else "http://localhost:11434",
+            model=str(model) if model else "qwen3:32b",
+            api_key=str(api_key) if api_key else None,
         )

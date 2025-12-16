@@ -37,8 +37,10 @@ def find_agents_dir() -> Path:
     return project_root / "agents"
 
 
-def llm_client_from_env() -> LLMClient:
-    llm_config = LLMConfig.from_env()
+def llm_client_from_config(config_dir: Path | None = None) -> LLMClient:
+    config_dir = config_dir or find_agents_dir()
+    llm_config_path = Path(config_dir) / "llm_config.yaml"
+    llm_config = LLMConfig.from_file(llm_config_path)
     if llm_config.backend == "ollama":
         print(
             f"[agentfw] Використовуємо Ollama (base_url={llm_config.base_url}, model={llm_config.model})"
@@ -66,7 +68,7 @@ def build_default_engine() -> Tuple[ExecutionEngine, AgentRegistry]:
     tool_registry = ToolRegistry(tools={})
     tool_registry.register("echo", EchoTool())
     tool_registry.register("math_add", MathAddTool())
-    tool_registry.register("llm", LLMTool(client=llm_client_from_env()))
+    tool_registry.register("llm", LLMTool(client=llm_client_from_config(agents_dir)))
     tool_registry.register("shell", ShellTool())
     tool_registry.register("flaky", FlakyTool())
     tool_registry.register(
