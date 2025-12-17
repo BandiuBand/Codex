@@ -1,0 +1,45 @@
+name: http_demo_agent
+description: Demo agent that performs an HTTP request and saves the response fields.
+
+input_schema: null
+output_schema: null
+
+serialize:
+  enabled: true
+  base_dir: "./data/runs"
+  per_step: true
+
+entry_step_id: fetch
+end_step_ids:
+  - done
+
+steps:
+  fetch:
+    kind: tool
+    tool_name: http_request
+    tool_params:
+      method: GET
+      url: https://httpbin.org/get
+      params:
+        demo: true
+    save_mapping:
+      status: status_code
+      headers: headers
+      body_text: text
+      body_json: json
+    validator_agent_name: null
+    validator_params: {}
+    validator_policy: {}
+    transitions:
+      - target_step_id: done
+        condition:
+          type: always
+
+  done:
+    kind: terminal
+    result:
+      status_var: status
+      headers_var: headers
+      body_text_var: body_text
+      body_json_var: body_json
+    transitions: []
