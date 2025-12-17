@@ -168,9 +168,30 @@ button:hover {
 
 .var-row {
   display: grid;
-  grid-template-columns: 1fr 110px 70px auto;
+  grid-template-columns: 26px 1fr 110px 70px auto;
   gap: 6px;
   align-items: center;
+  margin-bottom: 8px;
+}
+
+.port-handle {
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: #0a111a;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.port-handle::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
 }
 
 .lanes-toolbar {
@@ -186,6 +207,17 @@ button:hover {
   grid-auto-columns: minmax(180px, 1fr);
   gap: 10px;
   min-height: 320px;
+}
+
+.lanes-wrapper {
+  position: relative;
+}
+
+.link-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: visible;
 }
 
 .lane {

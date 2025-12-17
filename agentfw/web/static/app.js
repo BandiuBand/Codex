@@ -27,6 +27,18 @@ function setStatus(message, tone = "info") {
   el.classList.toggle("warning", tone === "error");
 }
 
+function cssEscape(value) {
+  if (window.CSS && window.CSS.escape) {
+    return window.CSS.escape(value);
+  }
+  return value.replace(/[^a-zA-Z0-9_-]/g, "\\$&");
+}
+
+function findPortEl(address) {
+  const escaped = cssEscape(address);
+  return document.querySelector(`[data-address="${escaped}"]`);
+}
+
 async function fetchJSON(url, options = {}) {
   const resp = await fetch(url, options);
   if (!resp.ok) {
@@ -115,6 +127,7 @@ function updateVariable(kind, index, changes) {
   if (!Array.isArray(list) || !list[index]) return;
   state.current[kind][index] = { ...list[index], ...changes };
   renderVariables();
+  drawLinks();
 }
 
 function removeVariable(kind, index) {
@@ -138,6 +151,7 @@ function addVariable(kind) {
   if (!state.current) return;
   state.current[kind].push({ name: `${kind}_${state.current[kind].length + 1}`, type: "string", required: false });
   renderVariables();
+  drawLinks();
 }
 
 function renderVariables() {
@@ -145,9 +159,17 @@ function renderVariables() {
     const container = $(`${kind}List`);
     if (!container || !state.current) return;
     container.innerHTML = "";
+    const prefix = kind === "inputs" ? "$in" : kind === "locals" ? "$local" : "$out";
     state.current[kind].forEach((v, idx) => {
       const row = document.createElement("div");
       row.className = "var-row";
+
+      const handle = document.createElement("div");
+      handle.className = "port-handle";
+      handle.title = `${prefix}.${v.name}`;
+      handle.dataset.address = `${prefix}.${v.name}`;
+      attachPortEvents(handle);
+      row.appendChild(handle);
 
       const nameInput = document.createElement("input");
       nameInput.value = v.name;
@@ -184,30 +206,6 @@ function renderVariables() {
       container.appendChild(row);
     });
   });
-  renderPorts();
-}
-
-function renderPorts() {
-  const rootPorts = [
-    { list: "inputsList", prefix: "$in" },
-    { list: "localsList", prefix: "$local" },
-    { list: "outputsList", prefix: "$out" },
-  ];
-  rootPorts.forEach(({ list, prefix }) => {
-    const container = $(list);
-    if (!container || !state.current) return;
-    container.querySelectorAll(".port").forEach((p) => p.remove());
-    (state.current[prefix === "$in" ? "inputs" : prefix === "$local" ? "locals" : "outputs"] || []).forEach(
-      (decl) => {
-        const port = document.createElement("div");
-        port.className = "port";
-        port.textContent = `${decl.name} (${decl.type})`;
-        port.dataset.address = `${prefix}.${decl.name}`;
-        attachPortEvents(port);
-        container.appendChild(port);
-      },
-    );
-  });
 }
 
 function attachPortEvents(el) {
@@ -221,18 +219,78 @@ function attachPortEvents(el) {
   });
 }
 
+function isAllowedLink(src, dst) {
+  const childInRe = /^[A-Za-z0-9_-]+\.\$in\./;
+  const childOutRe = /^[A-Za-z0-9_-]+\.\$out\./;
+
+  if ((src.startsWith("$in.") || src.startsWith("$local.") || childOutRe.test(src)) && childInRe.test(dst)) {
+    return true;
+  }
+  if (childOutRe.test(src) && dst.startsWith("$out.")) {
+    return true;
+  }
+  if (src.startsWith("$local.") && dst.startsWith("$out.")) {
+    return true;
+  }
+  return false;
+}
+
 function addLink(src, dst) {
   if (!state.current) return;
+  if (!isAllowedLink(src, dst)) {
+    setStatus("Недозволений напрямок з’єднання", "error");
+    return;
+  }
   const exists = state.current.links.some((l) => l.src === src && l.dst === dst);
   if (exists) return;
   state.current.links.push({ src, dst });
   renderLinks();
+  drawLinks();
 }
 
 function removeLink(idx) {
   if (!state.current) return;
   state.current.links.splice(idx, 1);
   renderLinks();
+}
+
+function getPortCenter(address) {
+  const wrapper = document.querySelector(".lanes-wrapper");
+  const svg = $("linkLayer");
+  if (!wrapper || !svg) return null;
+  const el = findPortEl(address);
+  if (!el) return null;
+  const rect = el.getBoundingClientRect();
+  const parentRect = wrapper.getBoundingClientRect();
+  return {
+    x: rect.left + rect.width / 2 - parentRect.left,
+    y: rect.top + rect.height / 2 - parentRect.top,
+  };
+}
+
+function drawLinks() {
+  const svg = $("linkLayer");
+  const wrapper = document.querySelector(".lanes-wrapper");
+  if (!svg || !wrapper || !state.current) return;
+  const rect = wrapper.getBoundingClientRect();
+  svg.setAttribute("width", rect.width);
+  svg.setAttribute("height", rect.height);
+  svg.innerHTML = "";
+
+  state.current.links.forEach((link) => {
+    const start = getPortCenter(link.src);
+    const end = getPortCenter(link.dst);
+    if (!start || !end) return;
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    const midX = (start.x + end.x) / 2;
+    const d = `M ${start.x},${start.y} C ${midX},${start.y} ${midX},${end.y} ${end.x},${end.y}`;
+    path.setAttribute("d", d);
+    path.setAttribute("stroke", "#22d3ee");
+    path.setAttribute("stroke-width", "2");
+    path.setAttribute("fill", "none");
+    path.setAttribute("opacity", "0.85");
+    svg.appendChild(path);
+  });
 }
 
 function renderLinks() {
@@ -248,6 +306,7 @@ function renderLinks() {
     li.appendChild(btn);
     list.appendChild(li);
   });
+  drawLinks();
 }
 
 function renderInspector() {
@@ -372,6 +431,7 @@ async function renderLanes() {
 
     lanes.appendChild(laneEl);
   }
+  drawLinks();
 }
 
 function handleDrop(event, laneId) {
@@ -407,7 +467,7 @@ async function loadAgent(agentId) {
       locals: data.locals || [],
       outputs: data.outputs || [],
       children: data.children || {},
-      lanes: data.lanes || [],
+      lanes: (data.lanes || []).length ? data.lanes : [{ id: "lane-1", agents: [] }],
       links: data.links || [],
     };
     updateAgentFields();
@@ -514,6 +574,7 @@ function bindEvents() {
     btn.addEventListener("click", () => addVariable(btn.dataset.addVar));
   });
   safe($("runAgent"), (btn) => btn.addEventListener("click", runAgent));
+  window.addEventListener("resize", drawLinks);
 }
 
 document.addEventListener("DOMContentLoaded", () => {
