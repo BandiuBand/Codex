@@ -22,6 +22,7 @@ const state = {
   agentsGraph: { agents: [], edges: [] },
   agentPaletteFilter: '',
   runAgentKnownVars: [],
+  definitionInputVars: [],
 };
 
 const canvas = document.getElementById('graphCanvas');
@@ -32,6 +33,9 @@ const STEP_BASE_HEIGHT = 70;
 const PORT_GAP = 18;
 const PORT_RADIUS = 6;
 const PORT_DETECTION_RADIUS = 10;
+const AGENT_INPUT_NODE_ID = '__agent_input__';
+const RAIL_MARGIN = 24;
+const RAIL_PADDING = 30;
 
 if (!canvas || !ctx) {
   console.error('graphCanvas не знайдено, канвас вимкнено');
@@ -379,6 +383,45 @@ function getPortLabel(step, portType, index) {
   return out?.varName || out?.resultKey || `out ${index + 1}`;
 }
 
+function getAgentInputVarsList() {
+  const vars = new Set([...(state.definitionInputVars || []), ...(state.runAgentKnownVars || [])]);
+  Object.values(state.steps).forEach((step) => {
+    (step.inputs || []).forEach((inp) => {
+      const isAgentSource = !inp.fromStepId || inp.fromStepId === AGENT_INPUT_NODE_ID;
+      if (!isAgentSource) return;
+      const name = inp.fromVar || inp.name;
+      if (name) vars.add(name);
+    });
+  });
+  return Array.from(vars);
+}
+
+function getAgentOutputVarsList() {
+  const vars = new Set();
+  Object.values(state.steps).forEach((step) => {
+    (step.saveMapping || []).forEach((m) => {
+      if (m.varName) vars.add(m.varName);
+      if (m.resultKey) vars.add(m.resultKey);
+    });
+  });
+  return Array.from(vars);
+}
+
+function getRailPortLabel(side, index) {
+  const collection = side === 'input' ? getAgentInputVarsList() : getAgentOutputVarsList();
+  return collection[index] || '';
+}
+
+function getRailPortPosition(side, index) {
+  if (!canvas) return null;
+  const collection = side === 'input' ? getAgentInputVarsList() : getAgentOutputVarsList();
+  if (index >= collection.length) return null;
+  const availableHeight = Math.max(20, canvas.height - RAIL_PADDING * 2);
+  const y = RAIL_PADDING + ((index + 1) * availableHeight) / (collection.length + 1);
+  const x = side === 'input' ? RAIL_MARGIN : canvas.width - RAIL_MARGIN;
+  return { x, y };
+}
+
 function findOutputIndexForVar(step, varName) {
   if (!varName) return -1;
   return (step.saveMapping || []).findIndex((m) => m.varName === varName || m.resultKey === varName);
@@ -392,7 +435,7 @@ function getPortAt(x, y) {
       if (!pos) continue;
       const dist = Math.hypot(pos.x - x, pos.y - y);
       if (dist <= PORT_DETECTION_RADIUS) {
-        return { stepId: step.id, portType: 'input', index: i };
+        return { kind: 'step', stepId: step.id, portType: 'input', index: i };
       }
     }
 
@@ -402,8 +445,28 @@ function getPortAt(x, y) {
       if (!pos) continue;
       const dist = Math.hypot(pos.x - x, pos.y - y);
       if (dist <= PORT_DETECTION_RADIUS) {
-        return { stepId: step.id, portType: 'output', index: i };
+        return { kind: 'step', stepId: step.id, portType: 'output', index: i };
       }
+    }
+  }
+
+  const agentInputs = getAgentInputVarsList();
+  for (let i = 0; i < agentInputs.length; i += 1) {
+    const pos = getRailPortPosition('input', i);
+    if (!pos) continue;
+    const dist = Math.hypot(pos.x - x, pos.y - y);
+    if (dist <= PORT_DETECTION_RADIUS) {
+      return { kind: 'rail', rail: 'input', portType: 'output', index: i, label: agentInputs[i] };
+    }
+  }
+
+  const agentOutputs = getAgentOutputVarsList();
+  for (let i = 0; i < agentOutputs.length; i += 1) {
+    const pos = getRailPortPosition('output', i);
+    if (!pos) continue;
+    const dist = Math.hypot(pos.x - x, pos.y - y);
+    if (dist <= PORT_DETECTION_RADIUS) {
+      return { kind: 'rail', rail: 'output', portType: 'input', index: i, label: agentOutputs[i] };
     }
   }
   return null;
@@ -1452,6 +1515,50 @@ function connectOutputToInput(sourceStepId, outputIndex, targetStepId, inputInde
   render();
 }
 
+function connectAgentInputToStepInput(agentInputIndex, targetStepId, inputIndex) {
+  const target = state.steps[targetStepId];
+  if (!target) return;
+  const input = target.inputs?.[inputIndex];
+  if (!input) return;
+  const label = getRailPortLabel('input', agentInputIndex) || input.name || `input_${agentInputIndex + 1}`;
+  input.fromVar = label;
+  input.fromStepId = AGENT_INPUT_NODE_ID;
+  if (state.selectedStepId === targetStepId) {
+    renderInspector(target);
+  }
+  updatePreview();
+  render();
+}
+
+function connectStepOutputToAgentOutput(sourceStepId, outputIndex, agentOutputIndex) {
+  const source = state.steps[sourceStepId];
+  if (!source) return;
+  const output = source.saveMapping?.[outputIndex];
+  if (!output) return;
+  const label = getRailPortLabel('output', agentOutputIndex) || output.varName || output.resultKey || `out_${outputIndex + 1}`;
+  if (!output.varName) output.varName = label;
+  if (!output.resultKey) output.resultKey = label;
+  if (state.selectedStepId === sourceStepId) {
+    renderInspector(source);
+  }
+  updatePreview();
+  render();
+}
+
+function resolveLinkStart(link) {
+  if (!link) return null;
+  if (link.fromKind === 'rail') {
+    const pos = getRailPortPosition(link.rail, link.fromPortIndex);
+    return pos || null;
+  }
+  const source = state.steps[link.from];
+  if (!source) return null;
+  if (link.fromPortType === 'output' && link.fromPortIndex >= 0) {
+    return getPortPosition(source, 'output', link.fromPortIndex) || getStepAnchor(source, 'output');
+  }
+  return getStepAnchor(source, 'output');
+}
+
 function drawArrow(start, end, options = {}) {
   const { color = '#1d5dff', dashed = false, label } = options;
   ctx.save();
@@ -1512,10 +1619,70 @@ function render() {
     ctx.stroke();
   }
 
+  const agentInputs = getAgentInputVarsList();
+  const agentOutputs = getAgentOutputVarsList();
+
+  ctx.save();
+  ctx.strokeStyle = '#9aa9c1';
+  ctx.lineWidth = 1.5;
+  if (agentInputs.length) {
+    ctx.beginPath();
+    ctx.moveTo(RAIL_MARGIN, 8);
+    ctx.lineTo(RAIL_MARGIN, canvas.height - 8);
+    ctx.stroke();
+  }
+  if (agentOutputs.length) {
+    ctx.beginPath();
+    ctx.moveTo(canvas.width - RAIL_MARGIN, 8);
+    ctx.lineTo(canvas.width - RAIL_MARGIN, canvas.height - 8);
+    ctx.stroke();
+  }
+  ctx.font = '11px Inter';
+  agentInputs.forEach((name, idx) => {
+    const pos = getRailPortPosition('input', idx);
+    if (!pos) return;
+    ctx.fillStyle = '#1d3557';
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, PORT_RADIUS, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#0d1b2a';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(name || `input_${idx + 1}`, pos.x + PORT_RADIUS + 4, pos.y);
+  });
+  agentOutputs.forEach((name, idx) => {
+    const pos = getRailPortPosition('output', idx);
+    if (!pos) return;
+    ctx.fillStyle = '#1d3557';
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, PORT_RADIUS, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#0d1b2a';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(name || `output_${idx + 1}`, pos.x - PORT_RADIUS - 4, pos.y);
+  });
+  ctx.restore();
+
   const connectedPairs = new Set();
 
   Object.values(state.steps).forEach((step) => {
     (step.inputs || []).forEach((inp, idx) => {
+      const label = inp.fromVar || inp.name || '';
+      const fromAgentRail =
+        inp.fromStepId === AGENT_INPUT_NODE_ID ||
+        (!inp.fromStepId && label && agentInputs.includes(label));
+      if (fromAgentRail) {
+        const portIdx = label ? agentInputs.indexOf(label) : -1;
+        const start =
+          portIdx >= 0
+            ? getRailPortPosition('input', portIdx)
+            : { x: RAIL_MARGIN, y: getPortPosition(step, 'input', idx)?.y || step.y };
+        const end = getPortPosition(step, 'input', idx) || getStepAnchor(step, 'input');
+        drawArrow(start || { x: RAIL_MARGIN, y: end?.y || 0 }, end, { label });
+        return;
+      }
+
       if (!inp.fromStepId) return;
       const source = state.steps[inp.fromStepId];
       if (!source) return;
@@ -1523,9 +1690,21 @@ function render() {
       const start =
         outputIdx >= 0 ? getPortPosition(source, 'output', outputIdx) : getStepAnchor(source, 'output');
       const end = getPortPosition(step, 'input', idx) || getStepAnchor(step, 'input');
-      const label = inp.fromVar || inp.name || '';
       drawArrow(start || getStepAnchor(source, 'output'), end, { label });
       connectedPairs.add(`${source.id}->${step.id}`);
+    });
+  });
+
+  Object.values(state.steps).forEach((step) => {
+    (step.saveMapping || []).forEach((m, idx) => {
+      const label = m.varName || m.resultKey || '';
+      if (!label) return;
+      const portIdx = agentOutputs.indexOf(label);
+      if (portIdx < 0) return;
+      const start = getPortPosition(step, 'output', idx) || getStepAnchor(step, 'output');
+      const end =
+        getRailPortPosition('output', portIdx) || { x: canvas.width - RAIL_MARGIN, y: start?.y || 0 };
+      drawArrow(start, end, { label });
     });
   });
 
@@ -1559,13 +1738,8 @@ function render() {
   });
 
   if (state.draggingLink) {
-    const source = state.steps[state.draggingLink.from];
-    if (source) {
-      const fromPortIndex = state.draggingLink.fromPortIndex;
-      const fromPoint =
-        state.draggingLink.fromPortType === 'output' && fromPortIndex >= 0
-          ? getPortPosition(source, 'output', fromPortIndex) || getStepAnchor(source, 'output')
-          : getStepAnchor(source, 'output');
+    const fromPoint = resolveLinkStart(state.draggingLink);
+    if (fromPoint) {
       drawArrow(fromPoint, { x: state.draggingLink.x, y: state.draggingLink.y }, {
         color: '#f39c12',
         dashed: true,
@@ -1630,7 +1804,10 @@ function startDrag(event) {
   const portHit = getPortAt(offsetX, offsetY);
   if (portHit?.portType === 'output') {
     state.draggingLink = {
-      from: portHit.stepId,
+      from: portHit.stepId || null,
+      fromKind: portHit.kind || 'step',
+      rail: portHit.rail,
+      fromLabel: portHit.label,
       fromPortType: portHit.portType,
       fromPortIndex: portHit.index,
       x: offsetX,
@@ -1640,7 +1817,7 @@ function startDrag(event) {
   }
   const hit = getStepAt(offsetX, offsetY);
   if (hit && event.shiftKey) {
-    state.draggingLink = { from: hit.id, fromPortType: 'step', x: offsetX, y: offsetY };
+    state.draggingLink = { from: hit.id, fromKind: 'step', fromPortType: 'step', x: offsetX, y: offsetY };
     return;
   }
   if (hit) {
@@ -1715,6 +1892,7 @@ function populateFromDefinition(def) {
   state.steps = {};
   state.endStepIds = new Set(def.end_step_ids || []);
   state.entryStepId = def.entry_step_id || '';
+  state.definitionInputVars = extractAgentInputVars(def);
   state.selectedStepId = null;
   Object.entries(def.steps || {}).forEach(([id, step]) => {
     addStep({ id, ...step });
@@ -1759,6 +1937,7 @@ function newAgent(seedStep = false) {
   state.steps = {};
   state.endStepIds = new Set();
   state.entryStepId = '';
+  state.definitionInputVars = [];
   state.selectedStepId = null;
   withElement('agentName', (el) => {
     el.value = 'new_agent';
@@ -2128,25 +2307,42 @@ function registerEventHandlers() {
     canvas.addEventListener('mouseup', (event) => {
       if (state.draggingLink) {
         const portHit = getPortAt(event.offsetX, event.offsetY);
-        if (
-          state.draggingLink.fromPortType === 'output' &&
-          portHit?.portType === 'input'
+        const link = state.draggingLink;
+        if (link.fromKind === 'rail' && link.rail === 'input' && portHit?.kind === 'step' && portHit.portType === 'input') {
+          connectAgentInputToStepInput(link.fromPortIndex, portHit.stepId, portHit.index);
+        } else if (
+          link.fromKind === 'step' &&
+          link.fromPortType === 'output' &&
+          portHit?.kind === 'step' &&
+          portHit.portType === 'input'
         ) {
           connectOutputToInput(
-            state.draggingLink.from,
-            state.draggingLink.fromPortIndex,
+            link.from,
+            link.fromPortIndex,
             portHit.stepId,
             portHit.index,
           );
+        } else if (
+          link.fromKind === 'step' &&
+          link.fromPortType === 'output' &&
+          portHit?.kind === 'rail' &&
+          portHit.rail === 'output' &&
+          portHit.portType === 'input'
+        ) {
+          connectStepOutputToAgentOutput(link.from, link.fromPortIndex, portHit.index);
         } else {
-          const hit = getStepAt(event.offsetX, event.offsetY);
-          if (hit) {
-            const fromStep = state.steps[state.draggingLink.from];
-            ensureTransition(fromStep, hit.id);
-            if (state.selectedStepId === fromStep.id) {
-              renderInspector(fromStep);
+          if (link.fromKind === 'step') {
+            const hit = getStepAt(event.offsetX, event.offsetY);
+            if (hit) {
+              const fromStep = state.steps[link.from];
+              if (fromStep) {
+                ensureTransition(fromStep, hit.id);
+                if (state.selectedStepId === fromStep.id) {
+                  renderInspector(fromStep);
+                }
+                updatePreview();
+              }
             }
-            updatePreview();
           }
         }
         state.draggingLink = null;
