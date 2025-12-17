@@ -4,7 +4,9 @@ const state = {
   specs: {},
   current: null,
   selectedItemId: null,
+  selectedLane: 0,
   drag: null,
+  cardDrag: null,
   counter: 1,
 };
 
@@ -33,10 +35,13 @@ async function fetchJSON(url, options = {}) {
 
 function ensureGraph(spec) {
   if (!spec.graph) {
-    spec.graph = { lanes: [{ items: [] }] };
+    spec.graph = { lanes: [{ items: [] }, { items: [] }] };
   }
   if (!Array.isArray(spec.graph.lanes) || !spec.graph.lanes.length) {
-    spec.graph.lanes = [{ items: [] }];
+    spec.graph.lanes = [{ items: [] }, { items: [] }];
+  }
+  if (spec.graph.lanes.length < 2) {
+    spec.graph.lanes.push({ items: [] });
   }
 }
 
@@ -98,9 +103,10 @@ function newAgent() {
     inputs: [],
     locals: [],
     outputs: [],
-    graph: { lanes: [{ items: [] }] },
+    graph: { lanes: [{ items: [] }, { items: [] }] },
   };
   state.selectedItemId = null;
+  state.selectedLane = 0;
   renderCanvas();
   renderInspector();
 }
@@ -132,9 +138,10 @@ function createAgent() {
     inputs: [],
     locals: [],
     outputs: [],
-    graph: { lanes: [{ items: [] }] },
+    graph: { lanes: [{ items: [] }, { items: [] }] },
   };
   state.selectedItemId = null;
+  state.selectedLane = 0;
   renderCanvas();
   renderInspector();
 }
@@ -153,13 +160,34 @@ async function ensureAgentSpec(name) {
 async function insertAgentItem(agentName) {
   if (!state.current) return;
   ensureGraph(state.current);
-  const lane = state.current.graph.lanes[0];
+  const laneIndex = state.selectedLane || 0;
+  const lane = state.current.graph.lanes[laneIndex] || state.current.graph.lanes[0];
   const itemId = `${agentName}-${Date.now()}-${state.counter++}`;
-  lane.items.push({ id: itemId, agent: agentName, bindings: [], ui: { lane_index: 0, order: lane.items.length } });
+  lane.items.push({ id: itemId, agent: agentName, bindings: [], ui: { lane_index: laneIndex, order: lane.items.length } });
   state.selectedItemId = itemId;
   await ensureAgentSpec(agentName);
+  normalizeLaneOrders();
   renderCanvas();
   renderInspector();
+}
+
+function addLane() {
+  if (!state.current) return;
+  ensureGraph(state.current);
+  state.current.graph.lanes.push({ items: [] });
+  state.selectedLane = state.current.graph.lanes.length - 1;
+  renderCanvas();
+}
+
+function normalizeLaneOrders() {
+  if (!state.current?.graph) return;
+  state.current.graph.lanes.forEach((lane, laneIndex) => {
+    lane.items.forEach((item, idx) => {
+      if (!item.ui) item.ui = { lane_index: laneIndex, order: idx };
+      item.ui.lane_index = laneIndex;
+      item.ui.order = idx;
+    });
+  });
 }
 
 function renderCanvas() {
@@ -171,6 +199,18 @@ function renderCanvas() {
   state.current.graph.lanes.forEach((lane, laneIndex) => {
     const laneEl = document.createElement("div");
     laneEl.className = "lane";
+    laneEl.dataset.laneIndex = laneIndex;
+    laneEl.addEventListener("click", () => {
+      state.selectedLane = laneIndex;
+    });
+    laneEl.addEventListener("dragover", (e) => {
+      e.preventDefault();
+    });
+    laneEl.addEventListener("drop", (e) => {
+      e.preventDefault();
+      if (!state.cardDrag) return;
+      moveCardToLane(state.cardDrag.itemId, state.cardDrag.fromLane, laneIndex);
+    });
     const laneTitle = document.createElement("div");
     laneTitle.className = "lane-title";
     laneTitle.textContent = `Лейн ${laneIndex + 1}`;
@@ -180,6 +220,13 @@ function renderCanvas() {
       const card = document.createElement("div");
       card.className = `agent-card ${state.selectedItemId === item.id ? "selected" : ""}`;
       card.dataset.itemId = item.id;
+      card.draggable = true;
+      card.addEventListener("dragstart", () => {
+        state.cardDrag = { itemId: item.id, fromLane: laneIndex };
+      });
+      card.addEventListener("dragend", () => {
+        state.cardDrag = null;
+      });
       card.addEventListener("click", () => {
         state.selectedItemId = item.id;
         renderInspector();
@@ -190,21 +237,24 @@ function renderCanvas() {
       title.textContent = item.agent;
       card.appendChild(title);
 
-      const inputsRow = document.createElement("div");
-      inputsRow.className = "ports inputs";
-      const outputsRow = document.createElement("div");
-      outputsRow.className = "ports outputs";
+      const grid = document.createElement("div");
+      grid.className = "card-grid";
+      const inputsCol = document.createElement("div");
+      inputsCol.className = "inputs-col";
+      const outputsCol = document.createElement("div");
+      outputsCol.className = "outputs-col";
       const localsRow = document.createElement("div");
-      localsRow.className = "ports locals";
-      card.appendChild(inputsRow);
-      card.appendChild(localsRow);
-      card.appendChild(outputsRow);
+      localsRow.className = "locals-row";
+      grid.appendChild(inputsCol);
+      grid.appendChild(localsRow);
+      grid.appendChild(outputsCol);
+      card.appendChild(grid);
 
       const spec = state.specs[item.agent];
       if (spec) {
-        spec.inputs.forEach((v) => inputsRow.appendChild(makePort(item.id, v.name, "input")));
-        spec.locals.forEach((v) => localsRow.appendChild(makePort(item.id, v.name, "local")));
-        spec.outputs.forEach((v) => outputsRow.appendChild(makePort(item.id, v.name, "output")));
+        spec.inputs.forEach((v) => inputsCol.appendChild(makePort(item.id, v.name, "input")));
+        spec.locals.forEach((v) => localsRow.appendChild(makePort(item.id, v.name, "local", v.value)));
+        spec.outputs.forEach((v) => outputsCol.appendChild(makePort(item.id, v.name, "output")));
       }
 
       laneEl.appendChild(card);
@@ -214,28 +264,46 @@ function renderCanvas() {
   drawBindings();
 }
 
-function makePort(itemId, varName, role) {
+function makePort(itemId, varName, role, extraLabel = "") {
   const port = document.createElement("div");
   port.className = `port port-${role}`;
-  port.textContent = varName;
+  const label = document.createElement("span");
+  label.textContent = varName;
+  port.appendChild(label);
+  if (extraLabel) {
+    const val = document.createElement("span");
+    val.className = "var-value";
+    val.textContent = extraLabel;
+    port.appendChild(val);
+  }
   port.dataset.itemId = itemId;
   port.dataset.varName = varName;
   port.dataset.role = role;
-  port.addEventListener("mousedown", (e) => startDrag(e, itemId, varName));
-  port.addEventListener("mouseup", (e) => finishDrag(e, itemId, varName));
+  port.addEventListener("mousedown", (e) => startDrag(e, itemId, varName, role));
+  port.addEventListener("mouseup", (e) => finishDrag(e, itemId, varName, role));
   return port;
 }
 
-function startDrag(event, itemId, varName) {
+function startDrag(event, itemId, varName, role = "ctx") {
   event.stopPropagation();
-  state.drag = { fromItem: itemId, fromVar: varName };
+  state.drag = { fromItem: itemId, fromVar: varName, role };
 }
 
-function finishDrag(event, itemId, varName) {
+function finishDrag(event, itemId, varName, targetRole) {
   if (!state.drag || !state.current) return;
   event.stopPropagation();
+  if (targetRole !== "input") {
+    state.drag = null;
+    return;
+  }
+  const allowedSources = ["output", "local", "ctx"];
+  if (!allowedSources.includes(state.drag.role || "input")) {
+    state.drag = null;
+    return;
+  }
+  const fromId = state.drag.fromItem;
   const binding = {
-    from_agent_item_id: state.drag.fromItem,
+    from_agent_item_id: fromId === ctxSource.id ? "__CTX__" : fromId,
     from_var: state.drag.fromVar,
     to_agent_item_id: itemId,
     to_var: varName,
@@ -253,6 +321,7 @@ function addBinding(binding) {
   if (!target) return;
   target.bindings = (target.bindings || []).filter((b) => b.to_var !== binding.to_var);
   target.bindings.push(binding);
+  normalizeLaneOrders();
 }
 
 function allBindings() {
@@ -264,6 +333,7 @@ function drawBindings() {
   const svg = $("bindingsLayer");
   if (!svg) return;
   svg.innerHTML = "";
+  const svgRect = svg.getBoundingClientRect();
   const bindings = allBindings();
   bindings.forEach((b) => {
     const fromEl = document.querySelector(`[data-item-id="${b.from_agent_item_id}"][data-var-name="${b.from_var}"]`);
@@ -271,10 +341,10 @@ function drawBindings() {
     if (!fromEl || !toEl) return;
     const fromRect = fromEl.getBoundingClientRect();
     const toRect = toEl.getBoundingClientRect();
-    const startX = fromRect.right;
-    const startY = fromRect.top + fromRect.height / 2;
-    const endX = toRect.left;
-    const endY = toRect.top + toRect.height / 2;
+    const startX = fromRect.right - svgRect.left;
+    const startY = fromRect.top + fromRect.height / 2 - svgRect.top;
+    const endX = toRect.left - svgRect.left;
+    const endY = toRect.top + toRect.height / 2 - svgRect.top;
     const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
     const d = `M ${startX} ${startY} C ${startX + 50} ${startY} ${endX - 50} ${endY} ${endX} ${endY}`;
     path.setAttribute("d", d);
@@ -304,6 +374,24 @@ function removeBinding(binding) {
   drawBindings();
 }
 
+function moveCardToLane(itemId, fromLaneIdx, toLaneIdx) {
+  if (!state.current?.graph) return;
+  if (fromLaneIdx === toLaneIdx) return;
+  const fromLane = state.current.graph.lanes[fromLaneIdx];
+  const toLane = state.current.graph.lanes[toLaneIdx];
+  if (!fromLane || !toLane) return;
+  const idx = fromLane.items.findIndex((i) => i.id === itemId);
+  if (idx === -1) return;
+  const [item] = fromLane.items.splice(idx, 1);
+  if (!item.ui) item.ui = { lane_index: toLaneIdx, order: toLane.items.length };
+  item.ui.lane_index = toLaneIdx;
+  item.ui.order = toLane.items.length;
+  toLane.items.push(item);
+  normalizeLaneOrders();
+  renderCanvas();
+  renderInspector();
+}
+
 function renderInspector() {
   const panels = {
     inputs: $("inputsPanel"),
@@ -319,32 +407,16 @@ function renderInspector() {
   if (!item) return;
   const spec = state.specs[item.agent];
   if (!spec) return;
-  spec.inputs.forEach((v) => renderVarRow(panels.inputs, v.name));
-  spec.locals.forEach((v) => renderVarRow(panels.locals, v.name, v.value));
-  spec.outputs.forEach((v) => renderVarRow(panels.outputs, v.name));
+  spec.inputs.forEach((v) => renderVarRow(panels.inputs, v.name, "input"));
+  spec.locals.forEach((v) => renderVarRow(panels.locals, v.name, "local", v.value));
+  spec.outputs.forEach((v) => renderVarRow(panels.outputs, v.name, "output"));
 }
 
-function renderVarRow(container, name, value = "") {
+function renderVarRow(container, name, role, value = "") {
   if (!container) return;
-  const row = document.createElement("div");
-  row.className = "var-row";
-  const handle = document.createElement("span");
-  handle.className = "var-handle";
-  handle.dataset.itemId = ctxSource.id;
-  handle.dataset.varName = name;
-  handle.addEventListener("mousedown", (e) => startDrag(e, ctxSource.id, name));
-  row.appendChild(handle);
-  const badge = document.createElement("span");
-  badge.className = "var-badge";
-  badge.textContent = name;
-  row.appendChild(badge);
-  if (value) {
-    const val = document.createElement("span");
-    val.className = "var-value";
-    val.textContent = value;
-    row.appendChild(val);
-  }
-  container.appendChild(row);
+  const port = makePort(ctxSource.id, name, "ctx", value || "");
+  port.title = `CTX.${name}`;
+  container.appendChild(port);
 }
 
 function renderRunnerSelect() {
@@ -392,6 +464,7 @@ function bindEvents() {
   $("btnNew")?.addEventListener("click", newAgent);
   $("btnSave")?.addEventListener("click", saveAgent);
   $("btnCreate")?.addEventListener("click", createAgent);
+  $("btnAddLane")?.addEventListener("click", addLane);
   $("runBtn")?.addEventListener("click", runAgent);
   document.addEventListener("mouseup", () => {
     state.drag = null;

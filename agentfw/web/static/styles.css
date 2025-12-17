@@ -41,6 +41,15 @@ button:hover {
   background: #2ea043;
 }
 
+.ghost {
+  background: #30363d;
+  color: #e6edf3;
+}
+
+.ghost:hover {
+  background: #3b434d;
+}
+
 .dropdown {
   position: relative;
 }
@@ -49,7 +58,7 @@ button:hover {
   position: absolute;
   top: 110%;
   left: 0;
-  min-width: 180px;
+  min-width: 200px;
   background: #161b22;
   border: 1px solid #30363d;
   border-radius: 6px;
@@ -84,6 +93,21 @@ button:hover {
   border: 1px solid #30363d;
   border-radius: 8px;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.canvas-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px;
+  border-bottom: 1px solid #30363d;
+}
+
+.canvas-title {
+  font-size: 14px;
+  color: #7d8590;
 }
 
 .lanes {
@@ -91,11 +115,14 @@ button:hover {
   grid-auto-flow: column;
   grid-auto-columns: 1fr;
   height: 100%;
+  position: relative;
+  flex: 1;
 }
 
 .lane {
   border-right: 1px dashed #30363d;
   padding: 8px;
+  overflow-y: auto;
 }
 
 .lane:last-child {
@@ -106,6 +133,7 @@ button:hover {
   font-size: 12px;
   color: #7d8590;
   margin-bottom: 8px;
+  position: relative;
 }
 
 .agent-card {
@@ -115,6 +143,7 @@ button:hover {
   padding: 8px;
   margin-bottom: 8px;
   position: relative;
+  min-height: 150px;
 }
 
 .agent-card.selected {
@@ -127,32 +156,38 @@ button:hover {
   margin-bottom: 6px;
 }
 
-.ports {
+.card-grid {
+  position: relative;
+  min-height: 110px;
+}
+
+.locals-row {
   display: flex;
+  gap: 8px;
+  margin-left: 40px;
+  margin-right: 40px;
+  margin-bottom: 6px;
   flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 4px;
+  justify-content: center;
 }
 
-.port {
-  padding: 4px 6px;
-  border-radius: 4px;
-  background: #21262d;
-  font-size: 12px;
-  border: 1px solid #30363d;
-  cursor: pointer;
+.inputs-col,
+.outputs-col {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.port-input {
-  border-color: #1f6feb;
+.inputs-col {
+  left: 0;
 }
 
-.port-output {
-  border-color: #2ea043;
-}
-
-.port-local {
-  border-color: #f0883e;
+.outputs-col {
+  right: 0;
+  align-items: flex-end;
 }
 
 .inspector {
@@ -171,9 +206,9 @@ button:hover {
   margin-bottom: 12px;
 }
 
-.var-list {
+.var-board {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
   gap: 6px;
 }
 
@@ -181,15 +216,6 @@ button:hover {
   display: flex;
   align-items: center;
   gap: 6px;
-}
-
-.var-handle {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: #2ea043;
-  display: inline-block;
-  cursor: grab;
 }
 
 .var-badge {
@@ -203,6 +229,34 @@ button:hover {
 .var-value {
   color: #9be9a8;
   font-size: 12px;
+}
+
+.port {
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: #21262d;
+  font-size: 12px;
+  border: 1px solid #30363d;
+  cursor: grab;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.port-input {
+  border-color: #1f6feb;
+}
+
+.port-output {
+  border-color: #2ea043;
+}
+
+.port-local {
+  border-color: #f0883e;
+}
+
+.port-ctx {
+  border-color: #58a6ff;
 }
 
 .bindings {
