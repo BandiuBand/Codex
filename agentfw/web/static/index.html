@@ -1,136 +1,68 @@
 <!doctype html>
 <html lang="uk">
   <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta charset="utf-8" />
     <title>Редактор агентів</title>
-    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
-    <header class="hero">
-      <div>
-        <p class="eyebrow">Все — Agent</p>
-        <h1>Редактор агентів із смугами</h1>
-        <p>Будуйте агенти, додавайте дочірні блоки та з’єднуйте змінні drag&drop.</p>
-      </div>
-      <div class="hero-actions">
-        <button id="newAgent" type="button">Новий агент</button>
-        <button id="saveAgent" type="button">Зберегти</button>
+    <header class="topbar">
+      <div class="logo">Codex</div>
+      <div class="controls">
+        <button id="btnNew">Новий</button>
+        <div class="dropdown">
+          <button id="btnLoad">Завантажити ▾</button>
+          <div class="dropdown-menu" id="loadMenu"></div>
+        </div>
+        <button id="btnSave">Зберегти</button>
+        <button id="btnCreate">Створити нового</button>
+        <div class="dropdown">
+          <button id="btnAddAgent">Додати агента ▾</button>
+          <div class="dropdown-menu" id="addMenu"></div>
+        </div>
       </div>
     </header>
 
-    <div id="status" class="status" hidden></div>
-
     <main class="layout">
-      <aside class="panel library" aria-label="Бібліотека агентів">
-        <div class="panel-header">
-          <h2>Бібліотека агентів</h2>
-          <button id="refreshAgents" type="button" title="Оновити">↻</button>
-        </div>
-        <div class="field">
-          <label for="agentSearch">Пошук</label>
-          <input id="agentSearch" type="search" placeholder="Назва агента" />
-        </div>
-        <ul id="agentList" class="agent-list" aria-label="Список агентів"></ul>
-      </aside>
-
-      <section class="workspace">
-        <div class="top-rails">
-          <div class="rail" id="inputsRail">
-            <div class="rail-header">
-              <div>
-                <h3>Вхідні змінні</h3>
-                <p class="muted">$in.*</p>
-              </div>
-              <button data-add-var="inputs" type="button">+ Додати</button>
-            </div>
-            <div id="inputsList" class="var-list"></div>
-          </div>
-          <div class="rail" id="localsRail">
-            <div class="rail-header">
-              <div>
-                <h3>Внутрішні змінні</h3>
-                <p class="muted">$local.*</p>
-              </div>
-              <button data-add-var="locals" type="button">+ Додати</button>
-            </div>
-            <div id="localsList" class="var-list"></div>
-          </div>
-          <div class="rail" id="outputsRail">
-            <div class="rail-header">
-              <div>
-                <h3>Вихідні змінні</h3>
-                <p class="muted">$out.*</p>
-              </div>
-              <button data-add-var="outputs" type="button">+ Додати</button>
-            </div>
-            <div id="outputsList" class="var-list"></div>
-          </div>
-        </div>
-
-        <div class="lanes-toolbar">
-          <div>
-            <label for="agentId">id агента</label>
-            <input id="agentId" type="text" placeholder="my_agent" />
-            <label for="agentName">Назва</label>
-            <input id="agentName" type="text" placeholder="Мій агент" />
-          </div>
-          <button id="addLane" type="button">+ Додати смугу</button>
-        </div>
-
-        <div class="lanes-wrapper">
-          <div id="lanes" class="lanes" aria-label="Канва смуг"></div>
-          <svg id="linkLayer" class="link-layer"></svg>
-        </div>
-
-        <div class="links-panel">
-          <h3>З’єднання</h3>
-          <p class="muted">Тягніть порт → порт, щоб створити Link.</p>
-          <ul id="linksList" class="links-list"></ul>
-        </div>
+      <section class="canvas">
+        <div id="lanesContainer" class="lanes"></div>
+        <svg id="bindingsLayer" class="bindings" xmlns="http://www.w3.org/2000/svg"></svg>
       </section>
-
-      <aside class="panel inspector" aria-label="Властивості">
-        <h2>Властивості</h2>
-        <div id="inspector"></div>
+      <aside class="inspector">
+        <h2>Змінні</h2>
+        <div class="var-group">
+          <h3>Вхід</h3>
+          <div id="inputsPanel" class="var-list"></div>
+        </div>
+        <div class="var-group">
+          <h3>Локальні</h3>
+          <div id="localsPanel" class="var-list"></div>
+        </div>
+        <div class="var-group">
+          <h3>Вихід</h3>
+          <div id="outputsPanel" class="var-list"></div>
+        </div>
       </aside>
     </main>
 
-    <section class="panel runner">
-      <div class="panel-header">
-        <div>
-          <h2>Запуск агента</h2>
-          <p class="muted">Вкажіть вхідні та локальні змінні.</p>
-        </div>
-      </div>
-      <div class="runner-grid">
-        <label>
-          Агент
-          <select id="runAgentSelect"></select>
-        </label>
-        <label>
-          Input JSON
-          <textarea id="runInput" rows="3" placeholder='{ "task": "..." }'></textarea>
-        </label>
-        <label>
-          Locals JSON
-          <textarea id="runLocals" rows="3" placeholder='{ "prompt_text": "..." }'></textarea>
-        </label>
-        <div class="runner-actions">
-          <button id="runAgent" type="button">Запустити</button>
-          <span id="runStatus" class="muted"></span>
-        </div>
-        <label>
-          Output
-          <pre id="runOutput" class="result"></pre>
-        </label>
-        <label>
-          Trace
-          <pre id="runTrace" class="result"></pre>
-        </label>
-      </div>
+    <section class="runner">
+      <h2>Запуск агента</h2>
+      <label>
+        Агент
+        <select id="runAgent"></select>
+      </label>
+      <label>
+        Вхід (JSON)
+        <textarea id="runInput" rows="6">{"task": ""}</textarea>
+      </label>
+      <button id="runBtn">Запустити</button>
+      <label>
+        Вихід
+        <textarea id="runOutput" rows="6" readonly></textarea>
+      </label>
     </section>
 
-    <script src="app.js"></script>
+    <div id="status" class="status"></div>
+    <script src="/app.js"></script>
   </body>
 </html>
