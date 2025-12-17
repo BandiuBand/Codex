@@ -241,6 +241,11 @@ footer {
   min-width: 88px;
 }
 
+.agent-pill {
+  border-color: #cfe2ff;
+  background: #f7fbff;
+}
+
 .tool-pill:hover {
   transform: translateY(-1px);
   box-shadow: 0 8px 14px rgba(13, 27, 42, 0.08);
