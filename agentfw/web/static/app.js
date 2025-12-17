@@ -27,6 +27,12 @@ const state = {
 const canvas = document.getElementById('graphCanvas');
 const ctx = canvas ? canvas.getContext('2d') : null;
 
+const STEP_WIDTH = 170;
+const STEP_BASE_HEIGHT = 70;
+const PORT_GAP = 18;
+const PORT_RADIUS = 6;
+const PORT_DETECTION_RADIUS = 10;
+
 if (!canvas || !ctx) {
   console.error('graphCanvas не знайдено, канвас вимкнено');
 }
@@ -267,13 +273,33 @@ function normalizeStep(raw) {
   const id = raw.id;
   const defaultPosition = Object.keys(state.steps).length;
   const kind = raw.kind === 'tool' ? 'action' : raw.kind || 'action';
+  const inputs = Array.isArray(raw.inputs)
+    ? raw.inputs.map((inp) => ({
+        name: inp?.name || inp?.input || '',
+        fromVar: inp?.fromVar || inp?.from_var || '',
+        fromStepId: inp?.fromStepId || inp?.from_step_id || '',
+        defaultValue: inp?.defaultValue ?? inp?.default_value ?? '',
+        description: inp?.description || '',
+      }))
+    : [];
+  const rawLinks = Array.isArray(raw.input_links) ? raw.input_links : [];
+  rawLinks.forEach((link) => {
+    const idx =
+      typeof link.input_index === 'number'
+        ? link.input_index
+        : inputs.findIndex((inp) => inp.name && inp.name === (link.input || link.input_name));
+    if (idx >= 0 && inputs[idx]) {
+      inputs[idx].fromStepId ||= link.from_step_id || link.fromStepId || '';
+      inputs[idx].fromVar ||= link.from_var || link.varName || '';
+    }
+  });
   return {
     id,
     name: raw.name || defaultNameFromKind(kind),
     kind,
     toolName: raw.toolName || raw.tool_name || raw.tool || null,
     toolParams: raw.toolParams || raw.tool_params || {},
-    inputs: Array.isArray(raw.inputs) ? raw.inputs : [],
+    inputs,
     saveMapping: normalizeSaveMapping(raw.saveMapping || raw.save_mapping),
     validatorAgentName: raw.validator_agent_name || raw.validatorAgentName || '',
     validatorParams: raw.validator_params || raw.validatorParams || {},
@@ -299,6 +325,81 @@ function createStep(kind) {
   state.selectedStepId = id;
   refreshSelectors();
   renderAll();
+}
+
+function getStepSize(step) {
+  const portCount = Math.max(step.inputs?.length || 0, step.saveMapping?.length || 0);
+  return {
+    width: STEP_WIDTH,
+    height: STEP_BASE_HEIGHT + Math.max(0, portCount) * PORT_GAP,
+  };
+}
+
+function getStepRect(step) {
+  const { width, height } = getStepSize(step);
+  return { x: step.x, y: step.y, width, height };
+}
+
+function getStepCenter(step) {
+  const { width, height } = getStepSize(step);
+  return { x: step.x + width / 2, y: step.y + height / 2 };
+}
+
+function getStepAnchor(step, side) {
+  const { width, height } = getStepSize(step);
+  if (side === 'input') {
+    return { x: step.x, y: step.y + height / 2 };
+  }
+  return { x: step.x + width, y: step.y + height / 2 };
+}
+
+function getPortPosition(step, portType, index) {
+  const count = portType === 'input' ? step.inputs?.length || 0 : step.saveMapping?.length || 0;
+  if (index >= count) return null;
+  const { height } = getStepSize(step);
+  const availableHeight = height - 20;
+  const y = step.y + 10 + ((index + 1) * availableHeight) / (count + 1);
+  const x = portType === 'input' ? step.x : step.x + STEP_WIDTH;
+  return { x, y };
+}
+
+function getPortLabel(step, portType, index) {
+  if (portType === 'input') {
+    const inp = step.inputs?.[index];
+    return inp?.name || inp?.fromVar || `in ${index + 1}`;
+  }
+  const out = step.saveMapping?.[index];
+  return out?.varName || out?.resultKey || `out ${index + 1}`;
+}
+
+function findOutputIndexForVar(step, varName) {
+  if (!varName) return -1;
+  return (step.saveMapping || []).findIndex((m) => m.varName === varName || m.resultKey === varName);
+}
+
+function getPortAt(x, y) {
+  for (const step of Object.values(state.steps)) {
+    const inputCount = step.inputs?.length || 0;
+    for (let i = 0; i < inputCount; i += 1) {
+      const pos = getPortPosition(step, 'input', i);
+      if (!pos) continue;
+      const dist = Math.hypot(pos.x - x, pos.y - y);
+      if (dist <= PORT_DETECTION_RADIUS) {
+        return { stepId: step.id, portType: 'input', index: i };
+      }
+    }
+
+    const outputCount = step.saveMapping?.length || 0;
+    for (let i = 0; i < outputCount; i += 1) {
+      const pos = getPortPosition(step, 'output', i);
+      if (!pos) continue;
+      const dist = Math.hypot(pos.x - x, pos.y - y);
+      if (dist <= PORT_DETECTION_RADIUS) {
+        return { stepId: step.id, portType: 'output', index: i };
+      }
+    }
+  }
+  return null;
 }
 
 async function fetchTools() {
@@ -646,9 +747,10 @@ function refreshSelectors() {
 }
 
 function getStepAt(x, y) {
-  return Object.values(state.steps).find(
-    (step) => x >= step.x && x <= step.x + 140 && y >= step.y && y <= step.y + 60,
-  );
+  return Object.values(state.steps).find((step) => {
+    const { width, height } = getStepSize(step);
+    return x >= step.x && x <= step.x + width && y >= step.y && y <= step.y + height;
+  });
 }
 
 function renderSaveMappingRows(step) {
@@ -789,6 +891,7 @@ function renderInspector(step) {
       name.addEventListener('input', () => {
         step.inputs[idx].name = name.value;
         updatePreview();
+        render();
       });
 
       const from = document.createElement('input');
@@ -797,6 +900,7 @@ function renderInspector(step) {
       from.addEventListener('input', () => {
         step.inputs[idx].fromVar = from.value;
         updatePreview();
+        render();
       });
 
       const def = document.createElement('input');
@@ -822,6 +926,7 @@ function renderInspector(step) {
         step.inputs.splice(idx, 1);
         renderInputs();
         updatePreview();
+        render();
       });
 
       row.append(name, from, def, desc, remove);
@@ -841,9 +946,10 @@ function renderInspector(step) {
   addInputBtn.textContent = '+ Додати параметр';
   addInputBtn.addEventListener('click', () => {
     step.inputs = step.inputs || [];
-    step.inputs.push({ name: '', fromVar: '', defaultValue: '', description: '' });
+    step.inputs.push({ name: '', fromVar: '', fromStepId: '', defaultValue: '', description: '' });
     renderInputs();
     updatePreview();
+    render();
   });
   inputsSection.append(inputsContainer, addInputBtn);
 
@@ -1022,6 +1128,7 @@ function renderInspector(step) {
       resultInput.addEventListener('input', () => {
         step.saveMapping[idx].resultKey = resultInput.value;
         updatePreview();
+        render();
       });
 
       const varInput = document.createElement('input');
@@ -1030,6 +1137,7 @@ function renderInspector(step) {
       varInput.addEventListener('input', () => {
         step.saveMapping[idx].varName = varInput.value;
         updatePreview();
+        render();
       });
 
       const descInput = document.createElement('input');
@@ -1038,6 +1146,7 @@ function renderInspector(step) {
       descInput.addEventListener('input', () => {
         step.saveMapping[idx].description = descInput.value;
         updatePreview();
+        render();
       });
 
       const remove = document.createElement('button');
@@ -1047,6 +1156,7 @@ function renderInspector(step) {
         step.saveMapping.splice(idx, 1);
         renderOutputs();
         updatePreview();
+        render();
       });
 
       row.append(resultInput, varInput, descInput, remove);
@@ -1069,6 +1179,7 @@ function renderInspector(step) {
     step.saveMapping.push({ resultKey: '', varName: '', description: '' });
     renderOutputs();
     updatePreview();
+    render();
   });
   outputsSection.append(outputsContainer, addOutputBtn);
 
@@ -1198,6 +1309,25 @@ function collectDefinition() {
     (step.saveMapping || []).forEach((m) => {
       if (m.varName && m.resultKey) saveMapping[m.varName] = m.resultKey;
     });
+    const inputs = (step.inputs || []).map((inp) => ({
+      name: inp.name,
+      fromVar: inp.fromVar,
+      from_step_id: inp.fromStepId,
+      defaultValue: inp.defaultValue,
+      description: inp.description,
+    }));
+    const inputLinks = (step.inputs || [])
+      .map((inp, idx) =>
+        inp.fromStepId
+          ? {
+              input: inp.name || `input_${idx + 1}`,
+              input_index: idx,
+              from_step_id: inp.fromStepId,
+              from_var: inp.fromVar,
+            }
+          : null,
+      )
+      .filter(Boolean);
     const transitions = (step.transitions || []).map((tr) => {
       const condition = tr.condition || {};
       const params = condition.params || {};
@@ -1213,7 +1343,8 @@ function collectDefinition() {
       kind: step.kind,
       tool_name: step.toolName,
       tool_params: step.toolParams || {},
-      inputs: step.inputs || [],
+      inputs,
+      input_links: inputLinks,
       save_mapping: saveMapping,
       validator_agent_name: step.validatorAgentName,
       validator_params: step.validatorParams || {},
@@ -1235,6 +1366,86 @@ function updatePreview() {
   document.getElementById('rawJson').value = JSON.stringify(def, null, 2);
 }
 
+function ensureTransition(fromStep, targetStepId) {
+  fromStep.transitions = fromStep.transitions || [];
+  const existing = fromStep.transitions.find((tr) => tr.targetStepId === targetStepId);
+  if (existing) return existing;
+  const created = {
+    id: generateTransitionId(),
+    targetStepId,
+    condition: { type: 'always', params: {} },
+  };
+  fromStep.transitions.push(created);
+  refreshSelectors();
+  return created;
+}
+
+function connectOutputToInput(sourceStepId, outputIndex, targetStepId, inputIndex) {
+  const source = state.steps[sourceStepId];
+  const target = state.steps[targetStepId];
+  if (!source || !target) return;
+  const output = source.saveMapping?.[outputIndex];
+  const input = target.inputs?.[inputIndex];
+  if (!output || !input) return;
+
+  const inferredVar = output.varName || output.resultKey || input.name || `out_${outputIndex + 1}`;
+  if (!output.varName) output.varName = inferredVar;
+  input.fromVar = inferredVar;
+  input.fromStepId = sourceStepId;
+
+  ensureTransition(source, targetStepId);
+
+  if (state.selectedStepId === targetStepId) {
+    renderInspector(target);
+  } else if (state.selectedStepId === sourceStepId) {
+    renderInspector(source);
+  }
+  updatePreview();
+  render();
+}
+
+function drawArrow(start, end, options = {}) {
+  const { color = '#1d5dff', dashed = false, label } = options;
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  if (dashed) ctx.setLineDash([6, 4]);
+
+  ctx.beginPath();
+  const isLoop = start.x === end.x && start.y === end.y;
+  let arrowEnd = { ...end };
+  if (isLoop) {
+    const cp1 = { x: start.x + 50, y: start.y - 60 };
+    const cp2 = { x: start.x - 50, y: start.y - 60 };
+    arrowEnd = { x: start.x, y: start.y - 30 };
+    ctx.moveTo(start.x, start.y);
+    ctx.bezierCurveTo(cp1.x, cp1.y, cp2.x, cp2.y, arrowEnd.x, arrowEnd.y);
+  } else {
+    ctx.moveTo(start.x, start.y);
+    ctx.lineTo(end.x, end.y);
+  }
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  const angle = Math.atan2(arrowEnd.y - start.y, arrowEnd.x - start.x);
+  ctx.beginPath();
+  ctx.moveTo(arrowEnd.x, arrowEnd.y);
+  ctx.lineTo(arrowEnd.x - 8 * Math.cos(angle - Math.PI / 6), arrowEnd.y - 8 * Math.sin(angle - Math.PI / 6));
+  ctx.lineTo(arrowEnd.x - 8 * Math.cos(angle + Math.PI / 6), arrowEnd.y - 8 * Math.sin(angle + Math.PI / 6));
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
+
+  if (label) {
+    const midX = isLoop ? start.x + 4 : (start.x + end.x) / 2;
+    const midY = isLoop ? start.y - 50 : (start.y + end.y) / 2;
+    ctx.fillStyle = 'rgba(13, 27, 42, 0.7)';
+    ctx.font = '11px Inter';
+    ctx.fillText(label, midX + 4, midY - 4);
+  }
+  ctx.restore();
+}
+
 function render() {
   if (!canvas || !ctx) return;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -1253,72 +1464,77 @@ function render() {
     ctx.stroke();
   }
 
+  const connectedPairs = new Set();
+
+  Object.values(state.steps).forEach((step) => {
+    (step.inputs || []).forEach((inp, idx) => {
+      if (!inp.fromStepId) return;
+      const source = state.steps[inp.fromStepId];
+      if (!source) return;
+      const outputIdx = findOutputIndexForVar(source, inp.fromVar);
+      const start =
+        outputIdx >= 0 ? getPortPosition(source, 'output', outputIdx) : getStepAnchor(source, 'output');
+      const end = getPortPosition(step, 'input', idx) || getStepAnchor(step, 'input');
+      const label = inp.fromVar || inp.name || '';
+      drawArrow(start || getStepAnchor(source, 'output'), end, { label });
+      connectedPairs.add(`${source.id}->${step.id}`);
+    });
+  });
+
   Object.values(state.steps).forEach((step) => {
     (step.transitions || []).forEach((tr) => {
       const target = state.steps[tr.targetStepId];
       if (!target) return;
-      const startX = step.x + 70;
-      const startY = step.y + 30;
-      const endX = target.x + 70;
-      const endY = target.y + 30;
-      ctx.strokeStyle = '#1d5dff';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      if (step.id === target.id) {
-        ctx.moveTo(startX, startY);
-        ctx.quadraticCurveTo(startX + 60, startY - 60, startX, startY - 10);
-        ctx.quadraticCurveTo(startX - 60, startY - 60, startX, startY);
-      } else {
-        ctx.moveTo(startX, startY);
-        ctx.lineTo(endX, endY);
-      }
-      ctx.stroke();
-      const angle = Math.atan2(endY - startY, endX - startX);
-      ctx.beginPath();
-      ctx.moveTo(endX, endY);
-      ctx.lineTo(endX - 8 * Math.cos(angle - Math.PI / 6), endY - 8 * Math.sin(angle - Math.PI / 6));
-      ctx.lineTo(endX - 8 * Math.cos(angle + Math.PI / 6), endY - 8 * Math.sin(angle + Math.PI / 6));
-      ctx.closePath();
-      ctx.fillStyle = '#1d5dff';
-      ctx.fill();
-
-      if (tr.condition?.type) {
-        const meta = getConditionMeta(tr.condition.type);
-        const label = meta?.label_uk || tr.condition.type;
-        const midX = step.id === target.id ? startX + 10 : (startX + endX) / 2;
-        const midY = step.id === target.id ? startY - 50 : (startY + endY) / 2;
-        ctx.fillStyle = 'rgba(13, 27, 42, 0.7)';
-        ctx.font = '11px Inter';
-        ctx.fillText(label, midX + 4, midY - 4);
-      }
+      const linkedInputIndex = (target.inputs || []).findIndex((inp) => inp.fromStepId === step.id);
+      const linkedOutputIndex =
+        linkedInputIndex >= 0
+          ? findOutputIndexForVar(step, target.inputs[linkedInputIndex].fromVar)
+          : -1;
+      const start =
+        linkedOutputIndex >= 0
+          ? getPortPosition(step, 'output', linkedOutputIndex)
+          : getStepAnchor(step, 'output');
+      const end =
+        linkedInputIndex >= 0
+          ? getPortPosition(target, 'input', linkedInputIndex)
+          : step.id === target.id
+            ? start
+            : getStepAnchor(target, 'input');
+      const meta = getConditionMeta(tr.condition?.type);
+      const label = meta?.label_uk || tr.condition?.type;
+      const color = connectedPairs.has(`${step.id}->${target.id}`) ? '#9aa9c1' : '#1d5dff';
+      drawArrow(start || getStepAnchor(step, 'output'), end || getStepAnchor(target, 'input'), {
+        label,
+        color,
+      });
     });
   });
 
   if (state.draggingLink) {
     const source = state.steps[state.draggingLink.from];
     if (source) {
-      const startX = source.x + 70;
-      const startY = source.y + 30;
-      const { x, y } = state.draggingLink;
-      ctx.strokeStyle = '#f39c12';
-      ctx.setLineDash([6, 4]);
-      ctx.beginPath();
-      ctx.moveTo(startX, startY);
-      ctx.lineTo(x, y);
-      ctx.stroke();
-      ctx.setLineDash([]);
+      const fromPortIndex = state.draggingLink.fromPortIndex;
+      const fromPoint =
+        state.draggingLink.fromPortType === 'output' && fromPortIndex >= 0
+          ? getPortPosition(source, 'output', fromPortIndex) || getStepAnchor(source, 'output')
+          : getStepAnchor(source, 'output');
+      drawArrow(fromPoint, { x: state.draggingLink.x, y: state.draggingLink.y }, {
+        color: '#f39c12',
+        dashed: true,
+      });
     }
   }
 
   Object.values(state.steps).forEach((step) => {
+    const { width, height } = getStepSize(step);
     ctx.fillStyle = state.selectedStepId === step.id ? '#e6f0ff' : '#fff';
     ctx.strokeStyle = '#1d3557';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     if (ctx.roundRect) {
-      ctx.roundRect(step.x, step.y, 140, 60, 8);
+      ctx.roundRect(step.x, step.y, width, height, 8);
     } else {
-      ctx.rect(step.x, step.y, 140, 60);
+      ctx.rect(step.x, step.y, width, height);
     }
     ctx.fill();
     ctx.stroke();
@@ -1329,14 +1545,54 @@ function render() {
     const meta = state.tools.find((t) => t.name === step.toolName);
     const label = meta ? toolLabel(meta) : step.toolName || '';
     ctx.fillText(label, step.x + 10, step.y + 38);
+
+    ctx.save();
+    ctx.font = '11px Inter';
+    (step.inputs || []).forEach((inp, idx) => {
+      const pos = getPortPosition(step, 'input', idx);
+      if (!pos) return;
+      ctx.fillStyle = '#1d3557';
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, PORT_RADIUS, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#0d1b2a';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(getPortLabel(step, 'input', idx), pos.x + PORT_RADIUS + 4, pos.y);
+    });
+
+    (step.saveMapping || []).forEach((m, idx) => {
+      const pos = getPortPosition(step, 'output', idx);
+      if (!pos) return;
+      ctx.fillStyle = '#1d3557';
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, PORT_RADIUS, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#0d1b2a';
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(getPortLabel(step, 'output', idx), pos.x - PORT_RADIUS - 4, pos.y);
+    });
+    ctx.restore();
   });
 }
 
 function startDrag(event) {
   const { offsetX, offsetY } = event;
+  const portHit = getPortAt(offsetX, offsetY);
+  if (portHit?.portType === 'output') {
+    state.draggingLink = {
+      from: portHit.stepId,
+      fromPortType: portHit.portType,
+      fromPortIndex: portHit.index,
+      x: offsetX,
+      y: offsetY,
+    };
+    return;
+  }
   const hit = getStepAt(offsetX, offsetY);
   if (hit && event.shiftKey) {
-    state.draggingLink = { from: hit.id, x: offsetX, y: offsetY };
+    state.draggingLink = { from: hit.id, fromPortType: 'step', x: offsetX, y: offsetY };
     return;
   }
   if (hit) {
@@ -1546,8 +1802,8 @@ function handleCanvasDrop(evt) {
   const payload = evt.dataTransfer.getData('text/plain');
   if (!payload) return;
   const rect = canvas.getBoundingClientRect();
-  const x = evt.clientX - rect.left - 70;
-  const y = evt.clientY - rect.top - 30;
+  const x = evt.clientX - rect.left - STEP_WIDTH / 2;
+  const y = evt.clientY - rect.top - STEP_BASE_HEIGHT / 2;
   const agentMatch = payload.startsWith('agent:') ? payload.slice('agent:'.length) : null;
   if (agentMatch) {
     const id = generateStepId('agent');
@@ -1826,18 +2082,28 @@ function registerEventHandlers() {
     canvas.addEventListener('mousemove', onDrag);
     canvas.addEventListener('mouseup', (event) => {
       if (state.draggingLink) {
-        const hit = getStepAt(event.offsetX, event.offsetY);
-        if (hit && hit.id !== state.draggingLink.from) {
-          const fromStep = state.steps[state.draggingLink.from];
-          fromStep.transitions = fromStep.transitions || [];
-          fromStep.transitions.push({
-            id: generateTransitionId(),
-            targetStepId: hit.id,
-            condition: { type: 'always', params: {} },
-          });
-          refreshSelectors();
-          renderInspector(fromStep);
-          updatePreview();
+        const portHit = getPortAt(event.offsetX, event.offsetY);
+        if (
+          state.draggingLink.fromPortType === 'output' &&
+          portHit?.portType === 'input' &&
+          portHit.stepId !== state.draggingLink.from
+        ) {
+          connectOutputToInput(
+            state.draggingLink.from,
+            state.draggingLink.fromPortIndex,
+            portHit.stepId,
+            portHit.index,
+          );
+        } else {
+          const hit = getStepAt(event.offsetX, event.offsetY);
+          if (hit && hit.id !== state.draggingLink.from) {
+            const fromStep = state.steps[state.draggingLink.from];
+            ensureTransition(fromStep, hit.id);
+            if (state.selectedStepId === fromStep.id) {
+              renderInspector(fromStep);
+            }
+            updatePreview();
+          }
         }
         state.draggingLink = null;
         render();
