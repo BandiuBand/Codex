@@ -30,6 +30,9 @@ class AgentConfigLoader:
 
             for pattern in ("*.yaml", "*.yml"):
                 for file_path in dir_path.rglob(pattern):
+                    if file_path.name in {"llm_config.yaml", "llm_config.yml"}:
+                        # Конфіг LLM — не опис агента, пропускаємо.
+                        continue
                     definitions.append(self.load_file(file_path))
 
         return definitions

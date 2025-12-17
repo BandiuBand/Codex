@@ -41,6 +41,12 @@ model: qwen3:32b
 python run.py web
 ```
 
+### Готовий LLM-агент
+
+У каталозі `agents/` є файл `llm_agent.yaml` із базовим агентом `llm`, який напряму викликає інструмент LLM за переданим промптом
+і повертає як сирий текст, так і (за потреби) розібраний JSON. Це дозволяє одразу перевірити зʼєднання з моделлю Ollama без
+додаткових налаштувань у веб-UI.
+
 ## Web graph editor
 
 The project includes a lightweight web UI for assembling agent graphs on a canvas and exporting them to YAML definitions compatible with the existing loader.
