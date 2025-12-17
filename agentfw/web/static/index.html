@@ -7,136 +7,129 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <header>
-      <h1>Редактор агентів</h1>
-      <p>Будуйте, перевіряйте й запускайте агентів у інтерактивному редакторі.</p>
+    <header class="hero">
+      <div>
+        <p class="eyebrow">Все — Agent</p>
+        <h1>Редактор агентів із смугами</h1>
+        <p>Будуйте агенти, додавайте дочірні блоки та з’єднуйте змінні drag&drop.</p>
+      </div>
+      <div class="hero-actions">
+        <button id="newAgent" type="button">Новий агент</button>
+        <button id="saveAgent" type="button">Зберегти</button>
+      </div>
     </header>
 
-    <div id="statusBanner" class="status-banner" aria-live="polite" hidden></div>
+    <div id="status" class="status" hidden></div>
 
-    <section class="panel">
-      <div class="field-group">
-        <label for="agentName">Ім’я агента</label>
-        <div class="agent-row">
-          <select id="agentSelect">
-            <option value="">— оберіть наявного —</option>
-          </select>
-          <button id="refreshAgents" title="Оновити список">↻</button>
+    <main class="layout">
+      <aside class="panel library" aria-label="Бібліотека агентів">
+        <div class="panel-header">
+          <h2>Бібліотека агентів</h2>
+          <button id="refreshAgents" type="button" title="Оновити">↻</button>
         </div>
-        <input id="agentName" type="text" placeholder="мій_агент" />
-        <div class="agent-actions">
-          <button id="loadAgent">Завантажити</button>
-          <button id="newAgent">Новий</button>
-          <button id="saveAgent">Зберегти</button>
-          <button id="validateAgent">Перевірити агента</button>
+        <div class="field">
+          <label for="agentSearch">Пошук</label>
+          <input id="agentSearch" type="search" placeholder="Назва агента" />
         </div>
-      </div>
-      <div class="field-group">
-        <label for="entryStep">Початковий крок</label>
-        <select id="entryStep"></select>
-      </div>
-      <div class="field-group">
-        <label>Завершальні кроки</label>
-        <div id="endSteps"></div>
-      </div>
-    </section>
-
-    <section class="workspace">
-      <aside class="panel palette">
-        <div class="palette-header">
-          <div>
-            <h2>Палітра інструментів</h2>
-            <p class="muted">Перетягніть інструмент на канву, щоб створити крок.</p>
-          </div>
-        </div>
-        <div class="step-toolbar">
-          <button id="addActionStep" type="button">+ Крок дії</button>
-          <button id="addDecisionStep" type="button">+ Розгалуження</button>
-          <button id="addLoopStep" type="button">+ Цикл</button>
-          <button id="addValidatorStep" type="button">+ Валідатор</button>
-        </div>
-        <div id="toolPalette" class="tool-palette"></div>
-        <hr />
-        <div class="palette-header">
-          <div>
-            <h2>Палітра агентів</h2>
-            <p class="muted">Перетягніть агента або спеціальний крок, щоб додати його на канву.</p>
-          </div>
-        </div>
-        <div class="field-group">
-          <label for="agentPaletteFilter">Пошук агента</label>
-          <input id="agentPaletteFilter" type="search" placeholder="Назва агента" />
-        </div>
-        <div id="agentPalette" class="tool-palette"></div>
+        <ul id="agentList" class="agent-list" aria-label="Список агентів"></ul>
       </aside>
 
-      <div class="canvas-stack">
-        <div class="canvas-legend">
-          <span>Shift + перетягування — створити перехід</span>
-          <span>Перетягуйте кроки, щоб їх вирівняти</span>
+      <section class="workspace">
+        <div class="top-rails">
+          <div class="rail" id="inputsRail">
+            <div class="rail-header">
+              <div>
+                <h3>Вхідні змінні</h3>
+                <p class="muted">$in.*</p>
+              </div>
+              <button data-add-var="inputs" type="button">+ Додати</button>
+            </div>
+            <div id="inputsList" class="var-list"></div>
+          </div>
+          <div class="rail" id="localsRail">
+            <div class="rail-header">
+              <div>
+                <h3>Внутрішні змінні</h3>
+                <p class="muted">$local.*</p>
+              </div>
+              <button data-add-var="locals" type="button">+ Додати</button>
+            </div>
+            <div id="localsList" class="var-list"></div>
+          </div>
+          <div class="rail" id="outputsRail">
+            <div class="rail-header">
+              <div>
+                <h3>Вихідні змінні</h3>
+                <p class="muted">$out.*</p>
+              </div>
+              <button data-add-var="outputs" type="button">+ Додати</button>
+            </div>
+            <div id="outputsList" class="var-list"></div>
+          </div>
         </div>
-        <canvas id="graphCanvas" width="1100" height="640"></canvas>
-      </div>
 
-      <aside class="panel inspector">
-        <h2>Інспектор кроку</h2>
-        <div id="inspectorContent" class="inspector-content">Оберіть крок, щоб редагувати.</div>
+        <div class="lanes-toolbar">
+          <div>
+            <label for="agentId">id агента</label>
+            <input id="agentId" type="text" placeholder="my_agent" />
+            <label for="agentName">Назва</label>
+            <input id="agentName" type="text" placeholder="Мій агент" />
+          </div>
+          <button id="addLane" type="button">+ Додати смугу</button>
+        </div>
+
+        <div class="lanes-wrapper">
+          <div id="lanes" class="lanes" aria-label="Канва смуг"></div>
+          <svg id="linkLayer" class="link-layer"></svg>
+        </div>
+
+        <div class="links-panel">
+          <h3>З’єднання</h3>
+          <p class="muted">Тягніть порт → порт, щоб створити Link.</p>
+          <ul id="linksList" class="links-list"></ul>
+        </div>
+      </section>
+
+      <aside class="panel inspector" aria-label="Властивості">
+        <h2>Властивості</h2>
+        <div id="inspector"></div>
       </aside>
-    </section>
+    </main>
 
-    <section class="panel">
-      <div class="field-group">
-        <label for="rawJson">Попередній перегляд JSON</label>
-        <textarea id="rawJson" rows="6"></textarea>
+    <section class="panel runner">
+      <div class="panel-header">
+        <div>
+          <h2>Запуск агента</h2>
+          <p class="muted">Вкажіть вхідні та локальні змінні.</p>
+        </div>
       </div>
-      <div class="field-group actions">
-        <button id="importJson">Імпорт JSON</button>
-        <button id="exportJson">Експорт JSON</button>
-      </div>
-    </section>
-
-    <section id="runAgentPanel" class="panel">
-      <h2>Запуск агента</h2>
-
-      <div class="field-group">
-        <label for="runAgentSelect">Агент</label>
-        <select id="runAgentSelect">
-          <option value="">— оберіть агента —</option>
-        </select>
-      </div>
-
-      <div class="field-group">
-        <label for="runAgentVars">Вхідні змінні</label>
-        <div id="runAgentVars" class="var-grid"></div>
-        <button id="addRunAgentVar" type="button">+ Додати змінну</button>
-        <p class="muted">Список змінних автоматично підтягується з обраного агента; введіть лише значення або додайте власну змінну за потреби.</p>
-      </div>
-
-      <div class="actions">
-        <button id="runAgentBtn">Запустити</button>
-        <span id="runAgentStatus" class="muted" aria-live="polite"></span>
-      </div>
-
-      <div class="field-group">
-        <label for="runAgentOutput">Результат</label>
-        <pre id="runAgentOutput"></pre>
-      </div>
-
-      <div class="field-group">
-        <label for="runAgentLog">Лог запуску</label>
-        <pre id="runAgentLog" class="log-output" aria-live="polite"></pre>
+      <div class="runner-grid">
+        <label>
+          Агент
+          <select id="runAgentSelect"></select>
+        </label>
+        <label>
+          Input JSON
+          <textarea id="runInput" rows="3" placeholder='{ "task": "..." }'></textarea>
+        </label>
+        <label>
+          Locals JSON
+          <textarea id="runLocals" rows="3" placeholder='{ "prompt_text": "..." }'></textarea>
+        </label>
+        <div class="runner-actions">
+          <button id="runAgent" type="button">Запустити</button>
+          <span id="runStatus" class="muted"></span>
+        </div>
+        <label>
+          Output
+          <pre id="runOutput" class="result"></pre>
+        </label>
+        <label>
+          Trace
+          <pre id="runTrace" class="result"></pre>
+        </label>
       </div>
     </section>
-
-    <section class="panel">
-      <h2>Граф зв’язків агентів</h2>
-      <p class="muted">Візуалізація викликів між агентами та валідаторами.</p>
-      <div id="agentsGraph" class="agents-graph"></div>
-    </section>
-
-    <footer>
-      <p>Перетягуйте кроки для розміщення. Додавайте переходи, щоб будувати розгалуження й цикли.</p>
-    </footer>
 
     <script src="app.js"></script>
   </body>
