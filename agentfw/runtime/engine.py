@@ -1,297 +1,222 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Dict
 import time
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional
 
-from agentfw.conditions.evaluator import ConditionEvaluator
-from agentfw.core.models import StepDefinition
-from agentfw.core.registry import AgentRegistry, ToolRegistry
-from agentfw.core.state import AgentState, ExecutionContext, StepExecutionRecord
-from agentfw.persistence.storage import RunStorage
+from agentfw.core.agent import Agent, ChildRef, Lane
+from agentfw.io.agent_yaml import load_agent
+from agentfw.runtime.builtins import BUILTIN_PORTS, BuiltinAgentRegistry, build_default_registry
+from agentfw.runtime.expr import eval_expr
+
+
+def _find_agents_dir() -> Path:
+    env_dir = Path(__file__).resolve().parents[2] / "agents"
+    return env_dir
+
+
+class AgentRepository:
+    def __init__(self, base_dir: Path | None = None) -> None:
+        self.base_dir = base_dir or _find_agents_dir()
+        self._cache: Dict[str, Agent] = {}
+
+    def list(self) -> List[Agent]:
+        agents: List[Agent] = []
+        for pattern in ("*.yaml", "*.yml"):
+            for path in sorted(self.base_dir.glob(pattern)):
+                try:
+                    agents.append(self.get(path.stem))
+                except Exception:
+                    continue
+        return agents
+
+    def get(self, agent_id: str) -> Agent:
+        if agent_id in self._cache:
+            return self._cache[agent_id]
+
+        for name in (f"{agent_id}.yaml", f"{agent_id}.yml"):
+            path = self.base_dir / name
+            if path.exists():
+                agent = load_agent(path)
+                self._cache[agent_id] = agent
+                return agent
+
+        raise KeyError(f"Agent '{agent_id}' not found")
 
 
 @dataclass
+class ExecutionTrace:
+    entries: List[Dict[str, Any]] = field(default_factory=list)
+
+    def add(self, **payload: Any) -> None:
+        self.entries.append(payload)
+
+
+@dataclass
+class ExecutionState:
+    agent_id: str
+    run_id: str
+    finished: bool
+    failed: bool
+    out: Dict[str, Any]
+    locals: Dict[str, Any]
+    trace: ExecutionTrace
+
+
+class ExecutionContext:
+    def __init__(self, variables: Dict[str, Any]) -> None:
+        self.variables = variables
+
+    def get(self, name: str, default: Any = None) -> Any:
+        return self.variables.get(name, default)
+
+    def set(self, name: str, value: Any) -> None:
+        self.variables[name] = value
+
+    def export_with_prefix(self, prefix: str) -> Dict[str, Any]:
+        return {f"{prefix}.{k}": v for k, v in self.variables.items()}
+
+
 class ExecutionEngine:
-    """Core execution engine orchestrating agent runs."""
-
-    agent_registry: AgentRegistry
-    tool_registry: ToolRegistry
-    storage: RunStorage
-    condition_evaluator: ConditionEvaluator
-
-    def start_run(self, agent_name: str, input_json: Dict[str, object]) -> AgentState:
-        """Create a new agent state and initialize starting variables."""
-        definition = self.agent_registry.get(agent_name)
-
-        state = AgentState(
-            run_id=str(int(time.time() * 1000)),
-            agent_name=agent_name,
-            current_step_id=definition.entry_step_id,
-            finished=False,
-            failed=False,
-            variables=dict(input_json),
-            history=[],
-            retry_counts={},
-        )
-
-        if definition.serialize_enabled:
-            self.storage.save_state(state)
-
-        return state
-
-    def resume_run(self, state: AgentState) -> AgentState:
-        """Resume agent execution from the current step."""
-        definition = self.agent_registry.get(state.agent_name)
-
-        while not state.finished and not state.failed:
-            ctx = ExecutionContext(definition=definition, state=state, engine=self)
-            self._execute_next_step(ctx)
-
-            if definition.serialize_enabled:
-                self.storage.save_state(state)
-
-        return state
-
-    def run_to_completion(self, agent_name: str, input_json: Dict[str, object]) -> AgentState:
-        """Convenience method to start and run an agent until it finishes."""
-        state = self.start_run(agent_name, input_json)
-        state = self.resume_run(state)
-        return state
-
-    def _execute_next_step(self, ctx: ExecutionContext) -> None:
-        """Execute the next step in the agent definition.
-
-        The execution flow is intentionally documented for downstream tooling (e.g.
-        frontend run visualizers):
-        1. Resolve the step definition and take a snapshot of the current
-           variables so we can record what the tool saw, even if later steps mutate
-           the state.
-        2. If a tool is configured, fetch it from the registry and execute it with
-           ``tool_params``. Any exception marks the run failed and is captured on
-           the execution record.
-        3. Persist selected outputs back into ``state.variables`` according to the
-           step's ``save_mapping`` (only keys present in the tool result are
-           copied).
-        4. When a validator agent is declared, call it with a payload that includes
-           input/output snapshots and retry metadata. The validator policy controls
-           retry attempts; a "retry" status short-circuits the step (recording a
-           history entry without a transition) so it can be re-run, while "fail"
-           marks the state failed. Accepted validations may optionally patch
-           variables before continuing.
-        5. Choose the next transition using ``_choose_transition`` and the current
-           state (which may include validator patches). "None" means terminal and
-           sets ``finished``.
-        6. Append a ``StepExecutionRecord`` to ``state.history`` (and persisted
-           storage when enabled) containing the input snapshot, tool/validator
-           outputs, chosen transition, timestamps, and any error string so the
-           entire step lifecycle is auditable.
-        """
-        if not ctx.state.current_step_id:
-            ctx.state.finished = True
-            return
-
-        step_def = ctx.definition.get_step(ctx.state.current_step_id)
-
-        input_snapshot = dict(ctx.state.variables)
-
-        tool_result: Dict[str, object] | None = None
-        validator_result: Dict[str, object] | None = None
-        error: str | None = None
-        started_at = time.time()
-
-        if step_def.tool_name is not None:
-            try:
-                tool = self.tool_registry.get(step_def.tool_name)
-                tool_result = tool.execute(ctx, step_def.tool_params)
-            except Exception as exc:  # noqa: BLE001
-                error = str(exc)
-                ctx.state.failed = True
-
-        if error is not None:
-            finished_at = time.time()
-            record = StepExecutionRecord(
-                step_id=step_def.id,
-                started_at=started_at,
-                finished_at=finished_at,
-                input_variables_snapshot=input_snapshot,
-                tool_result=tool_result,
-                validator_result=validator_result,
-                chosen_transition=None,
-                error=error,
-            )
-            ctx.state.history.append(record)
-            if ctx.definition.serialize_enabled:
-                self.storage.save_step_record(ctx.state, record)
-            ctx.state.failed = True
-            return
-
-        missing = object()
-
-        def _resolve_result_key(container: Dict[str, object], path: str) -> object:
-            """Resolve dot-delimited paths (e.g. ``parsed_json.decision``)."""
-
-            value: object = container
-            for part in path.split("."):
-                if isinstance(value, dict):
-                    if part in value:
-                        value = value[part]
-                        continue
-                    return missing
-
-                if isinstance(value, (list, tuple)):
-                    try:
-                        idx = int(part)
-                    except ValueError:
-                        return missing
-
-                    if 0 <= idx < len(value):
-                        value = value[idx]
-                        continue
-                    return missing
-
-                return missing
-
-            return value
-
-        for var_name, result_key in step_def.save_mapping.items():
-            if not tool_result:
-                continue
-
-            value = _resolve_result_key(tool_result, result_key)
-            if value is not missing:
-                ctx.state.variables[var_name] = value
-
-        if step_def.validator_agent_name:
-            retry_counts = ctx.state.retry_counts
-            attempt = retry_counts.get(step_def.id, 0) + 1
-            validator_input = {
-                "run_id": ctx.state.run_id,
-                "agent_name": ctx.state.agent_name,
-                "step_id": step_def.id,
-                "step_name": step_def.name,
-                "tool_name": step_def.tool_name,
-                "attempt": attempt,
-                "input_variables": input_snapshot,
-                "output_variables": dict(ctx.state.variables),
-                "tool_result": tool_result or {},
-                "validator_params": step_def.validator_params or {},
-            }
-
-            validator_state = self.run_to_completion(
-                agent_name=step_def.validator_agent_name,
-                input_json=validator_input,
-            )
-
-            validation_payload = validator_state.variables.get("validation", {})
-            if not isinstance(validation_payload, dict):
-                validation_payload = {}
-
-            validator_result = validation_payload
-
-            status_raw = validation_payload.get("status")
-            status = str(status_raw).lower() if status_raw is not None else ""
-            message = str(validation_payload.get("message", ""))
-            patch = validation_payload.get("patch")
-
-            max_retries_raw = step_def.validator_policy.get("max_retries", "0")
-            try:
-                max_retries = int(max_retries_raw) if max_retries_raw is not None else 0
-            except (TypeError, ValueError):
-                max_retries = 0
-
-            retry_counts[step_def.id] = attempt
-
-            if validator_state.failed:
-                status = "fail"
-                if not message:
-                    message = "validator agent failed"
-
-            if not status:
-                status = "fail"
-                if not message:
-                    message = "validator did not return a status"
-
-            if status == "accept":
-                if isinstance(patch, dict):
-                    ctx.state.variables.update(patch)
-            elif status == "retry":
-                if attempt <= max_retries:
-                    finished_at = time.time()
-                    record = StepExecutionRecord(
-                        step_id=step_def.id,
-                        started_at=started_at,
-                        finished_at=finished_at,
-                        input_variables_snapshot=input_snapshot,
-                        tool_result=tool_result,
-                        validator_result=validator_result,
-                        chosen_transition=None,
-                        error=None,
-                    )
-                    ctx.state.history.append(record)
-                    if ctx.definition.serialize_enabled:
-                        self.storage.save_step_record(ctx.state, record)
-                    return
-                status = "fail"
-                if not message:
-                    message = "maximum retries exceeded"
-
-            if status == "fail":
-                error = f"validation failed: {message}" if message else "validation failed"
-                finished_at = time.time()
-                record = StepExecutionRecord(
-                    step_id=step_def.id,
-                    started_at=started_at,
-                    finished_at=finished_at,
-                    input_variables_snapshot=input_snapshot,
-                    tool_result=tool_result,
-                    validator_result=validator_result,
-                    chosen_transition=None,
-                    error=error,
-                )
-                ctx.state.history.append(record)
-                if ctx.definition.serialize_enabled:
-                    self.storage.save_step_record(ctx.state, record)
-                ctx.state.failed = True
-                return
-
-        finished_at = time.time()
-
-        record = StepExecutionRecord(
-            step_id=step_def.id,
-            started_at=started_at,
-            finished_at=finished_at,
-            input_variables_snapshot=input_snapshot,
-            tool_result=tool_result,
-            validator_result=validator_result,
-            chosen_transition=None,
-            error=error,
-        )
-
-        next_step_id = self._choose_transition(ctx, step_def, tool_result, validator_result)
-        record.chosen_transition = next_step_id
-
-        if next_step_id is None:
-            ctx.state.current_step_id = ""
-            ctx.state.finished = True
-        else:
-            ctx.state.current_step_id = next_step_id
-
-        ctx.state.history.append(record)
-        if ctx.definition.serialize_enabled:
-            self.storage.save_step_record(ctx.state, record)
-
-    def _choose_transition(
+    def __init__(
         self,
-        ctx: ExecutionContext,
-        step_def: StepDefinition,
-        tool_result: Dict[str, object] | None,
-        validator_result: Dict[str, object] | None,
-    ) -> str | None:
-        """Select the target step id using transitions and the condition evaluator."""
-        for transition in step_def.transitions:
-            cond = transition.condition
-            if self.condition_evaluator.evaluate(cond, ctx.state):
-                return transition.target_step_id
+        repository: AgentRepository | None = None,
+        builtin_registry: BuiltinAgentRegistry | None = None,
+    ) -> None:
+        self.repository = repository or AgentRepository()
+        self.builtin_registry = builtin_registry or build_default_registry()
 
-        return None
+    def run_to_completion(
+        self, agent_id: str, input_json: Dict[str, Any], locals_json: Optional[Dict[str, Any]] = None
+    ) -> ExecutionState:
+        run_id = str(int(time.time() * 1000))
+        agent = self._get_agent(agent_id)
+        context_vars: Dict[str, Any] = {}
+        for name, value in (input_json or {}).items():
+            context_vars[f"$in.{name}"] = value
+        for name, value in (locals_json or {}).items():
+            context_vars[f"$local.{name}"] = value
+
+        trace = ExecutionTrace()
+
+        if agent.is_atomic():
+            self._execute_atomic(agent, context_vars, trace)
+        else:
+            self._execute_composite(agent, context_vars, trace)
+
+        out_vars = {k[len("$out."):]: v for k, v in context_vars.items() if k.startswith("$out.")}
+        local_vars = {k[len("$local."):]: v for k, v in context_vars.items() if k.startswith("$local.")}
+
+        return ExecutionState(
+            agent_id=agent_id,
+            run_id=run_id,
+            finished=True,
+            failed=False,
+            out=out_vars,
+            locals=local_vars,
+            trace=trace,
+        )
+
+    def _execute_atomic(self, agent: Agent, context_vars: Dict[str, Any], trace: ExecutionTrace) -> None:
+        if not self.builtin_registry.has(agent.id):
+            raise ValueError(f"No built-in implementation for atomic agent '{agent.id}'")
+        ctx = ExecutionContext(variables={**context_vars})
+        result = self.builtin_registry.run(agent.id, ctx)
+        for key, value in result.items():
+            context_vars[key] = value
+        trace.add(agent=agent.id, kind="atomic", vars=dict(result))
+
+    def _execute_composite(self, agent: Agent, context_vars: Dict[str, Any], trace: ExecutionTrace) -> None:
+        self._apply_links(agent, context_vars)
+        for lane in agent.lanes:
+            for child_id in lane.agents:
+                child = agent.children.get(child_id)
+                if not child:
+                    continue
+                if not self._should_run_child(child, context_vars):
+                    trace.add(agent=agent.id, child=child.id, skipped=True)
+                    continue
+                child_context = self._build_child_context(child, context_vars)
+                self._run_child(child, child_context, context_vars, trace)
+                self._apply_links(agent, context_vars)
+
+    def _should_run_child(self, child: ChildRef, context_vars: Dict[str, Any]) -> bool:
+        if not child.run_if:
+            return True
+
+        def resolver(address: str) -> Any:
+            return context_vars.get(address)
+
+        return eval_expr(child.run_if, resolver)
+
+    def _build_child_context(self, child: ChildRef, context_vars: Dict[str, Any]) -> ExecutionContext:
+        prefix = f"{child.id}."
+        child_vars: Dict[str, Any] = {}
+        for key, value in context_vars.items():
+            if key.startswith(prefix):
+                stripped = key[len(prefix) :]
+                child_vars[stripped] = value
+        return ExecutionContext(child_vars)
+
+    def _run_child(
+        self,
+        child: ChildRef,
+        child_ctx: ExecutionContext,
+        parent_vars: Dict[str, Any],
+        trace: ExecutionTrace,
+    ) -> None:
+        agent = self._get_agent(child.ref)
+        if agent.is_atomic():
+            if not self.builtin_registry.has(agent.id):
+                raise ValueError(f"Unknown builtin agent '{agent.id}' for child '{child.id}'")
+            result = self.builtin_registry.run(agent.id, child_ctx)
+            for key, value in result.items():
+                child_ctx.set(key, value)
+            trace.add(agent=child.ref, child=child.id, kind="atomic", vars=dict(result))
+        else:
+            child_engine = ExecutionEngine(repository=self.repository, builtin_registry=self.builtin_registry)
+            child_input = {k[len("$in."):]: v for k, v in child_ctx.variables.items() if k.startswith("$in.")}
+            child_locals = {k[len("$local."):]: v for k, v in child_ctx.variables.items() if k.startswith("$local.")}
+            nested_state = child_engine.run_to_completion(child.ref, child_input, child_locals)
+            for name, value in nested_state.out.items():
+                child_ctx.set(f"$out.{name}", value)
+            for name, value in nested_state.locals.items():
+                child_ctx.set(f"$local.{name}", value)
+            trace.add(agent=child.ref, child=child.id, kind="composite", trace=nested_state.trace.entries)
+
+        parent_vars.update(child_ctx.export_with_prefix(child.id))
+
+    def _apply_links(self, agent: Agent, context_vars: Dict[str, Any]) -> None:
+        updates: Dict[str, Any] = {}
+
+        def resolve(address: str) -> Any:
+            return context_vars[address] if address in context_vars else None
+
+        for link in agent.links:
+            value = resolve(link.src)
+            updates[link.dst] = value
+
+        context_vars.update(updates)
+
+    def _get_agent(self, agent_id: str) -> Agent:
+        try:
+            return self.repository.get(agent_id)
+        except KeyError:
+            if self.builtin_registry.has(agent_id):
+                ports = BUILTIN_PORTS.get(agent_id, {})
+                return Agent(
+                    id=agent_id,
+                    name=agent_id,
+                    description=None,
+                    inputs=ports.get("inputs", []),
+                    locals=[],
+                    outputs=ports.get("outputs", []),
+                    children={},
+                    lanes=[],
+                    links=[],
+                )
+            raise
+
+
+__all__ = ["ExecutionEngine", "ExecutionState", "AgentRepository"]
