@@ -26,7 +26,18 @@ class _SafeExpressionValidator(ast.NodeVisitor):
     """Validate AST nodes to ensure expressions are safe to execute."""
 
     _allowed_bool_ops = (ast.And, ast.Or)
-    _allowed_compare_ops = (ast.Eq, ast.NotEq, ast.Gt, ast.Lt, ast.In)
+    _allowed_compare_ops = (
+        ast.Eq,
+        ast.NotEq,
+        ast.Gt,
+        ast.GtE,
+        ast.Lt,
+        ast.LtE,
+        ast.In,
+        ast.NotIn,
+    )
+    _allowed_unary_ops = (ast.Not, ast.USub, ast.UAdd)
+
     def visit(self, node: ast.AST) -> None:  # type: ignore[override]
         super().visit(node)
 
@@ -45,10 +56,17 @@ class _SafeExpressionValidator(ast.NodeVisitor):
     def visit_Compare(self, node: ast.Compare) -> None:  # noqa: N802
         for op in node.ops:
             if not isinstance(op, self._allowed_compare_ops):
-                raise ValueError("Only ==, !=, >, <, and 'in' comparisons are allowed")
+                raise ValueError(
+                    "Only ==, !=, >, >=, <, <=, 'in', and 'not in' comparisons are allowed"
+                )
         self.visit(node.left)
         for comparator in node.comparators:
             self.visit(comparator)
+
+    def visit_UnaryOp(self, node: ast.UnaryOp) -> None:  # noqa: N802
+        if not isinstance(node.op, self._allowed_unary_ops):
+            raise ValueError("Only 'not' and unary +/- operators are allowed")
+        self.visit(node.operand)
 
     def visit_Name(self, node: ast.Name) -> None:  # noqa: N802
         if node.id.startswith("__"):
