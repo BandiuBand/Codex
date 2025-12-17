@@ -1,0 +1,16 @@
+name: task_classifier
+title_ua: Класифікація задачі
+description_ua: Визначає складність задачі за довжиною тексту
+kind: atomic
+executor: python
+inputs:
+  - name: task_text
+locals:
+  - name: code
+    value: |
+      text = str(task_text)
+      is_complex = len(text) > 30
+      original_task = text
+outputs:
+  - name: is_complex
+  - name: original_task

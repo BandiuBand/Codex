@@ -1,0 +1,48 @@
+name: workflow_demo
+title_ua: Демонстраційний воркфлоу
+description_ua: Класифікація задачі та відповідна відповідь у різних lane
+kind: composite
+inputs:
+  - name: task_text
+locals: []
+outputs: []
+graph:
+  lanes:
+    - items:
+        - id: classify
+          agent: task_classifier
+          bindings:
+            - from_agent_item_id: "__CTX__"
+              from_var: task_text
+              to_agent_item_id: classify
+              to_var: task_text
+          ui:
+            lane_index: 0
+            order: 0
+    - items:
+        - id: echo_simple
+          agent: echo_simple
+          when:
+            var: is_complex
+            equals: false
+          bindings:
+            - from_agent_item_id: "__CTX__"
+              from_var: original_task
+              to_agent_item_id: echo_simple
+              to_var: task_text
+          ui:
+            lane_index: 1
+            order: 0
+        - id: echo_plan
+          agent: echo_plan
+          when:
+            var: is_complex
+            equals: true
+          bindings:
+            - from_agent_item_id: "__CTX__"
+              from_var: original_task
+              to_agent_item_id: echo_plan
+              to_var: task_text
+          ui:
+            lane_index: 1
+            order: 1
