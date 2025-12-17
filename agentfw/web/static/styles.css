@@ -133,6 +133,7 @@ button:hover {
   font-size: 12px;
   color: #7d8590;
   margin-bottom: 8px;
+  position: relative;
 }
 
 .agent-card {
