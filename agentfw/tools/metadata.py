@@ -135,6 +135,87 @@ TOOL_META = {
             ],
         },
     },
+    "http_request": {
+        "label_uk": "HTTP-запит",
+        "category": "інфраструктура",
+        "description_uk": "Виконує HTTP-запит через requests.",
+        "schema": {
+            "params": [
+                {
+                    "name": "url",
+                    "type": "string",
+                    "label_uk": "URL",
+                    "description_uk": "Адреса запиту (обов'язково).",
+                },
+                {
+                    "name": "method",
+                    "type": "string",
+                    "label_uk": "Метод",
+                    "description_uk": "HTTP-метод (GET за замовчуванням).",
+                },
+                {
+                    "name": "headers",
+                    "type": "object",
+                    "label_uk": "Заголовки",
+                    "description_uk": "Додаткові HTTP-заголовки.",
+                },
+                {
+                    "name": "params",
+                    "type": "object",
+                    "label_uk": "Query-параметри",
+                    "description_uk": "Словник query-параметрів.",
+                },
+                {
+                    "name": "json",
+                    "type": "any",
+                    "label_uk": "JSON-тіло",
+                    "description_uk": "Тіло запиту у форматі JSON.",
+                },
+                {
+                    "name": "data",
+                    "type": "any",
+                    "label_uk": "Тіло",
+                    "description_uk": "Альтернативне тіло запиту (form/raw).",
+                },
+                {
+                    "name": "timeout",
+                    "type": "number",
+                    "label_uk": "Тайм-аут, с",
+                    "description_uk": "Обмеження часу виконання.",
+                },
+                {
+                    "name": "allow_failure",
+                    "type": "boolean",
+                    "label_uk": "Ігнорувати помилку",
+                    "description_uk": "Не піднімати помилку для не-2xx статусів.",
+                },
+                {
+                    "name": "save_body_var",
+                    "type": "string",
+                    "label_uk": "Зберегти тіло",
+                    "description_uk": "Назва змінної для збереження тексту відповіді.",
+                },
+            ],
+            "returns": [
+                {
+                    "name": "status_code",
+                    "type": "number",
+                    "description_uk": "HTTP статус відповіді.",
+                },
+                {
+                    "name": "headers",
+                    "type": "object",
+                    "description_uk": "Отримані HTTP-заголовки.",
+                },
+                {"name": "text", "type": "string", "description_uk": "Текстове тіло відповіді."},
+                {
+                    "name": "json",
+                    "type": "any",
+                    "description_uk": "Розібране JSON-тіло або None.",
+                },
+            ],
+        },
+    },
     "echo": {
         "label_uk": "Шаблонований текст",
         "category": "debug",

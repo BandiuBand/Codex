@@ -4,6 +4,8 @@ import subprocess
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Union
 
+import requests
+
 from agentfw.core.state import ExecutionContext
 from agentfw.runtime.engine import ExecutionEngine
 from agentfw.tools.base import BaseTool
@@ -148,6 +150,60 @@ class ShellTool(BaseTool):
 
         if not allow_failure and result.returncode != 0:
             raise RuntimeError(f"Command failed with return code {result.returncode}")
+
+        return output
+
+
+class HttpRequestTool(BaseTool):
+    """Tool for performing HTTP requests with requests."""
+
+    def execute(self, ctx: ExecutionContext, params: Dict[str, object]) -> Dict[str, object]:
+        url = params.get("url")
+        if not url:
+            raise ValueError("HttpRequestTool requires a 'url' parameter")
+
+        method = str(params.get("method", "GET")).upper()
+        headers = params.get("headers")
+        query_params = params.get("params")
+        json_body = params.get("json")
+        data_body = params.get("data")
+        timeout = params.get("timeout")
+        allow_failure = bool(params.get("allow_failure", False))
+        save_body_var = params.get("save_body_var")
+
+        response = requests.request(
+            method=method,
+            url=url,
+            headers=headers,
+            params=query_params,
+            json=json_body,
+            data=data_body,
+            timeout=timeout,
+        )
+
+        text = response.text
+        parsed_json: Any = None
+        json_error: Optional[str] = None
+        try:
+            parsed_json = response.json()
+        except ValueError as exc:
+            json_error = str(exc)
+
+        output: Dict[str, object] = {
+            "status_code": response.status_code,
+            "headers": dict(response.headers),
+            "text": text,
+            "json": parsed_json,
+        }
+
+        if json_error:
+            output["json_error"] = json_error
+
+        if isinstance(save_body_var, str) and save_body_var:
+            ctx.set_var(save_body_var, text)
+
+        if not allow_failure and not 200 <= response.status_code < 300:
+            raise RuntimeError(f"HTTP request failed with status {response.status_code}")
 
         return output
 
@@ -310,4 +366,3 @@ class AttemptThresholdValidatorTool(BaseTool):
             }
 
         return {"validation": validation}
-

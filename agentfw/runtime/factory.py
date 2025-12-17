@@ -16,6 +16,7 @@ from agentfw.tools.builtin import (
     AttemptThresholdValidatorTool,
     EchoTool,
     FlakyTool,
+    HttpRequestTool,
     LLMTool,
     MathAddTool,
     ShellTool,
@@ -70,6 +71,7 @@ def build_default_engine() -> Tuple[ExecutionEngine, AgentRegistry]:
     tool_registry.register("math_add", MathAddTool())
     tool_registry.register("llm", LLMTool(client=llm_client_from_config(agents_dir)))
     tool_registry.register("shell", ShellTool())
+    tool_registry.register("http_request", HttpRequestTool())
     tool_registry.register("flaky", FlakyTool())
     tool_registry.register(
         "attempt_threshold_validator", AttemptThresholdValidatorTool()
