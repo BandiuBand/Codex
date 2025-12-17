@@ -251,6 +251,15 @@ footer {
   box-shadow: 0 8px 14px rgba(13, 27, 42, 0.08);
 }
 
+.palette-subheader {
+  width: 100%;
+  font-weight: 700;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  margin: 0.2rem 0;
+}
+
 .muted {
   color: #5c677d;
   margin-top: 0;

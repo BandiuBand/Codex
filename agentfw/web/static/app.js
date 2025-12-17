@@ -310,10 +310,16 @@ function normalizeStep(raw) {
   };
 }
 
-function createStep(kind) {
-  const id = generateStepId(kind);
-  const base = normalizeStep({ id, kind, name: defaultNameFromKind(kind) });
-  if (kind === 'loop') {
+function createStep(kind, overrides = {}) {
+  const id = overrides.id || generateStepId(kind);
+  const base = normalizeStep({
+    id,
+    kind,
+    name: overrides.name || defaultNameFromKind(kind),
+    ...overrides,
+  });
+  if (kind === 'loop' && (!base.transitions || !base.transitions.length)) {
+    base.transitions = base.transitions || [];
     base.transitions.push({
       id: generateTransitionId(),
       targetStepId: id,
@@ -325,6 +331,7 @@ function createStep(kind) {
   state.selectedStepId = id;
   refreshSelectors();
   renderAll();
+  return base;
 }
 
 function getStepSize(step) {
@@ -583,6 +590,12 @@ function renderToolPalette() {
   });
 }
 
+const NODE_TEMPLATES = [
+  { kind: 'decision', label: 'Розгалуження', description: 'if/else на основі умов' },
+  { kind: 'loop', label: 'Цикл', description: 'повторення з умовою виходу' },
+  { kind: 'validator', label: 'Валідатор', description: 'перевірка результату' },
+];
+
 function renderAgentPalette() {
   const palette = document.getElementById('agentPalette');
   const filterInput = document.getElementById('agentPaletteFilter');
@@ -591,7 +604,7 @@ function renderAgentPalette() {
   const agents = filterAgents(state.agentPaletteFilter);
   palette.innerHTML = '';
 
-  if (!agents.length) {
+  if (!agents.length && !NODE_TEMPLATES.length) {
     const empty = document.createElement('p');
     empty.className = 'muted';
     empty.textContent = 'Агентів не знайдено.';
@@ -615,6 +628,41 @@ function renderAgentPalette() {
     const desc = document.createElement('span');
     desc.className = 'muted';
     desc.textContent = agent.id;
+    pill.appendChild(desc);
+
+    palette.appendChild(pill);
+  });
+
+  const matchingNodes = NODE_TEMPLATES.filter(
+    (tpl) =>
+      !state.agentPaletteFilter ||
+      tpl.label.toLowerCase().includes(state.agentPaletteFilter.toLowerCase()) ||
+      tpl.kind.includes(state.agentPaletteFilter.toLowerCase()),
+  );
+
+  if (matchingNodes.length) {
+    const header = document.createElement('div');
+    header.className = 'muted palette-subheader';
+    header.textContent = 'Спеціальні кроки';
+    palette.appendChild(header);
+  }
+
+  matchingNodes.forEach((tpl) => {
+    const pill = document.createElement('div');
+    pill.className = 'tool-pill agent-pill';
+    pill.draggable = true;
+    pill.dataset.nodeKind = tpl.kind;
+    pill.addEventListener('dragstart', (e) => {
+      e.dataTransfer.setData('text/plain', `node:${tpl.kind}`);
+    });
+
+    const title = document.createElement('strong');
+    title.textContent = tpl.label;
+    pill.appendChild(title);
+
+    const desc = document.createElement('span');
+    desc.className = 'muted';
+    desc.textContent = tpl.description;
     pill.appendChild(desc);
 
     palette.appendChild(pill);
@@ -1806,28 +1854,25 @@ function handleCanvasDrop(evt) {
   const y = evt.clientY - rect.top - STEP_BASE_HEIGHT / 2;
   const agentMatch = payload.startsWith('agent:') ? payload.slice('agent:'.length) : null;
   if (agentMatch) {
-    const id = generateStepId('agent');
-    addStep({
-      id,
+    createStep('action', {
       name: 'Виклик агента',
-      kind: 'action',
       toolName: 'agent_call',
       toolParams: { agent_name: agentMatch },
       x,
       y,
     });
-    selectStep(id);
     updatePreview();
     return;
   }
 
-  const id = generateStepId(payload || 'step');
-  addStep({ id, name: defaultNameFromKind('action'), kind: 'action', toolName: payload, x, y });
-  if (!state.entryStepId) {
-    state.entryStepId = id;
-    document.getElementById('entryStep').value = id;
+  const nodeMatch = payload.startsWith('node:') ? payload.slice('node:'.length) : null;
+  if (nodeMatch) {
+    createStep(nodeMatch, { x, y });
+    updatePreview();
+    return;
   }
-  selectStep(id);
+
+  createStep('action', { toolName: payload, x, y });
   updatePreview();
 }
 
@@ -2085,8 +2130,7 @@ function registerEventHandlers() {
         const portHit = getPortAt(event.offsetX, event.offsetY);
         if (
           state.draggingLink.fromPortType === 'output' &&
-          portHit?.portType === 'input' &&
-          portHit.stepId !== state.draggingLink.from
+          portHit?.portType === 'input'
         ) {
           connectOutputToInput(
             state.draggingLink.from,
@@ -2096,7 +2140,7 @@ function registerEventHandlers() {
           );
         } else {
           const hit = getStepAt(event.offsetX, event.offsetY);
-          if (hit && hit.id !== state.draggingLink.from) {
+          if (hit) {
             const fromStep = state.steps[state.draggingLink.from];
             ensureTransition(fromStep, hit.id);
             if (state.selectedStepId === fromStep.id) {
