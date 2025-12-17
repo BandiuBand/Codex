@@ -20,6 +20,7 @@ const state = {
   counter: 1,
   transitionCounter: 1,
   agentsGraph: { agents: [], edges: [] },
+  agentPaletteFilter: '',
   runAgentKnownVars: [],
 };
 
@@ -220,6 +221,12 @@ function fetchConditionFieldValue(container, name) {
   if (!el) return undefined;
   const value = el.value;
   return value === '' ? undefined : value;
+}
+
+function filterAgents(query = '') {
+  const trimmed = query.trim().toLowerCase();
+  if (!trimmed) return state.agents;
+  return state.agents.filter((a) => a.id.toLowerCase().includes(trimmed) || a.name.toLowerCase().includes(trimmed));
 }
 
 function knownVariables() {
@@ -436,6 +443,7 @@ async function fetchAgents(autoLoadFirst = false) {
   const data = await res.json();
   state.agents = (data.agents || []).map(normalizeAgent).filter((a) => a.id);
   populateAgentOptions();
+  renderAgentPalette();
 
   if (autoLoadFirst && state.agents.length) {
     await loadAgent(state.agents[0].id);
@@ -472,6 +480,48 @@ function renderToolPalette() {
     });
     palette.appendChild(pill);
   });
+}
+
+function renderAgentPalette() {
+  const palette = document.getElementById('agentPalette');
+  const filterInput = document.getElementById('agentPaletteFilter');
+  if (!palette) return;
+
+  const agents = filterAgents(state.agentPaletteFilter);
+  palette.innerHTML = '';
+
+  if (!agents.length) {
+    const empty = document.createElement('p');
+    empty.className = 'muted';
+    empty.textContent = 'Агентів не знайдено.';
+    palette.appendChild(empty);
+    return;
+  }
+
+  agents.forEach((agent) => {
+    const pill = document.createElement('div');
+    pill.className = 'tool-pill agent-pill';
+    pill.draggable = true;
+    pill.dataset.agent = agent.id;
+    pill.addEventListener('dragstart', (e) => {
+      e.dataTransfer.setData('text/plain', `agent:${agent.id}`);
+    });
+
+    const title = document.createElement('strong');
+    title.textContent = agent.name || agent.id;
+    pill.appendChild(title);
+
+    const desc = document.createElement('span');
+    desc.className = 'muted';
+    desc.textContent = agent.id;
+    pill.appendChild(desc);
+
+    palette.appendChild(pill);
+  });
+
+  if (filterInput) {
+    filterInput.value = state.agentPaletteFilter;
+  }
 }
 
   function populateToolAndConditionOptions() {
@@ -831,55 +881,117 @@ function renderInspector(step) {
     const meta = state.tools.find((t) => t.name === step.toolName) || {};
     const schema = meta.schema || {};
     const props = schema.properties || null;
-    if (!props) {
-      const label = document.createElement('label');
-      label.textContent = 'Сирі параметри (JSON)';
-      const textarea = document.createElement('textarea');
-      textarea.rows = 4;
-      textarea.value = JSON.stringify(step.toolParams || {}, null, 2);
-      textarea.addEventListener('input', () => {
-        try {
-          step.toolParams = JSON.parse(textarea.value || '{}');
-          textarea.classList.remove('error');
-          updatePreview();
-        } catch (err) {
-          textarea.classList.add('error');
-        }
+    const params = Array.isArray(schema.params) ? schema.params : null;
+
+    if (step.toolName === 'agent_call') {
+      const agentSelectWrap = document.createElement('div');
+      agentSelectWrap.className = 'field-group';
+      const agentLabel = document.createElement('label');
+      agentLabel.textContent = 'Цільовий агент';
+      const agentSelect = document.createElement('select');
+      agentSelect.innerHTML = '<option value="">— оберіть агента —</option>';
+      state.agents.forEach((agent) => {
+        const opt = document.createElement('option');
+        opt.value = agent.id;
+        opt.textContent = agent.name || agent.id;
+        agentSelect.appendChild(opt);
       });
-      paramsWrapper.append(label, textarea);
+      agentSelect.value = step.toolParams?.agent_name || '';
+      agentSelect.addEventListener('change', () => {
+        step.toolParams = step.toolParams || {};
+        step.toolParams.agent_name = agentSelect.value;
+        updatePreview();
+      });
+      agentSelectWrap.append(agentLabel, agentSelect);
+      paramsWrapper.appendChild(agentSelectWrap);
+
+      const hint = document.createElement('p');
+      hint.className = 'muted';
+      hint.textContent = 'Перетягніть агента з палітри ліворуч або виберіть зі списку.';
+      paramsWrapper.appendChild(hint);
+    }
+
+    if (params) {
+      params.forEach((cfg) => {
+        const key = cfg.name;
+        const wrapper = document.createElement('div');
+        wrapper.className = 'field-group';
+        const label = document.createElement('label');
+        label.textContent = cfg.title || cfg.label_uk || key;
+        const input = document.createElement(cfg.type === 'boolean' ? 'input' : 'textarea');
+        if (cfg.type === 'boolean') {
+          input.type = 'checkbox';
+          input.checked = Boolean(step.toolParams?.[key]);
+          input.addEventListener('change', () => {
+            step.toolParams = step.toolParams || {};
+            step.toolParams[key] = input.checked;
+            updatePreview();
+          });
+        } else {
+          input.rows = 2;
+          input.value = step.toolParams?.[key] ?? '';
+          input.placeholder = cfg.description_uk || cfg.description || '';
+          input.addEventListener('input', () => {
+            step.toolParams = step.toolParams || {};
+            step.toolParams[key] = input.value;
+            updatePreview();
+          });
+        }
+        wrapper.append(label, input);
+        paramsWrapper.appendChild(wrapper);
+      });
       return;
     }
 
-    Object.entries(props).forEach(([key, cfg]) => {
-      const wrapper = document.createElement('div');
-      wrapper.className = 'field-group';
-      const label = document.createElement('label');
-      label.textContent = cfg.title || cfg.label_uk || key;
-      const inputType = cfg.type === 'boolean' ? 'checkbox' : 'input';
-      let input;
-      if (inputType === 'checkbox') {
-        input = document.createElement('input');
-        input.type = 'checkbox';
-        input.checked = Boolean(step.toolParams?.[key]);
-        input.addEventListener('change', () => {
-          step.toolParams = step.toolParams || {};
-          step.toolParams[key] = input.checked;
-          updatePreview();
-        });
-      } else {
-        input = document.createElement('textarea');
-        input.rows = 2;
-        input.value = step.toolParams?.[key] ?? '';
-        input.placeholder = cfg.description_uk || cfg.description || '';
-        input.addEventListener('input', () => {
-          step.toolParams = step.toolParams || {};
-          step.toolParams[key] = input.value;
-          updatePreview();
-        });
+    if (props) {
+      Object.entries(props).forEach(([key, cfg]) => {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'field-group';
+        const label = document.createElement('label');
+        label.textContent = cfg.title || cfg.label_uk || key;
+        const inputType = cfg.type === 'boolean' ? 'checkbox' : 'input';
+        let input;
+        if (inputType === 'checkbox') {
+          input = document.createElement('input');
+          input.type = 'checkbox';
+          input.checked = Boolean(step.toolParams?.[key]);
+          input.addEventListener('change', () => {
+            step.toolParams = step.toolParams || {};
+            step.toolParams[key] = input.checked;
+            updatePreview();
+          });
+        } else {
+          input = document.createElement('textarea');
+          input.rows = 2;
+          input.value = step.toolParams?.[key] ?? '';
+          input.placeholder = cfg.description_uk || cfg.description || '';
+          input.addEventListener('input', () => {
+            step.toolParams = step.toolParams || {};
+            step.toolParams[key] = input.value;
+            updatePreview();
+          });
+        }
+        wrapper.append(label, input);
+        paramsWrapper.appendChild(wrapper);
+      });
+      return;
+    }
+
+    const label = document.createElement('label');
+    label.textContent = 'Сирі параметри (JSON)';
+    const textarea = document.createElement('textarea');
+    textarea.rows = 4;
+    textarea.value = JSON.stringify(step.toolParams || {}, null, 2);
+    textarea.addEventListener('input', () => {
+      try {
+        step.toolParams = JSON.parse(textarea.value || '{}');
+        textarea.classList.remove('error');
+        updatePreview();
+      } catch (err) {
+        textarea.classList.add('error');
       }
-      wrapper.append(label, input);
-      paramsWrapper.appendChild(wrapper);
     });
+    paramsWrapper.append(label, textarea);
   }
 
   toolSelect.addEventListener('change', () => {
@@ -1431,13 +1543,30 @@ function addStepFromForm(evt) {
 
 function handleCanvasDrop(evt) {
   evt.preventDefault();
-  const tool = evt.dataTransfer.getData('text/plain');
-  if (!tool) return;
+  const payload = evt.dataTransfer.getData('text/plain');
+  if (!payload) return;
   const rect = canvas.getBoundingClientRect();
   const x = evt.clientX - rect.left - 70;
   const y = evt.clientY - rect.top - 30;
-  const id = generateStepId(tool || 'step');
-  addStep({ id, name: defaultNameFromKind('action'), kind: 'action', toolName: tool, x, y });
+  const agentMatch = payload.startsWith('agent:') ? payload.slice('agent:'.length) : null;
+  if (agentMatch) {
+    const id = generateStepId('agent');
+    addStep({
+      id,
+      name: 'Виклик агента',
+      kind: 'action',
+      toolName: 'agent_call',
+      toolParams: { agent_name: agentMatch },
+      x,
+      y,
+    });
+    selectStep(id);
+    updatePreview();
+    return;
+  }
+
+  const id = generateStepId(payload || 'step');
+  addStep({ id, name: defaultNameFromKind('action'), kind: 'action', toolName: payload, x, y });
   if (!state.entryStepId) {
     state.entryStepId = id;
     document.getElementById('entryStep').value = id;
@@ -1662,6 +1791,12 @@ function registerEventHandlers() {
   withElement('loadAgent', (el) => el.addEventListener('click', loadAgent));
   withElement('newAgent', (el) => el.addEventListener('click', newAgent));
   withElement('refreshAgents', (el) => el.addEventListener('click', () => fetchAgents()));
+  withElement('agentPaletteFilter', (el) =>
+    el.addEventListener('input', (e) => {
+      state.agentPaletteFilter = e.target.value;
+      renderAgentPalette();
+    }),
+  );
   withElement('addActionStep', (el) => el.addEventListener('click', () => createStep('action')));
   withElement('addDecisionStep', (el) => el.addEventListener('click', () => createStep('decision')));
   withElement('addLoopStep', (el) => el.addEventListener('click', () => createStep('loop')));

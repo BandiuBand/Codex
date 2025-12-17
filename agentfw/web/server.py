@@ -553,7 +553,11 @@ class AgentEditorHandler(SimpleHTTPRequestHandler):
                 agent_files.extend(agents_dir.rglob(pattern))
 
             for path in sorted(agent_files, key=lambda p: str(p)):
-                definition = loader.load_file(path)
+                try:
+                    definition = loader.load_file(path)
+                except Exception:  # pylint: disable=broad-except
+                    continue
+
                 rel_path = str(path.relative_to(agents_dir))
 
                 agent_entry = agents.setdefault(
