@@ -1,0 +1,27 @@
+id: llm
+name: Базовий LLM агент
+description: >
+  Агент-обгортка для прямого виклику LLM інструмента з переданим промптом.
+entry_step_id: generate
+end_step_ids:
+  - generate
+input_schema:
+  prompt:
+    type: string
+    description: Промпт, який буде відправлено до LLM.
+steps:
+  generate:
+    id: generate
+    kind: action
+    name: Генерація відповіді
+    description: Викликає LLM з переданим промптом і повертає текст відповіді та розібраний JSON (якщо є).
+    tool_name: llm
+    tool_params:
+      prompt_var: prompt
+      parse_json: true
+    save_mapping:
+      prompt: prompt
+      output_text: output_text
+      parsed_json: parsed_json
+      json_error: json_error
+    transitions: []

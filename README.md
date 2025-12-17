@@ -24,18 +24,28 @@ python run.py test
 
 If you see `ModuleNotFoundError: No module named 'yaml'`, it means the `PyYAML` dependency has not been installed; running the install command above resolves it.
 
-### Running with a real Ollama backend
+### Налаштування реального LLM через файл конфігурації
 
-To exercise the LLM-powered agents (e.g. the task complexity classifier) against a real model instead of the dummy client, set the following environment variables before running the server or scripts:
+Щоб агенти, які використовують `llm`, звертались до справжньої моделі (наприклад, Ollama), задайте параметри у файлі `agents/llm_config.yaml`:
+
+```yaml
+backend: ollama
+base_url: http://localhost:11434
+model: qwen3:32b
+# api_key: "" # якщо потрібен
+```
+
+Після цього просто запускайте веб-UI чи демо без жодних змінних середовища:
 
 ```bash
-export AGENTFW_LLM_BACKEND=ollama
-export OLLAMA_BASE_URL=http://localhost:11434
-export OLLAMA_MODEL=qwen3:32b
-
-# then start the web UI or run scripts
 python run.py web
 ```
+
+### Готовий LLM-агент
+
+У каталозі `agents/` є файл `llm_agent.yaml` із базовим агентом `llm`, який напряму викликає інструмент LLM за переданим промптом
+і повертає як сирий текст, так і (за потреби) розібраний JSON. Це дозволяє одразу перевірити зʼєднання з моделлю Ollama без
+додаткових налаштувань у веб-UI.
 
 ## Web graph editor
 
