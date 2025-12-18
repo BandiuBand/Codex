@@ -161,6 +161,8 @@ def test_workflow_demo_branching(task_text, expected_plan, tmp_path) -> None:
     assert state.vars["класифікація"] is expected_plan
     assert state.vars["вихідний_запит"] == task_text
     if expected_plan:
+        assert state.vars["гілка_так"] == task_text
         assert "План" in state.vars["відповідь"]
     else:
+        assert state.vars["гілка_ні"] == task_text
         assert "Проста" in state.vars["відповідь"]
