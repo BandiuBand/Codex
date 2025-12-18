@@ -1,0 +1,240 @@
+name: complex_task_handler
+title_ua: Обробка складного завдання
+description_ua: Перевірка даних, планування, виконання кроків і підсумок
+kind: composite
+inputs:
+  - name: завдання
+  - name: ollama_host
+  - name: ollama_model
+  - name: temperature
+  - name: max_reviews
+locals: []
+outputs:
+  - name: уточнення
+  - name: план
+  - name: кроки
+  - name: критерії
+  - name: виконані_кроки
+  - name: пройшло_перевірку
+  - name: коментар_цербера
+  - name: потрібно_повторити
+  - name: результат_виконання
+  - name: фінальна_відповідь
+  - name: next_stage_hint
+  - name: потрібні_уточнення
+  - name: аналіз_даних
+  - name: план_json
+  - name: план_як_рядок
+  - name: уточнюючі_питання
+  - name: попередній_контекст
+  - name: зведення
+  - name: резюме
+graph:
+  lanes:
+    - items:
+        - id: review
+          agent: llm_data_review
+          bindings:
+            - from_agent_item_id: "__CTX__"
+              from_var: завдання
+              to_agent_item_id: review
+              to_var: завдання
+            - from_agent_item_id: "__CTX__"
+              from_var: ollama_host
+              to_agent_item_id: review
+              to_var: ollama_host
+            - from_agent_item_id: "__CTX__"
+              from_var: ollama_model
+              to_agent_item_id: review
+              to_var: ollama_model
+            - from_agent_item_id: "__CTX__"
+              from_var: temperature
+              to_agent_item_id: review
+              to_var: temperature
+          ui:
+            lane_index: 0
+            order: 0
+    - items:
+        - id: review_map
+          agent: data_review_mapper
+          bindings:
+            - from_agent_item_id: "__CTX__"
+              from_var: аналіз_даних
+              to_agent_item_id: review_map
+              to_var: аналіз_даних
+          ui:
+            lane_index: 1
+            order: 0
+    - items:
+        - id: planner
+          agent: llm_plan_builder
+          bindings:
+            - from_agent_item_id: "__CTX__"
+              from_var: завдання
+              to_agent_item_id: planner
+              to_var: завдання
+            - from_agent_item_id: "__CTX__"
+              from_var: попередній_контекст
+              to_agent_item_id: planner
+              to_var: попередній_контекст
+            - from_agent_item_id: "__CTX__"
+              from_var: ollama_host
+              to_agent_item_id: planner
+              to_var: ollama_host
+            - from_agent_item_id: "__CTX__"
+              from_var: ollama_model
+              to_agent_item_id: planner
+              to_var: ollama_model
+            - from_agent_item_id: "__CTX__"
+              from_var: temperature
+              to_agent_item_id: planner
+              to_var: temperature
+          ui:
+            lane_index: 1
+            order: 1
+    - items:
+        - id: normalize
+          agent: plan_normalizer
+          bindings:
+            - from_agent_item_id: "__CTX__"
+              from_var: план_json
+              to_agent_item_id: normalize
+              to_var: план_json
+          ui:
+            lane_index: 2
+            order: 0
+    - items:
+        - id: executor
+          agent: plan_executor
+          bindings:
+            - from_agent_item_id: "__CTX__"
+              from_var: завдання
+              to_agent_item_id: executor
+              to_var: завдання
+            - from_agent_item_id: "__CTX__"
+              from_var: кроки
+              to_agent_item_id: executor
+              to_var: кроки
+            - from_agent_item_id: "__CTX__"
+              from_var: критерії
+              to_agent_item_id: executor
+              to_var: критерії
+            - from_agent_item_id: "__CTX__"
+              from_var: max_reviews
+              to_agent_item_id: executor
+              to_var: max_reviews
+          ui:
+            lane_index: 3
+            order: 0
+    - items:
+        - id: summary
+          agent: llm_summary
+          bindings:
+            - from_agent_item_id: "__CTX__"
+              from_var: завдання
+              to_agent_item_id: summary
+              to_var: завдання
+            - from_agent_item_id: "__CTX__"
+              from_var: виконані_кроки
+              to_agent_item_id: summary
+              to_var: виконані_кроки
+            - from_agent_item_id: "__CTX__"
+              from_var: пройшло_перевірку
+              to_agent_item_id: summary
+              to_var: пройшло_перевірку
+            - from_agent_item_id: "__CTX__"
+              from_var: коментар_цербера
+              to_agent_item_id: summary
+              to_var: коментар_цербера
+            - from_agent_item_id: "__CTX__"
+              from_var: next_stage_hint
+              to_agent_item_id: summary
+              to_var: next_stage_hint
+            - from_agent_item_id: "__CTX__"
+              from_var: ollama_host
+              to_agent_item_id: summary
+              to_var: ollama_host
+            - from_agent_item_id: "__CTX__"
+              from_var: ollama_model
+              to_agent_item_id: summary
+              to_var: ollama_model
+            - from_agent_item_id: "__CTX__"
+              from_var: temperature
+              to_agent_item_id: summary
+              to_var: temperature
+          ui:
+            lane_index: 4
+            order: 0
+  __ctx_bindings:
+    - from_agent_item_id: review
+      from_var: output_json
+      to_agent_item_id: "__CTX__"
+      to_var: аналіз_даних
+    - from_agent_item_id: review
+      from_var: json_error
+      to_agent_item_id: "__CTX__"
+      to_var: уточнення
+    - from_agent_item_id: planner
+      from_var: output_json
+      to_agent_item_id: "__CTX__"
+      to_var: план_json
+    - from_agent_item_id: planner
+      from_var: результат
+      to_agent_item_id: "__CTX__"
+      to_var: план_як_рядок
+    - from_agent_item_id: review_map
+      from_var: потрібні_уточнення
+      to_agent_item_id: "__CTX__"
+      to_var: потрібні_уточнення
+    - from_agent_item_id: review_map
+      from_var: уточнюючі_питання
+      to_agent_item_id: "__CTX__"
+      to_var: уточнюючі_питання
+    - from_agent_item_id: review_map
+      from_var: попередній_контекст
+      to_agent_item_id: "__CTX__"
+      to_var: попередній_контекст
+    - from_agent_item_id: normalize
+      from_var: результат
+      to_agent_item_id: "__CTX__"
+      to_var: нормалізований_план
+    - from_agent_item_id: executor
+      from_var: виконані_кроки
+      to_agent_item_id: "__CTX__"
+      to_var: виконані_кроки
+    - from_agent_item_id: executor
+      from_var: пройшло_перевірку
+      to_agent_item_id: "__CTX__"
+      to_var: пройшло_перевірку
+    - from_agent_item_id: executor
+      from_var: коментар_цербера
+      to_agent_item_id: "__CTX__"
+      to_var: коментар_цербера
+    - from_agent_item_id: executor
+      from_var: потрібно_повторити
+      to_agent_item_id: "__CTX__"
+      to_var: потрібно_повторити
+    - from_agent_item_id: executor
+      from_var: результат_виконання
+      to_agent_item_id: "__CTX__"
+      to_var: результат_виконання
+    - from_agent_item_id: summary
+      from_var: результат
+      to_agent_item_id: "__CTX__"
+      to_var: фінальна_відповідь
+    - from_agent_item_id: normalize
+      from_var: результат
+      to_agent_item_id: "__CTX__"
+      to_var: план
+    - from_agent_item_id: normalize
+      from_var: кроки
+      to_agent_item_id: "__CTX__"
+      to_var: кроки
+    - from_agent_item_id: normalize
+      from_var: критерії
+      to_agent_item_id: "__CTX__"
+      to_var: критерії
+    - from_agent_item_id: normalize
+      from_var: next_stage_hint
+      to_agent_item_id: "__CTX__"
+      to_var: next_stage_hint
