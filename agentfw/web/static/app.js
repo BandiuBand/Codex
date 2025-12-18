@@ -40,6 +40,7 @@ function openRunModal() {
   const modal = $("runModal");
   if (!modal) return;
   modal.classList.remove("hidden");
+  document.body.classList.add("modal-open");
   renderRunnerSelect();
 }
 
@@ -47,6 +48,7 @@ function closeRunModal() {
   const modal = $("runModal");
   if (!modal) return;
   modal.classList.add("hidden");
+  document.body.classList.remove("modal-open");
 }
 
 async function fetchJSON(url, options = {}) {
@@ -724,9 +726,20 @@ function bindEvents() {
   $("btnAddLane")?.addEventListener("click", addLane);
   $("btnRunOpen")?.addEventListener("click", openRunModal);
   $("runBtn")?.addEventListener("click", runAgent);
-  $("runCloseBtn")?.addEventListener("click", closeRunModal);
-  $("runModal")?.addEventListener("click", (event) => {
-    if (event.target === $("runModal")) closeRunModal();
+  $("runCloseBtn")?.addEventListener("click", (event) => {
+    event.preventDefault();
+    closeRunModal();
+  });
+  const modal = $("runModal");
+  if (modal) {
+    modal.addEventListener("click", (event) => {
+      if (event.target === modal) closeRunModal();
+    });
+  }
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && modal && !modal.classList.contains("hidden")) {
+      closeRunModal();
+    }
   });
   document.addEventListener("mouseup", () => {
     state.drag = null;
