@@ -20,29 +20,51 @@ graph:
             lane_index: 0
             order: 0
     - items:
+        - id: branch
+          agent: branch_condition
+          bindings:
+            - from_agent_item_id: "__CTX__"
+              from_var: is_complex
+              to_agent_item_id: branch
+              to_var: left
+            - from_agent_item_id: "__CTX__"
+              from_var: is_complex
+              to_agent_item_id: branch
+              to_var: right
+          ui:
+            lane_index: 1
+            order: 0
         - id: echo_simple
           agent: echo_simple
           when:
-            var: is_complex
+            var: value
             equals: false
           bindings:
+            - from_agent_item_id: branch
+              from_var: value
+              to_agent_item_id: echo_simple
+              to_var: task_text
             - from_agent_item_id: "__CTX__"
               from_var: original_task
               to_agent_item_id: echo_simple
               to_var: task_text
           ui:
             lane_index: 1
-            order: 0
+            order: 1
         - id: echo_plan
           agent: echo_plan
           when:
-            var: is_complex
+            var: value
             equals: true
           bindings:
+            - from_agent_item_id: branch
+              from_var: value
+              to_agent_item_id: echo_plan
+              to_var: task_text
             - from_agent_item_id: "__CTX__"
               from_var: original_task
               to_agent_item_id: echo_plan
               to_var: task_text
           ui:
             lane_index: 1
-            order: 1
+            order: 2
