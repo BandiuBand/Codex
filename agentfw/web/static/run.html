@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="utf-8" />
+    <title>Запуск агента</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="logo">Codex</div>
+      <div class="controls">
+        <a href="/" class="ghost link-btn">Редактор</a>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="canvas">
+        <div class="canvas-top">
+          <div class="canvas-title">Запуск агента</div>
+        </div>
+        <div class="runner-body">
+          <label>
+            Агент
+            <select id="runAgentSelect"></select>
+          </label>
+          <label>
+            Вхід (JSON)
+            <textarea id="runInputField" rows="6">{"task": ""}</textarea>
+          </label>
+          <button id="runBtn">Запустити</button>
+          <label>
+            Вихід
+            <textarea id="runOutputField" rows="6" readonly></textarea>
+          </label>
+        </div>
+      </section>
+    </main>
+
+    <div id="status" class="status"></div>
+    <script src="/run.js"></script>
+  </body>
+</html>

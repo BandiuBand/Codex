@@ -87,6 +87,13 @@ button:hover {
   display: none;
 }
 
+.link-btn {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .layout {
   display: grid;
   grid-template-columns: 1fr;
@@ -331,41 +338,11 @@ button:hover {
   pointer-events: auto;
 }
 
-.modal {
-  position: fixed;
-  inset: 0;
-  background: #0b0f1499;
+.runner-body {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 50;
-}
-
-.modal-dialog {
-  background: #0b0f14;
-  border: 1px solid #30363d;
-  border-radius: 10px;
+  flex-direction: column;
+  gap: 12px;
   padding: 16px;
-  width: 520px;
-  max-width: 90%;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35);
-}
-
-.modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 10px;
-}
-
-.modal-body label {
-  display: block;
-  margin-bottom: 12px;
-}
-
-.modal-body button {
-  width: 100%;
-  margin-bottom: 10px;
 }
 
 select,

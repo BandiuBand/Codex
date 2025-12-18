@@ -38,6 +38,8 @@ class AgentEditorHandler(SimpleHTTPRequestHandler):
             return self._handle_list_agents()
         if self.path.startswith("/api/agent/"):
             return self._handle_get_agent()
+        if self.path == "/run":
+            self.path = "/run.html"
         if self.path == "/":
             self.path = "/index.html"
         return super().do_GET()
