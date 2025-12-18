@@ -20,6 +20,7 @@
           <button id="btnAddAgent">Додати агента на канву ▾</button>
           <div class="dropdown-menu" id="addMenu"></div>
         </div>
+        <button id="btnRunOpen" class="ghost">Запустити</button>
       </div>
     </header>
 
@@ -55,22 +56,29 @@
       </section>
     </main>
 
-    <section class="runner">
-      <h2>Запуск агента</h2>
-      <label>
-        Агент
-        <select id="runAgent"></select>
-      </label>
-      <label>
-        Вхід (JSON)
-        <textarea id="runInput" rows="6">{"task": ""}</textarea>
-      </label>
-      <button id="runBtn">Запустити</button>
-      <label>
-        Вихід
-        <textarea id="runOutput" rows="6" readonly></textarea>
-      </label>
-    </section>
+    <div id="runModal" class="modal hidden">
+      <div class="modal-dialog">
+        <div class="modal-header">
+          <h2>Запуск агента</h2>
+          <button id="runCloseBtn" class="ghost" aria-label="Закрити">✕</button>
+        </div>
+        <div class="modal-body">
+          <label>
+            Агент
+            <select id="runAgentSelect"></select>
+          </label>
+          <label>
+            Вхід (JSON)
+            <textarea id="runInputField" rows="6">{"task": ""}</textarea>
+          </label>
+          <button id="runBtn">Запустити</button>
+          <label>
+            Вихід
+            <textarea id="runOutputField" rows="6" readonly></textarea>
+          </label>
+        </div>
+      </div>
+    </div>
 
     <div id="status" class="status"></div>
     <script src="/app.js"></script>

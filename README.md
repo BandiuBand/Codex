@@ -24,28 +24,18 @@ python run.py test
 
 If you see `ModuleNotFoundError: No module named 'yaml'`, it means the `PyYAML` dependency has not been installed; running the install command above resolves it.
 
-### Налаштування реального LLM через файл конфігурації
+### Налаштування LLM через змінні агента (без глобальних конфігів)
 
-Щоб агенти, які використовують `llm`, звертались до справжньої моделі (наприклад, Ollama), задайте параметри у файлі `agents/llm_config.yaml`:
+Параметри LLM задаються лише змінними конкретного агента. Наприклад, `agents/llm_ollama.yaml` містить inputs `ollama_host`,
+`ollama_model` та `temperature`; їх треба передати у workflow чи задати локальні дефолти, жодних центральних конфігів немає.
 
-```yaml
-backend: ollama
-base_url: http://localhost:11434
-model: qwen3:32b
-# api_key: "" # якщо потрібен
-```
-
-Після цього просто запускайте веб-UI чи демо без жодних змінних середовища:
+Готовий мінімальний ланцюжок `prompt_builder -> llm_ollama -> output_collector` описаний у `agents/llm_prompt_chain.yaml`.
+Запустити його можна через демо або веб-UI, вказавши хост та модель у змінних агента:
 
 ```bash
-python run.py web
+python run.py demo  # викликає llm_prompt_chain з Dummy LLM клієнтом
+python run.py web --host 127.0.0.2 --port 8002  # веб-редактор із запуском агента через модалку
 ```
-
-### Готовий LLM-агент
-
-У каталозі `agents/` є файл `llm_agent.yaml` із базовим агентом `llm`, який напряму викликає інструмент LLM за переданим промптом
-і повертає як сирий текст, так і (за потреби) розібраний JSON. Це дозволяє одразу перевірити зʼєднання з моделлю Ollama без
-додаткових налаштувань у веб-UI.
 
 ## Web graph editor
 
