@@ -101,6 +101,8 @@ class AtomicExecutor:
         output_text = self.llm_client.generate(prompt, **options)
         parse_json = bool(ctx.get("parse_json", False))
         result: Dict[str, Any] = {"output_text": output_text}
+        if "результат" in {v.name for v in spec.outputs}:
+            result["результат"] = output_text
         if parse_json:
             parsed, reason = extract_first_json(output_text)
             result["output_json"] = parsed

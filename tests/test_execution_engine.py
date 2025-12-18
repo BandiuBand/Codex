@@ -144,6 +144,25 @@ def test_bindings_ctx_to_input_and_output_to_ctx(tmp_path) -> None:
     assert state.vars["echo_output"] == "hello"
 
 
+def test_llm_alias_result_output(tmp_path) -> None:
+    llm_agent = AgentSpec(
+        name="llm_alias",
+        title_ua="llm_alias",
+        description_ua=None,
+        kind="atomic",
+        executor="llm",
+        inputs=[VarSpec(name="prompt")],
+        locals=[],
+        outputs=[VarSpec(name="результат")],
+    )
+    save_agent_spec(tmp_path / "llm_alias.yaml", llm_agent)
+
+    engine = ExecutionEngine(repository=AgentRepository(tmp_path), runs_dir=tmp_path / "runs")
+    state = engine.run_to_completion("llm_alias", input_json={"prompt": "hello"})
+
+    assert state.vars["результат"].startswith("LLM: hello")
+
+
 @pytest.mark.parametrize(
     "task_text,expected_plan",
     [
