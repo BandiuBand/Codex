@@ -1,0 +1,18 @@
+name: json_extract
+title_ua: Витягнути з JSON
+description_ua: Дістає значення за ключем із JSON-об'єкта або рядка
+kind: atomic
+executor: python
+inputs:
+  - name: json
+  - name: ключ
+locals:
+  - name: code
+    value: |
+      import json as json_lib
+      source = json
+      if isinstance(source, str):
+          source = json_lib.loads(source)
+      output = source.get(ключ) if isinstance(source, dict) else None
+outputs:
+  - name: output

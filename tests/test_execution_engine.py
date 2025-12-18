@@ -163,6 +163,73 @@ def test_llm_alias_result_output(tmp_path) -> None:
     assert state.vars["результат"].startswith("LLM: hello")
 
 
+def test_python_exec_from_input(tmp_path) -> None:
+    spec = AgentSpec(
+        name="python_eval_input",
+        title_ua="python_eval_input",
+        description_ua=None,
+        kind="atomic",
+        executor="python",
+        inputs=[VarSpec(name="code"), VarSpec(name="input")],
+        locals=[],
+        outputs=[VarSpec(name="output")],
+    )
+    save_agent_spec(tmp_path / "python_eval_input.yaml", spec)
+
+    engine = ExecutionEngine(repository=AgentRepository(tmp_path), runs_dir=tmp_path / "runs")
+    state = engine.run_to_completion(
+        "python_eval_input",
+        input_json={"code": "output = input.get('x', 0) * 2", "input": {"x": 3}},
+    )
+
+    assert state.vars["output"] == 6
+
+
+def test_json_pack_and_extract(tmp_path) -> None:
+    pack = AgentSpec(
+        name="json_pack",
+        title_ua="json_pack",
+        description_ua=None,
+        kind="atomic",
+        executor="python",
+        inputs=[VarSpec(name="ключ"), VarSpec(name="значення")],
+        locals=[
+            LocalVarSpec(
+                name="code",
+                value="import json as json_lib\npayload = {ключ: значення}\noutput = json_lib.dumps(payload, ensure_ascii=False)",
+            )
+        ],
+        outputs=[VarSpec(name="output")],
+    )
+    extract = AgentSpec(
+        name="json_extract",
+        title_ua="json_extract",
+        description_ua=None,
+        kind="atomic",
+        executor="python",
+        inputs=[VarSpec(name="json"), VarSpec(name="ключ")],
+        locals=[
+            LocalVarSpec(
+                name="code",
+                value="import json as json_lib\nsource = json\nif isinstance(source, str):\n    source = json_lib.loads(source)\noutput = source.get(ключ) if isinstance(source, dict) else None",
+            )
+        ],
+        outputs=[VarSpec(name="output")],
+    )
+    save_agent_spec(tmp_path / "json_pack.yaml", pack)
+    save_agent_spec(tmp_path / "json_extract.yaml", extract)
+
+    repo = AgentRepository(tmp_path)
+    engine = ExecutionEngine(repository=repo, runs_dir=tmp_path / "runs")
+    packed = engine.run_to_completion("json_pack", input_json={"ключ": "answer", "значення": 42})
+    extracted = engine.run_to_completion(
+        "json_extract", input_json={"json": packed.vars["output"], "ключ": "answer"}
+    )
+
+    assert packed.vars["output"] == "{\"answer\": 42}"
+    assert extracted.vars["output"] == 42
+
+
 @pytest.mark.parametrize(
     "task_text,expected_plan",
     [
