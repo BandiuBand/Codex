@@ -9,6 +9,10 @@ body {
   color: #e6edf3;
 }
 
+.modal-open {
+  overflow: hidden;
+}
+
 .topbar {
   display: flex;
   align-items: center;

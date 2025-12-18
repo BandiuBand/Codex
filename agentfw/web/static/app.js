@@ -36,6 +36,21 @@ function setStatus(message, tone = "info") {
   el.hidden = !message;
 }
 
+function openRunModal() {
+  const modal = $("runModal");
+  if (!modal) return;
+  modal.classList.remove("hidden");
+  document.body.classList.add("modal-open");
+  renderRunnerSelect();
+}
+
+function closeRunModal() {
+  const modal = $("runModal");
+  if (!modal) return;
+  modal.classList.add("hidden");
+  document.body.classList.remove("modal-open");
+}
+
 async function fetchJSON(url, options = {}) {
   const resp = await fetch(url, options);
   if (!resp.ok) {
