@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from agentfw.core.agent_spec import AgentItemSpec, AgentSpec, BindingSpec, GraphSpec, LaneSpec, LocalVarSpec, VarSpec, WhenSpec
@@ -121,7 +123,15 @@ def test_bindings_ctx_to_input_and_output_to_ctx(tmp_path) -> None:
                         )
                     ]
                 )
-            ]
+            ],
+            ctx_bindings=[
+                BindingSpec(
+                    from_agent_item_id="echo1",
+                    from_var="text",
+                    to_agent_item_id="__CTX__",
+                    to_var="echo_output",
+                )
+            ],
         ),
     )
     save_agent_spec(tmp_path / "wrapper.yaml", composite)
@@ -131,3 +141,28 @@ def test_bindings_ctx_to_input_and_output_to_ctx(tmp_path) -> None:
 
     assert state.vars["text"] == "hello"
     assert state.vars["echo1.text"] == "hello"
+    assert state.vars["echo_output"] == "hello"
+
+
+@pytest.mark.parametrize(
+    "task_text,expected_plan",
+    [
+        ("коротке завдання", False),
+        ("це дуже довгий текст задачі який точно перевищує ліміт символів", True),
+    ],
+)
+def test_workflow_demo_branching(task_text, expected_plan, tmp_path) -> None:
+    repo = AgentRepository(Path("agents"))
+    engine = ExecutionEngine(repository=repo, runs_dir=tmp_path / "runs")
+
+    state = engine.run_to_completion("workflow_demo", input_json={"task_text": task_text})
+
+    assert state.vars["обрати_план"] is expected_plan
+    assert state.vars["класифікація"] is expected_plan
+    assert state.vars["вихідний_запит"] == task_text
+    if expected_plan:
+        assert state.vars["гілка_так"] == task_text
+        assert "План" in state.vars["відповідь"]
+    else:
+        assert state.vars["гілка_ні"] == task_text
+        assert "Проста" in state.vars["відповідь"]

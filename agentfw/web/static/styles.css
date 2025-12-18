@@ -84,7 +84,7 @@ button:hover {
   grid-template-columns: 1fr;
   gap: 8px;
   padding: 8px;
-  height: 60vh;
+  height: 70vh;
 }
 
 .canvas {
@@ -95,6 +95,7 @@ button:hover {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  min-height: 420px;
 }
 
 .canvas-top {
@@ -117,6 +118,7 @@ button:hover {
   gap: 6px;
   padding: 8px;
   z-index: 5;
+  background: linear-gradient(90deg, #0b0f14 0%, #0b0f1499 100%);
 }
 
 .var-zone-left {
@@ -165,6 +167,12 @@ button:hover {
   gap: 6px;
 }
 
+.var-zone-left .zone-ports,
+.var-zone-right .zone-ports {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
 .lanes {
   display: grid;
   grid-auto-flow: column;
@@ -179,6 +187,11 @@ button:hover {
   border-right: 1px dashed #30363d;
   padding: 8px;
   overflow-y: auto;
+  position: relative;
+}
+
+.lane-active {
+  background: #0f1722;
 }
 
 .lane:last-child {
@@ -198,7 +211,7 @@ button:hover {
   padding: 8px;
   margin-bottom: 8px;
   position: relative;
-  min-height: 170px;
+  min-height: 150px;
 }
 
 .agent-card.selected {
@@ -214,6 +227,7 @@ button:hover {
 .card-grid {
   position: relative;
   min-height: 120px;
+  padding: 8px 16px;
 }
 
 .locals-row {
@@ -250,13 +264,19 @@ button:hover {
 .port {
   padding: 6px 8px;
   border-radius: 6px;
-  background: #21262d;
+  background: #11161f;
   font-size: 12px;
   border: 1px solid #30363d;
   cursor: grab;
   display: inline-flex;
   align-items: center;
   gap: 4px;
+}
+
+.port-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .port-input {
@@ -273,6 +293,12 @@ button:hover {
 
 .port-ctx {
   border-color: #58a6ff;
+}
+
+.port-missing {
+  color: #7d8590;
+  cursor: default;
+  border-style: dashed;
 }
 
 .var-value {
@@ -326,4 +352,15 @@ textarea {
 
 .status.error {
   color: #f85149;
+}
+
+.port-actions {
+  display: inline-flex;
+  gap: 4px;
+  margin-left: 6px;
+}
+
+.tiny {
+  padding: 4px 6px;
+  font-size: 12px;
 }

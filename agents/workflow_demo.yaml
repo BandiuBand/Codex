@@ -5,7 +5,13 @@ kind: composite
 inputs:
   - name: task_text
 locals: []
-outputs: []
+outputs:
+  - name: класифікація
+  - name: відповідь
+  - name: вихідний_запит
+  - name: обрати_план
+  - name: гілка_так
+  - name: гілка_ні
 graph:
   lanes:
     - items:
@@ -24,28 +30,24 @@ graph:
           agent: branch_condition
           bindings:
             - from_agent_item_id: "__CTX__"
-              from_var: is_complex
+              from_var: класифікація
               to_agent_item_id: branch
-              to_var: left
+              to_var: умова
             - from_agent_item_id: "__CTX__"
-              from_var: is_complex
+              from_var: task_text
               to_agent_item_id: branch
-              to_var: right
+              to_var: значення
           ui:
             lane_index: 1
             order: 0
         - id: echo_simple
           agent: echo_simple
           when:
-            var: value
+            var: обрати_план
             equals: false
           bindings:
-            - from_agent_item_id: branch
-              from_var: value
-              to_agent_item_id: echo_simple
-              to_var: task_text
             - from_agent_item_id: "__CTX__"
-              from_var: original_task
+              from_var: гілка_ні
               to_agent_item_id: echo_simple
               to_var: task_text
           ui:
@@ -54,17 +56,42 @@ graph:
         - id: echo_plan
           agent: echo_plan
           when:
-            var: value
+            var: обрати_план
             equals: true
           bindings:
-            - from_agent_item_id: branch
-              from_var: value
-              to_agent_item_id: echo_plan
-              to_var: task_text
             - from_agent_item_id: "__CTX__"
-              from_var: original_task
+              from_var: гілка_так
               to_agent_item_id: echo_plan
               to_var: task_text
           ui:
             lane_index: 1
             order: 2
+  __ctx_bindings:
+    - from_agent_item_id: classify
+      from_var: is_complex
+      to_agent_item_id: "__CTX__"
+      to_var: класифікація
+    - from_agent_item_id: classify
+      from_var: is_complex
+      to_agent_item_id: "__CTX__"
+      to_var: обрати_план
+    - from_agent_item_id: classify
+      from_var: original_task
+      to_agent_item_id: "__CTX__"
+      to_var: вихідний_запит
+    - from_agent_item_id: branch
+      from_var: істина
+      to_agent_item_id: "__CTX__"
+      to_var: гілка_так
+    - from_agent_item_id: branch
+      from_var: хиба
+      to_agent_item_id: "__CTX__"
+      to_var: гілка_ні
+    - from_agent_item_id: echo_simple
+      from_var: text
+      to_agent_item_id: "__CTX__"
+      to_var: відповідь
+    - from_agent_item_id: echo_plan
+      from_var: text
+      to_agent_item_id: "__CTX__"
+      to_var: відповідь

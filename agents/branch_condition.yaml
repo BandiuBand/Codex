@@ -1,15 +1,17 @@
 name: branch_condition
 title_ua: Умова розгалуження
-description_ua: Повертає булеве значення для гілки на основі рівності значень
+description_ua: Передає значення у вихід залежно від умови
 kind: atomic
 inputs:
-- name: left
-- name: right
+- name: умова
+- name: значення
 locals:
 - name: code
-  value: 'value = left == right
-
-    '
+  value: |
+    cond = bool(умова)
+    істина = значення if cond else None
+    хиба = значення if not cond else None
 outputs:
-- name: value
+- name: істина
+- name: хиба
 executor: python
