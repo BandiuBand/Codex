@@ -15,7 +15,7 @@ class VarSpec:
 @dataclass
 class LocalVarSpec:
     name: str
-    value: str
+    value: JsonScalar
 
 
 @dataclass
@@ -57,6 +57,7 @@ class LaneSpec:
 @dataclass
 class GraphSpec:
     lanes: List[LaneSpec] = field(default_factory=list)
+    ctx_bindings: List[BindingSpec] = field(default_factory=list)
 
 
 @dataclass
@@ -91,7 +92,11 @@ def _parse_local_var_spec(raw: Any) -> LocalVarSpec:
     if not name:
         raise ValueError("LocalVarSpec missing required field 'name'")
     value_raw = raw.get("value", "")
-    value = "" if value_raw is None else str(value_raw)
+    value: JsonScalar
+    if isinstance(value_raw, (str, bool, int, float)) or value_raw is None:
+        value = value_raw
+    else:
+        value = str(value_raw)
     return LocalVarSpec(name=name, value=value)
 
 
@@ -162,7 +167,11 @@ def _parse_graph_spec(raw: Any) -> GraphSpec:
     if not isinstance(raw, dict):
         raise ValueError("GraphSpec must be an object")
     lanes = [_parse_lane_spec(l) for l in raw.get("lanes", []) or []]
-    return GraphSpec(lanes=lanes)
+    ctx_bindings_raw = raw.get("__ctx_bindings")
+    if ctx_bindings_raw is None:
+        ctx_bindings_raw = raw.get("ctx_bindings")
+    ctx_bindings = [_parse_binding_spec(b) for b in ctx_bindings_raw or []]
+    return GraphSpec(lanes=lanes, ctx_bindings=ctx_bindings)
 
 
 def agent_spec_from_dict(raw: Dict[str, Any]) -> AgentSpec:
@@ -266,7 +275,11 @@ def agent_spec_to_dict(spec: AgentSpec) -> Dict[str, Any]:
     if spec.kind == "atomic":
         payload["executor"] = spec.executor
     if spec.kind == "composite" and spec.graph:
-        payload["graph"] = {"lanes": [_lane_to_dict(lane) for lane in spec.graph.lanes]}
+        payload["graph"] = {
+            "lanes": [_lane_to_dict(lane) for lane in spec.graph.lanes],
+        }
+        if spec.graph.ctx_bindings:
+            payload["graph"]["__ctx_bindings"] = [_binding_to_dict(b) for b in spec.graph.ctx_bindings]
     return payload
 
 

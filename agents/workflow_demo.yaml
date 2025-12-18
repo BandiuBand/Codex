@@ -4,8 +4,14 @@ description_ua: Класифікація задачі та відповідна 
 kind: composite
 inputs:
   - name: task_text
-locals: []
-outputs: []
+locals:
+  - name: очікувана_складність
+    value: true
+outputs:
+  - name: класифікація
+  - name: відповідь
+  - name: вихідний_запит
+  - name: обрати_план
 graph:
   lanes:
     - items:
@@ -28,7 +34,7 @@ graph:
               to_agent_item_id: branch
               to_var: left
             - from_agent_item_id: "__CTX__"
-              from_var: is_complex
+              from_var: очікувана_складність
               to_agent_item_id: branch
               to_var: right
           ui:
@@ -37,15 +43,11 @@ graph:
         - id: echo_simple
           agent: echo_simple
           when:
-            var: value
+            var: обрати_план
             equals: false
           bindings:
-            - from_agent_item_id: branch
-              from_var: value
-              to_agent_item_id: echo_simple
-              to_var: task_text
             - from_agent_item_id: "__CTX__"
-              from_var: original_task
+              from_var: task_text
               to_agent_item_id: echo_simple
               to_var: task_text
           ui:
@@ -54,17 +56,34 @@ graph:
         - id: echo_plan
           agent: echo_plan
           when:
-            var: value
+            var: обрати_план
             equals: true
           bindings:
-            - from_agent_item_id: branch
-              from_var: value
-              to_agent_item_id: echo_plan
-              to_var: task_text
             - from_agent_item_id: "__CTX__"
-              from_var: original_task
+              from_var: task_text
               to_agent_item_id: echo_plan
               to_var: task_text
           ui:
             lane_index: 1
             order: 2
+  __ctx_bindings:
+    - from_agent_item_id: classify
+      from_var: is_complex
+      to_agent_item_id: "__CTX__"
+      to_var: класифікація
+    - from_agent_item_id: classify
+      from_var: original_task
+      to_agent_item_id: "__CTX__"
+      to_var: вихідний_запит
+    - from_agent_item_id: branch
+      from_var: value
+      to_agent_item_id: "__CTX__"
+      to_var: обрати_план
+    - from_agent_item_id: echo_simple
+      from_var: text
+      to_agent_item_id: "__CTX__"
+      to_var: відповідь
+    - from_agent_item_id: echo_plan
+      from_var: text
+      to_agent_item_id: "__CTX__"
+      to_var: відповідь
