@@ -5,11 +5,11 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from agentfw.core.agent_spec import AgentItemSpec, AgentSpec, BindingSpec, GraphSpec, LaneSpec, WhenSpec
 from agentfw.io.agent_yaml import load_agent_spec, save_agent_spec
-from agentfw.llm.base import DummyLLMClient, LLMClient
+from agentfw.llm.base import DummyLLMClient, LLMClient, OllamaLLMClient
 from agentfw.llm.json_extract import extract_first_json
 
 
@@ -81,8 +81,13 @@ class ExecutionContext:
 
 
 class AtomicExecutor:
-    def __init__(self, llm_client: Optional[LLMClient] = None) -> None:
+    def __init__(
+        self,
+        llm_client: Optional[LLMClient] = None,
+        llm_client_factory: Optional[Callable[[str, str], LLMClient]] = None,
+    ) -> None:
         self.llm_client = llm_client or DummyLLMClient()
+        self.llm_client_factory = llm_client_factory
 
     def run(self, spec: AgentSpec, ctx: ExecutionContext) -> Dict[str, Any]:
         if spec.executor == "llm":
@@ -96,9 +101,12 @@ class AtomicExecutor:
     def _run_llm(self, spec: AgentSpec, ctx: ExecutionContext) -> Dict[str, Any]:
         prompt_template = str(ctx.get("prompt", ""))
         prompt = prompt_template.format(**ctx.variables)
-        options_raw = ctx.get("options", {})
-        options = options_raw if isinstance(options_raw, dict) else {}
-        output_text = self.llm_client.generate(prompt, **options)
+        options = self._build_llm_options(ctx)
+        host, model = self._gather_llm_config(spec, ctx, options)
+        if model:
+            options["model"] = model
+        client = self._resolve_llm_client(host, options.get("model"))
+        output_text = client.generate(prompt, **options)
         parse_json = bool(ctx.get("parse_json", False))
         result: Dict[str, Any] = {"output_text": output_text}
         if "результат" in {v.name for v in spec.outputs}:
@@ -109,6 +117,56 @@ class AtomicExecutor:
             if reason:
                 result["json_error"] = reason
         return self._filter_outputs(result, spec)
+
+    def _build_llm_options(self, ctx: ExecutionContext) -> Dict[str, Any]:
+        options_raw = ctx.get("options", {})
+        options: Dict[str, Any] = {}
+        if isinstance(options_raw, dict):
+            options.update(options_raw)
+        elif isinstance(options_raw, str):
+            try:
+                parsed = json.loads(options_raw)
+                if isinstance(parsed, dict):
+                    options.update(parsed)
+            except json.JSONDecodeError:
+                options = {}
+        temp = ctx.get("temperature")
+        if temp is not None:
+            try:
+                options["temperature"] = float(temp)
+            except (TypeError, ValueError):
+                options["temperature"] = temp
+        return options
+
+    def _gather_llm_config(self, spec: AgentSpec, ctx: ExecutionContext, options: Dict[str, Any]) -> tuple[Optional[str], Optional[str]]:
+        declared_names = {v.name for v in spec.inputs} | {v.name for v in spec.locals}
+        host_keys = ("ollama_host", "llm_host", "host")
+        model_keys = ("ollama_model", "llm_model", "model")
+        host = self._first_present(ctx, host_keys)
+        model = self._first_present(ctx, model_keys)
+        if model is None:
+            model = options.get("model") if isinstance(options.get("model"), (str, bool, int, float)) else None
+        requires_host = any(key in declared_names for key in host_keys)
+        requires_model = any(key in declared_names for key in model_keys)
+        if requires_host and host is None:
+            raise ValueError("LLM agent requires host via змінні агента")
+        if requires_model and model is None:
+            raise ValueError("LLM agent requires model via змінні агента")
+        return str(host) if host is not None else None, str(model) if model is not None else None
+
+    def _resolve_llm_client(self, host: Optional[str], model: Optional[str]) -> LLMClient:
+        if host:
+            factory = self.llm_client_factory or (lambda base_url, chosen_model: OllamaLLMClient(base_url=base_url, model=chosen_model or ""))
+            return factory(host, model or "")
+        return self.llm_client
+
+    @staticmethod
+    def _first_present(ctx: ExecutionContext, keys: tuple[str, ...]) -> Optional[Any]:
+        for key in keys:
+            value = ctx.get(key)
+            if value is not None:
+                return value
+        return None
 
     def _run_python(self, spec: AgentSpec, ctx: ExecutionContext) -> Dict[str, Any]:
         code = str(ctx.get("code", ""))
@@ -176,12 +234,13 @@ class ExecutionEngine:
         self,
         repository: Optional[AgentRepository] = None,
         llm_client: Optional[LLMClient] = None,
+        llm_client_factory: Optional[Callable[[str, str], LLMClient]] = None,
         runs_dir: Optional[Path] = None,
         max_total_steps: int = 10_000,
         max_depth: int = 50,
     ) -> None:
         self.repository = repository or AgentRepository()
-        self.atomic = AtomicExecutor(llm_client=llm_client)
+        self.atomic = AtomicExecutor(llm_client=llm_client, llm_client_factory=llm_client_factory)
         self.runs_dir = runs_dir or Path("runs")
         self.max_total_steps = max_total_steps
         self.max_depth = max_depth

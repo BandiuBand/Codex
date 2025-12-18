@@ -1,0 +1,16 @@
+name: output_collector
+title_ua: Підготовка відповіді
+description_ua: Зберігає текст відповіді LLM у вихідну змінну
+kind: atomic
+executor: python
+inputs:
+  - name: llm_text
+  - name: модель
+locals:
+  - name: code
+    value: |
+      відповідь = str(llm_text)
+      використана_модель = str(модель)
+outputs:
+  - name: відповідь
+  - name: використана_модель
