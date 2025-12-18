@@ -1,0 +1,13 @@
+name: echo_simple
+title_ua: Простий відгук
+description_ua: Повертає короткий відгук для простої задачі
+kind: atomic
+executor: python
+inputs:
+  - name: task_text
+locals:
+  - name: code
+    value: |
+      text = f"Проста задача: {task_text}"
+outputs:
+  - name: text
