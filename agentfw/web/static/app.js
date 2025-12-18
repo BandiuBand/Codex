@@ -10,7 +10,7 @@ const state = {
   counter: 1,
 };
 
-const ctxSource = { id: "__CTX__", label: "CTX" };
+const CTX_ID = "__CTX__";
 
 function $(id) {
   return document.getElementById(id);
@@ -86,7 +86,6 @@ async function openAgent(name) {
     state.selectedItemId = null;
     state.counter = 1;
     renderCanvas();
-    renderInspector();
     setStatus(`Відкрито агента ${spec.title_ua || spec.name}`);
   } catch (err) {
     console.error(err);
@@ -108,7 +107,6 @@ function newAgent() {
   state.selectedItemId = null;
   state.selectedLane = 0;
   renderCanvas();
-  renderInspector();
 }
 
 async function saveAgent() {
@@ -143,11 +141,6 @@ function createAgent() {
   state.selectedItemId = null;
   state.selectedLane = 0;
   renderCanvas();
-  renderInspector();
-}
-
-function findAgentSpec(name) {
-  return state.specs[name] || null;
 }
 
 async function ensureAgentSpec(name) {
@@ -168,7 +161,6 @@ async function insertAgentItem(agentName) {
   await ensureAgentSpec(agentName);
   normalizeLaneOrders();
   renderCanvas();
-  renderInspector();
 }
 
 function addLane() {
@@ -191,6 +183,7 @@ function normalizeLaneOrders() {
 }
 
 function renderCanvas() {
+  renderAgentVarZones();
   const container = $("lanesContainer");
   if (!container) return;
   container.innerHTML = "";
@@ -229,7 +222,6 @@ function renderCanvas() {
       });
       card.addEventListener("click", () => {
         state.selectedItemId = item.id;
-        renderInspector();
         renderCanvas();
       });
       const title = document.createElement("div");
@@ -292,41 +284,72 @@ function startDrag(event, itemId, varName, role = "ctx") {
 function finishDrag(event, itemId, varName, targetRole) {
   if (!state.drag || !state.current) return;
   event.stopPropagation();
-  if (targetRole !== "input") {
+  const source = state.drag;
+
+  // правила: до input дочірнього агента може йти output/local/ctx
+  if (targetRole === "input") {
+    const allowedSources = ["output", "local", "ctx-input", "ctx-local", "ctx-output"];
+    if (!allowedSources.includes(source.role)) {
+      state.drag = null;
+      return;
+    }
+    const fromId = source.fromItem;
+    const binding = {
+      from_agent_item_id: fromId === CTX_ID ? CTX_ID : fromId,
+      from_var: source.fromVar,
+      to_agent_item_id: itemId,
+      to_var: varName,
+    };
+    addBinding(binding);
     state.drag = null;
+    drawBindings();
     return;
   }
-  const allowedSources = ["output", "local", "ctx"];
-  if (!allowedSources.includes(state.drag.role || "input")) {
+
+  // до ctx-output/local допускаємо підключення з output/local дочірнього
+  const targetIsCtxOutput = targetRole === "ctx-output" || targetRole === "ctx-local";
+  const sourceIsChild = ["output", "local"].includes(source.role);
+  if (targetIsCtxOutput && sourceIsChild) {
+    const binding = {
+      from_agent_item_id: source.fromItem,
+      from_var: source.fromVar,
+      to_agent_item_id: CTX_ID,
+      to_var: varName,
+    };
+    addBinding(binding);
     state.drag = null;
+    drawBindings();
     return;
   }
-  const fromId = state.drag.fromItem;
-  const binding = {
-    from_agent_item_id: fromId === ctxSource.id ? "__CTX__" : fromId,
-    from_var: state.drag.fromVar,
-    to_agent_item_id: itemId,
-    to_var: varName,
-  };
-  addBinding(binding);
+
   state.drag = null;
-  drawBindings();
 }
 
 function addBinding(binding) {
   if (!state.current) return;
   ensureGraph(state.current);
   const allItems = state.current.graph.lanes.flatMap((l) => l.items);
-  const target = allItems.find((i) => i.id === binding.to_agent_item_id);
-  if (!target) return;
-  target.bindings = (target.bindings || []).filter((b) => b.to_var !== binding.to_var);
-  target.bindings.push(binding);
+  if (binding.to_agent_item_id !== CTX_ID) {
+    const target = allItems.find((i) => i.id === binding.to_agent_item_id);
+    if (!target) return;
+    target.bindings = (target.bindings || []).filter((b) => b.to_var !== binding.to_var);
+    target.bindings.push(binding);
+  } else {
+    // збережемо окремо у graph __ctx_bindings
+    if (!state.current.graph.__ctx_bindings) state.current.graph.__ctx_bindings = [];
+    state.current.graph.__ctx_bindings = state.current.graph.__ctx_bindings.filter(
+      (b) => !(b.to_var === binding.to_var && b.from_agent_item_id === binding.from_agent_item_id && b.from_var === binding.from_var),
+    );
+    state.current.graph.__ctx_bindings.push(binding);
+  }
   normalizeLaneOrders();
 }
 
 function allBindings() {
   if (!state.current || !state.current.graph) return [];
-  return state.current.graph.lanes.flatMap((lane) => lane.items.flatMap((item) => item.bindings || []));
+  const laneBindings = state.current.graph.lanes.flatMap((lane) => lane.items.flatMap((item) => item.bindings || []));
+  const ctxBindings = state.current.graph.__ctx_bindings || [];
+  return [...laneBindings, ...ctxBindings];
 }
 
 function drawBindings() {
@@ -336,8 +359,8 @@ function drawBindings() {
   const svgRect = svg.getBoundingClientRect();
   const bindings = allBindings();
   bindings.forEach((b) => {
-    const fromEl = document.querySelector(`[data-item-id="${b.from_agent_item_id}"][data-var-name="${b.from_var}"]`);
-    const toEl = document.querySelector(`[data-item-id="${b.to_agent_item_id}"][data-var-name="${b.to_var}"]`);
+    const fromEl = document.querySelector(`[data-item-id=\"${b.from_agent_item_id}\"][data-var-name=\"${b.from_var}\"]`);
+    const toEl = document.querySelector(`[data-item-id=\"${b.to_agent_item_id}\"][data-var-name=\"${b.to_var}\"]`);
     if (!fromEl || !toEl) return;
     const fromRect = fromEl.getBoundingClientRect();
     const toRect = toEl.getBoundingClientRect();
@@ -358,6 +381,7 @@ function drawBindings() {
 
 function removeBinding(binding) {
   if (!state.current) return;
+  const ctxList = state.current.graph.__ctx_bindings || [];
   state.current.graph.lanes.forEach((lane) => {
     lane.items.forEach((item) => {
       item.bindings = (item.bindings || []).filter(
@@ -371,6 +395,15 @@ function removeBinding(binding) {
       );
     });
   });
+  state.current.graph.__ctx_bindings = ctxList.filter(
+    (b) =>
+      !(
+        b.from_agent_item_id === binding.from_agent_item_id &&
+        b.from_var === binding.from_var &&
+        b.to_agent_item_id === binding.to_agent_item_id &&
+        b.to_var === binding.to_var
+      ),
+  );
   drawBindings();
 }
 
@@ -389,34 +422,40 @@ function moveCardToLane(itemId, fromLaneIdx, toLaneIdx) {
   toLane.items.push(item);
   normalizeLaneOrders();
   renderCanvas();
-  renderInspector();
 }
 
-function renderInspector() {
-  const panels = {
-    inputs: $("inputsPanel"),
-    locals: $("localsPanel"),
-    outputs: $("outputsPanel"),
+function renderAgentVarZones() {
+  const zones = {
+    inputs: $("canvasInputs"),
+    locals: $("canvasLocals"),
+    outputs: $("canvasOutputs"),
   };
-  Object.values(panels).forEach((panel) => {
-    if (panel) panel.innerHTML = "";
+  Object.values(zones).forEach((el) => {
+    if (el) el.innerHTML = "";
   });
-  if (!state.current || !state.selectedItemId) return;
-  const allItems = state.current.graph.lanes.flatMap((l) => l.items);
-  const item = allItems.find((i) => i.id === state.selectedItemId);
-  if (!item) return;
-  const spec = state.specs[item.agent];
-  if (!spec) return;
-  spec.inputs.forEach((v) => renderVarRow(panels.inputs, v.name, "input"));
-  spec.locals.forEach((v) => renderVarRow(panels.locals, v.name, "local", v.value));
-  spec.outputs.forEach((v) => renderVarRow(panels.outputs, v.name, "output"));
+  if (!state.current) return;
+  state.current.inputs.forEach((v) => zones.inputs?.appendChild(makePort(CTX_ID, v.name, "ctx-input")));
+  state.current.locals.forEach((v) => zones.locals?.appendChild(makePort(CTX_ID, v.name, "ctx-local", v.value)));
+  state.current.outputs.forEach((v) => zones.outputs?.appendChild(makePort(CTX_ID, v.name, "ctx-output")));
 }
 
-function renderVarRow(container, name, role, value = "") {
-  if (!container) return;
-  const port = makePort(ctxSource.id, name, "ctx", value || "");
-  port.title = `CTX.${name}`;
-  container.appendChild(port);
+function addAgentVar(kind) {
+  if (!state.current) return;
+  const name = prompt(`Нова змінна для ${kind}`);
+  if (!name) return;
+  if (kind === "inputs") state.current.inputs.push({ name });
+  if (kind === "locals") state.current.locals.push({ name, value: "" });
+  if (kind === "outputs") state.current.outputs.push({ name });
+  renderCanvas();
+}
+
+function setupZoneButtons() {
+  document.querySelectorAll(".zone-add").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      const kind = e.target.dataset.kind;
+      addAgentVar(kind);
+    });
+  });
 }
 
 function renderRunnerSelect() {
@@ -469,6 +508,7 @@ function bindEvents() {
   document.addEventListener("mouseup", () => {
     state.drag = null;
   });
+  setupZoneButtons();
 }
 
 window.addEventListener("resize", drawBindings);

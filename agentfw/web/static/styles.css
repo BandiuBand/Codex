@@ -81,7 +81,7 @@ button:hover {
 
 .layout {
   display: grid;
-  grid-template-columns: 3fr 1fr;
+  grid-template-columns: 1fr;
   gap: 8px;
   padding: 8px;
   height: 60vh;
@@ -110,6 +110,61 @@ button:hover {
   color: #7d8590;
 }
 
+.var-zone {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  z-index: 5;
+}
+
+.var-zone-left {
+  top: 48px;
+  bottom: 8px;
+  left: 0;
+  width: 180px;
+  border-right: 1px dashed #30363d;
+}
+
+.var-zone-right {
+  top: 48px;
+  bottom: 8px;
+  right: 0;
+  width: 180px;
+  border-left: 1px dashed #30363d;
+  align-items: flex-end;
+}
+
+.var-zone-top {
+  top: 48px;
+  left: 200px;
+  right: 200px;
+  min-height: 80px;
+  border-bottom: 1px dashed #30363d;
+}
+
+.zone-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #7d8590;
+}
+
+.zone-add {
+  background: #30363d;
+  color: #e6edf3;
+  padding: 2px 6px;
+  font-weight: 700;
+}
+
+.zone-ports {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 .lanes {
   display: grid;
   grid-auto-flow: column;
@@ -117,6 +172,7 @@ button:hover {
   height: 100%;
   position: relative;
   flex: 1;
+  margin: 48px 200px 8px 200px;
 }
 
 .lane {
@@ -133,7 +189,6 @@ button:hover {
   font-size: 12px;
   color: #7d8590;
   margin-bottom: 8px;
-  position: relative;
 }
 
 .agent-card {
@@ -192,47 +247,6 @@ button:hover {
   align-items: flex-end;
 }
 
-.inspector {
-  background: #0b0f14;
-  border: 1px solid #30363d;
-  border-radius: 8px;
-  padding: 12px;
-  overflow: auto;
-}
-
-.inspector h2 {
-  margin-top: 0;
-}
-
-.var-group {
-  margin-bottom: 12px;
-}
-
-.var-board {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.var-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.var-badge {
-  background: #161b22;
-  border: 1px solid #30363d;
-  padding: 4px 6px;
-  border-radius: 6px;
-  font-size: 12px;
-}
-
-.var-value {
-  color: #9be9a8;
-  font-size: 12px;
-}
-
 .port {
   padding: 6px 8px;
   border-radius: 6px;
@@ -259,6 +273,11 @@ button:hover {
 
 .port-ctx {
   border-color: #58a6ff;
+}
+
+.var-value {
+  color: #9be9a8;
+  font-size: 12px;
 }
 
 .bindings {
