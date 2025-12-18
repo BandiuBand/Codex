@@ -1,0 +1,14 @@
+name: echo_plan
+title_ua: План для складної задачі
+description_ua: Формує план дій для складної задачі
+kind: atomic
+inputs:
+- name: task_text
+locals:
+- name: code
+  value: 'text = f"План дій для задачі: {task_text}"
+
+    '
+outputs:
+- name: text
+executor: python
