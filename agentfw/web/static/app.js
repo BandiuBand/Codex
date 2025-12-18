@@ -36,6 +36,19 @@ function setStatus(message, tone = "info") {
   el.hidden = !message;
 }
 
+function openRunModal() {
+  const modal = $("runModal");
+  if (!modal) return;
+  modal.classList.remove("hidden");
+  renderRunnerSelect();
+}
+
+function closeRunModal() {
+  const modal = $("runModal");
+  if (!modal) return;
+  modal.classList.add("hidden");
+}
+
 async function fetchJSON(url, options = {}) {
   const resp = await fetch(url, options);
   if (!resp.ok) {
@@ -664,7 +677,7 @@ function setupZoneButtons() {
 }
 
 function renderRunnerSelect() {
-  const select = $("runAgent");
+  const select = $("runAgentSelect");
   if (!select) return;
   select.innerHTML = "";
   const placeholder = document.createElement("option");
@@ -680,13 +693,13 @@ function renderRunnerSelect() {
 }
 
 async function runAgent() {
-  const select = $("runAgent");
+  const select = $("runAgentSelect");
   if (!select) return;
   const name = select.value;
   if (!name) return setStatus("Оберіть агента для запуску", "error");
   let inputPayload = {};
   try {
-    inputPayload = JSON.parse($("runInput").value || "{}");
+    inputPayload = JSON.parse($("runInputField").value || "{}");
   } catch (err) {
     return setStatus("Некоректний JSON", "error");
   }
@@ -696,7 +709,7 @@ async function runAgent() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ input: inputPayload }),
     });
-    $("runOutput").value = JSON.stringify(result, null, 2);
+    $("runOutputField").value = JSON.stringify(result, null, 2);
     setStatus("Агент виконано");
   } catch (err) {
     console.error(err);
@@ -709,7 +722,12 @@ function bindEvents() {
   $("btnSave")?.addEventListener("click", saveAgent);
   $("btnCreate")?.addEventListener("click", createAgent);
   $("btnAddLane")?.addEventListener("click", addLane);
+  $("btnRunOpen")?.addEventListener("click", openRunModal);
   $("runBtn")?.addEventListener("click", runAgent);
+  $("runCloseBtn")?.addEventListener("click", closeRunModal);
+  $("runModal")?.addEventListener("click", (event) => {
+    if (event.target === $("runModal")) closeRunModal();
+  });
   document.addEventListener("mouseup", () => {
     state.drag = null;
   });

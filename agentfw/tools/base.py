@@ -1,15 +1,11 @@
-from __future__ import annotations
+"""Legacy BaseTool stub.
 
-from abc import ABC, abstractmethod
-from typing import Dict
+Використовуйте atomic агенти та ExecutionEngine замість старих Tool.*
+"""
 
-from agentfw.core.state import ExecutionContext
+class BaseTool:  # pragma: no cover - legacy stub
+    def __init__(self, *args, **kwargs):
+        raise RuntimeError("Legacy removed; use AgentSpec/engine")
 
-
-class BaseTool(ABC):
-    """Abstract base class for executable tools."""
-
-    @abstractmethod
-    def execute(self, ctx: ExecutionContext, params: Dict[str, object]) -> Dict[str, object]:
-        """Execute the tool using the provided context and parameters."""
-        raise NotImplementedError()
+    def run(self, variables):  # noqa: ANN001
+        raise RuntimeError("Legacy removed; use AgentSpec/engine")

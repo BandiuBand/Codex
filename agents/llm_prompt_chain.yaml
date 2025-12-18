@@ -1,0 +1,83 @@
+name: llm_prompt_chain
+title_ua: Ланцюжок промпт -> LLM -> вихід
+description_ua: Мінімальний воркфлоу з побудовою промпта та викликом llm_ollama
+kind: composite
+inputs:
+  - name: користувацький_запит
+  - name: ollama_host
+  - name: ollama_model
+  - name: temperature
+locals: []
+outputs:
+  - name: prompt
+  - name: результат
+  - name: відповідь
+  - name: використана_модель
+graph:
+  lanes:
+    - items:
+        - id: builder
+          agent: prompt_builder
+          bindings:
+            - from_agent_item_id: "__CTX__"
+              from_var: користувацький_запит
+              to_agent_item_id: builder
+              to_var: користувацький_запит
+          ui:
+            lane_index: 0
+            order: 0
+    - items:
+        - id: llm
+          agent: llm_ollama
+          bindings:
+            - from_agent_item_id: "__CTX__"
+              from_var: prompt
+              to_agent_item_id: llm
+              to_var: prompt
+            - from_agent_item_id: "__CTX__"
+              from_var: ollama_host
+              to_agent_item_id: llm
+              to_var: ollama_host
+            - from_agent_item_id: "__CTX__"
+              from_var: ollama_model
+              to_agent_item_id: llm
+              to_var: ollama_model
+            - from_agent_item_id: "__CTX__"
+              from_var: temperature
+              to_agent_item_id: llm
+              to_var: temperature
+          ui:
+            lane_index: 1
+            order: 0
+    - items:
+        - id: finisher
+          agent: output_collector
+          bindings:
+            - from_agent_item_id: llm
+              from_var: результат
+              to_agent_item_id: finisher
+              to_var: llm_text
+            - from_agent_item_id: "__CTX__"
+              from_var: ollama_model
+              to_agent_item_id: finisher
+              to_var: модель
+          ui:
+            lane_index: 2
+            order: 0
+  __ctx_bindings:
+    - from_agent_item_id: builder
+      from_var: prompt
+      to_agent_item_id: "__CTX__"
+      to_var: prompt
+    - from_agent_item_id: llm
+      from_var: результат
+      to_agent_item_id: "__CTX__"
+      to_var: результат
+    - from_agent_item_id: finisher
+      from_var: відповідь
+      to_agent_item_id: "__CTX__"
+      to_var: відповідь
+    - from_agent_item_id: finisher
+      from_var: використана_модель
+      to_agent_item_id: "__CTX__"
+      to_var: використана_модель

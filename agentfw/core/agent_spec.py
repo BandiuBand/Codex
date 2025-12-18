@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Literal, Optional, Union
 
 
 JsonScalar = Union[str, bool, int, float, None]
+JsonValue = Union[JsonScalar, Dict[str, Any], List[Any]]
 
 
 @dataclass
@@ -15,7 +16,7 @@ class VarSpec:
 @dataclass
 class LocalVarSpec:
     name: str
-    value: JsonScalar
+    value: JsonValue
 
 
 @dataclass
@@ -92,8 +93,8 @@ def _parse_local_var_spec(raw: Any) -> LocalVarSpec:
     if not name:
         raise ValueError("LocalVarSpec missing required field 'name'")
     value_raw = raw.get("value", "")
-    value: JsonScalar
-    if isinstance(value_raw, (str, bool, int, float)) or value_raw is None:
+    value: JsonValue
+    if isinstance(value_raw, (str, bool, int, float, dict, list)) or value_raw is None:
         value = value_raw
     else:
         value = str(value_raw)

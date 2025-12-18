@@ -1,5 +1,3 @@
-"""Configuration loading utilities for agent definitions."""
+"""Legacy config placeholder."""
 
-from agentfw.config.loader import AgentConfigLoader
-
-__all__ = ["AgentConfigLoader"]
+raise RuntimeError("Legacy removed; use AgentSpec/engine")
