@@ -1,0 +1,21 @@
+name: workspace_read_file
+title_ua: Зчитування файлу
+description_ua: Читає текстовий файл із робочої папки agent_workspace
+kind: atomic
+executor: python
+inputs:
+  - name: шлях
+locals:
+  - name: code
+    value: |
+      from pathlib import Path
+      base = (Path.cwd() / 'agent_workspace').resolve()
+      base.mkdir(parents=True, exist_ok=True)
+      target = (base / Path(шлях)).resolve()
+      if not str(target).startswith(str(base)):
+          raise ValueError('Доступ дозволено лише в межах agent_workspace')
+      if not target.exists():
+          raise FileNotFoundError(f'Файл {target} не знайдено')
+      вміст = target.read_text(encoding='utf-8')
+outputs:
+  - name: вміст

@@ -1,0 +1,25 @@
+name: llm_data_review
+title_ua: Перевірка готовності даних
+description_ua: LLM оцінює, чи достатньо інформації для старту, та формує уточнюючі питання
+kind: atomic
+executor: llm
+inputs:
+  - name: завдання
+  - name: ollama_host
+  - name: ollama_model
+  - name: temperature
+locals:
+  - name: parse_json
+    value: true
+  - name: prompt
+    value: |
+      Ти асистент, що перевіряє готовність до виконання задачі. Текст задачі: {завдання}.
+      Відповідай тільки валідним JSON з ключами:
+      - needs_more_info: true/false
+      - clarifications: рядок з переліком уточнюючих питань (може бути порожнім)
+      - context_summary: стислий огляд того, що вже відомо
+      Якщо даних достатньо, вистави needs_more_info=false.
+outputs:
+  - name: результат
+  - name: output_json
+  - name: json_error
