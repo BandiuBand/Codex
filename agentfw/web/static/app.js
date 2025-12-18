@@ -8,6 +8,7 @@ const state = {
   drag: null,
   cardDrag: null,
   counter: 1,
+  loadingChildren: false,
 };
 
 const CTX_ID = "__CTX__";
@@ -35,13 +36,17 @@ async function fetchJSON(url, options = {}) {
 
 function ensureGraph(spec) {
   if (!spec.graph) {
-    spec.graph = { lanes: [{ items: [] }, { items: [] }] };
+    spec.graph = { lanes: [{ items: [] }, { items: [] }], ctx_bindings: [] };
   }
   if (!Array.isArray(spec.graph.lanes) || !spec.graph.lanes.length) {
     spec.graph.lanes = [{ items: [] }, { items: [] }];
   }
   if (spec.graph.lanes.length < 2) {
     spec.graph.lanes.push({ items: [] });
+  }
+  if (!Array.isArray(spec.graph.ctx_bindings)) {
+    const legacyCtx = spec.graph.__ctx_bindings;
+    spec.graph.ctx_bindings = Array.isArray(legacyCtx) ? [...legacyCtx] : [];
   }
 }
 
@@ -54,6 +59,30 @@ async function loadAgentsList() {
   } catch (err) {
     console.error(err);
     setStatus("Не вдалося завантажити список агентів", "error");
+  }
+}
+
+function collectMissingChildSpecs() {
+  if (!state.current?.graph) return [];
+  const names = new Set();
+  state.current.graph.lanes.forEach((lane) => {
+    lane.items.forEach((item) => {
+      if (!state.specs[item.agent]) {
+        names.add(item.agent);
+      }
+    });
+  });
+  return Array.from(names);
+}
+
+async function ensureChildSpecsLoaded() {
+  const missing = collectMissingChildSpecs();
+  if (!missing.length) return;
+  try {
+    await Promise.all(missing.map((name) => ensureAgentSpec(name)));
+  } catch (err) {
+    console.error(err);
+    setStatus("Не вдалося завантажити специфікацію дочірнього агента", "error");
   }
 }
 
@@ -102,7 +131,7 @@ function newAgent() {
     inputs: [],
     locals: [],
     outputs: [],
-    graph: { lanes: [{ items: [] }, { items: [] }] },
+    graph: { lanes: [{ items: [] }, { items: [] }], ctx_bindings: [] },
   };
   state.selectedItemId = null;
   state.selectedLane = 0;
@@ -136,7 +165,7 @@ function createAgent() {
     inputs: [],
     locals: [],
     outputs: [],
-    graph: { lanes: [{ items: [] }, { items: [] }] },
+    graph: { lanes: [{ items: [] }, { items: [] }], ctx_bindings: [] },
   };
   state.selectedItemId = null;
   state.selectedLane = 0;
@@ -146,6 +175,7 @@ function createAgent() {
 async function ensureAgentSpec(name) {
   if (state.specs[name]) return state.specs[name];
   const spec = await fetchJSON(`/api/agent/${encodeURIComponent(name)}`);
+  if (spec.kind === "composite") ensureGraph(spec);
   state.specs[name] = spec;
   return spec;
 }
@@ -182,19 +212,31 @@ function normalizeLaneOrders() {
   });
 }
 
-function renderCanvas() {
+async function renderCanvas() {
   renderAgentVarZones();
   const container = $("lanesContainer");
-  if (!container) return;
-  container.innerHTML = "";
-  if (!state.current) return;
+  const svg = $("bindingsLayer");
+  if (container) container.innerHTML = "";
+  if (svg) svg.innerHTML = "";
+  if (!state.current || !container) return;
   ensureGraph(state.current);
+
+  if (!state.loadingChildren) {
+    const missing = collectMissingChildSpecs();
+    if (missing.length) {
+      state.loadingChildren = true;
+      await ensureChildSpecsLoaded();
+      state.loadingChildren = false;
+    }
+  }
+
   state.current.graph.lanes.forEach((lane, laneIndex) => {
     const laneEl = document.createElement("div");
-    laneEl.className = "lane";
+    laneEl.className = `lane ${state.selectedLane === laneIndex ? "lane-active" : ""}`;
     laneEl.dataset.laneIndex = laneIndex;
     laneEl.addEventListener("click", () => {
       state.selectedLane = laneIndex;
+      renderCanvas();
     });
     laneEl.addEventListener("dragover", (e) => {
       e.preventDefault();
@@ -208,6 +250,7 @@ function renderCanvas() {
     laneTitle.className = "lane-title";
     laneTitle.textContent = `Лейн ${laneIndex + 1}`;
     laneEl.appendChild(laneTitle);
+
     const items = [...lane.items].sort((a, b) => (a.ui?.order || 0) - (b.ui?.order || 0));
     items.forEach((item) => {
       const card = document.createElement("div");
@@ -224,6 +267,7 @@ function renderCanvas() {
         state.selectedItemId = item.id;
         renderCanvas();
       });
+
       const title = document.createElement("div");
       title.className = "agent-title";
       title.textContent = item.agent;
@@ -247,6 +291,11 @@ function renderCanvas() {
         spec.inputs.forEach((v) => inputsCol.appendChild(makePort(item.id, v.name, "input")));
         spec.locals.forEach((v) => localsRow.appendChild(makePort(item.id, v.name, "local", v.value)));
         spec.outputs.forEach((v) => outputsCol.appendChild(makePort(item.id, v.name, "output")));
+      } else {
+        const placeholder = document.createElement("div");
+        placeholder.className = "port port-missing";
+        placeholder.textContent = "Специфікація завантажується...";
+        grid.appendChild(placeholder);
       }
 
       laneEl.appendChild(card);
@@ -271,8 +320,14 @@ function makePort(itemId, varName, role, extraLabel = "") {
   port.dataset.itemId = itemId;
   port.dataset.varName = varName;
   port.dataset.role = role;
-  port.addEventListener("mousedown", (e) => startDrag(e, itemId, varName, role));
-  port.addEventListener("mouseup", (e) => finishDrag(e, itemId, varName, role));
+  port.addEventListener("mousedown", (e) => {
+    if (e.target.closest(".port-actions")) return;
+    startDrag(e, itemId, varName, role);
+  });
+  port.addEventListener("mouseup", (e) => {
+    if (e.target.closest(".port-actions")) return;
+    finishDrag(e, itemId, varName, role);
+  });
   return port;
 }
 
@@ -335,12 +390,8 @@ function addBinding(binding) {
     target.bindings = (target.bindings || []).filter((b) => b.to_var !== binding.to_var);
     target.bindings.push(binding);
   } else {
-    // збережемо окремо у graph __ctx_bindings
-    if (!state.current.graph.__ctx_bindings) state.current.graph.__ctx_bindings = [];
-    state.current.graph.__ctx_bindings = state.current.graph.__ctx_bindings.filter(
-      (b) => !(b.to_var === binding.to_var && b.from_agent_item_id === binding.from_agent_item_id && b.from_var === binding.from_var),
-    );
-    state.current.graph.__ctx_bindings.push(binding);
+    state.current.graph.ctx_bindings = (state.current.graph.ctx_bindings || []).filter((b) => b.to_var !== binding.to_var);
+    state.current.graph.ctx_bindings.push(binding);
   }
   normalizeLaneOrders();
 }
@@ -348,7 +399,7 @@ function addBinding(binding) {
 function allBindings() {
   if (!state.current || !state.current.graph) return [];
   const laneBindings = state.current.graph.lanes.flatMap((lane) => lane.items.flatMap((item) => item.bindings || []));
-  const ctxBindings = state.current.graph.__ctx_bindings || [];
+  const ctxBindings = state.current.graph.ctx_bindings || [];
   return [...laneBindings, ...ctxBindings];
 }
 
@@ -381,7 +432,7 @@ function drawBindings() {
 
 function removeBinding(binding) {
   if (!state.current) return;
-  const ctxList = state.current.graph.__ctx_bindings || [];
+  const ctxList = state.current.graph.ctx_bindings || [];
   state.current.graph.lanes.forEach((lane) => {
     lane.items.forEach((item) => {
       item.bindings = (item.bindings || []).filter(
@@ -395,7 +446,7 @@ function removeBinding(binding) {
       );
     });
   });
-  state.current.graph.__ctx_bindings = ctxList.filter(
+  state.current.graph.ctx_bindings = ctxList.filter(
     (b) =>
       !(
         b.from_agent_item_id === binding.from_agent_item_id &&
@@ -434,9 +485,144 @@ function renderAgentVarZones() {
     if (el) el.innerHTML = "";
   });
   if (!state.current) return;
-  state.current.inputs.forEach((v) => zones.inputs?.appendChild(makePort(CTX_ID, v.name, "ctx-input")));
-  state.current.locals.forEach((v) => zones.locals?.appendChild(makePort(CTX_ID, v.name, "ctx-local", v.value)));
-  state.current.outputs.forEach((v) => zones.outputs?.appendChild(makePort(CTX_ID, v.name, "ctx-output")));
+  ensureGraph(state.current);
+  state.current.inputs.forEach((v) => zones.inputs?.appendChild(makeCtxPort("inputs", v)));
+  state.current.locals.forEach((v) => zones.locals?.appendChild(makeCtxPort("locals", v)));
+  state.current.outputs.forEach((v) => zones.outputs?.appendChild(makeCtxPort("outputs", v)));
+}
+
+function makeCtxPort(kind, variable) {
+  const role = kind === "outputs" ? "ctx-output" : kind === "locals" ? "ctx-local" : "ctx-input";
+  const port = document.createElement("div");
+  port.className = `port port-ctx port-${role}`;
+  port.dataset.itemId = CTX_ID;
+  port.dataset.varName = variable.name;
+  port.dataset.role = role;
+
+  const main = document.createElement("div");
+  main.className = "port-main";
+  const label = document.createElement("span");
+  label.textContent = variable.name;
+  main.appendChild(label);
+  if (kind === "locals" && variable.value !== undefined) {
+    const val = document.createElement("span");
+    val.className = "var-value";
+    val.textContent = JSON.stringify(variable.value);
+    main.appendChild(val);
+  }
+  port.appendChild(main);
+
+  const actions = document.createElement("div");
+  actions.className = "port-actions";
+  const editBtn = document.createElement("button");
+  editBtn.type = "button";
+  editBtn.textContent = "✎";
+  editBtn.className = "ghost tiny";
+  editBtn.title = "Редагувати";
+  editBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    editAgentVar(kind, variable.name);
+  });
+  const removeBtn = document.createElement("button");
+  removeBtn.type = "button";
+  removeBtn.textContent = "✕";
+  removeBtn.className = "ghost tiny";
+  removeBtn.title = "Видалити";
+  removeBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    removeAgentVar(kind, variable.name);
+  });
+  actions.appendChild(editBtn);
+  actions.appendChild(removeBtn);
+  port.appendChild(actions);
+
+  port.addEventListener("mousedown", (e) => {
+    if (e.target.closest(".port-actions")) return;
+    startDrag(e, CTX_ID, variable.name, role);
+  });
+  port.addEventListener("mouseup", (e) => {
+    if (e.target.closest(".port-actions")) return;
+    finishDrag(e, CTX_ID, variable.name, role);
+  });
+  return port;
+}
+
+function parseValueInput(raw, fallback) {
+  if (raw === null) return fallback;
+  const trimmed = String(raw).trim();
+  if (!trimmed.length) return "";
+  try {
+    return JSON.parse(trimmed);
+  } catch (err) {
+    return trimmed;
+  }
+}
+
+function editAgentVar(kind, varName) {
+  if (!state.current) return;
+  const list = state.current[kind];
+  const idx = list.findIndex((v) => v.name === varName);
+  if (idx === -1) return;
+  const current = list[idx];
+  const newName = prompt("Нова назва змінної", current.name);
+  if (!newName) return;
+  let newValue = current.value;
+  if (kind === "locals") {
+    const defaultVal = current.value === undefined ? "" : JSON.stringify(current.value);
+    const rawVal = prompt("Нове значення (JSON дозволено)", defaultVal);
+    newValue = parseValueInput(rawVal, current.value);
+  }
+  if (newName !== varName) {
+    renameCtxVarInBindings(varName, newName);
+  }
+  list[idx] = kind === "locals" ? { name: newName, value: newValue } : { name: newName };
+  renderCanvas();
+}
+
+function removeAgentVar(kind, varName) {
+  if (!state.current) return;
+  const list = state.current[kind] || [];
+  state.current[kind] = list.filter((v) => v.name !== varName);
+  dropBindingsForCtxVar(varName);
+  renderCanvas();
+}
+
+function dropBindingsForCtxVar(varName) {
+  if (!state.current?.graph) return;
+  state.current.graph.lanes.forEach((lane) => {
+    lane.items.forEach((item) => {
+      item.bindings = (item.bindings || []).filter(
+        (b) =>
+          !(
+            (b.from_agent_item_id === CTX_ID && b.from_var === varName) ||
+            (b.to_agent_item_id === CTX_ID && b.to_var === varName)
+          ),
+      );
+    });
+  });
+  state.current.graph.ctx_bindings = (state.current.graph.ctx_bindings || []).filter(
+    (b) => b.to_var !== varName && !(b.from_agent_item_id === CTX_ID && b.from_var === varName),
+  );
+}
+
+function renameCtxVarInBindings(oldName, newName) {
+  if (!state.current?.graph) return;
+  state.current.graph.lanes.forEach((lane) => {
+    lane.items.forEach((item) => {
+      item.bindings = (item.bindings || []).map((b) => {
+        const copy = { ...b };
+        if (copy.from_agent_item_id === CTX_ID && copy.from_var === oldName) copy.from_var = newName;
+        if (copy.to_agent_item_id === CTX_ID && copy.to_var === oldName) copy.to_var = newName;
+        return copy;
+      });
+    });
+  });
+  state.current.graph.ctx_bindings = (state.current.graph.ctx_bindings || []).map((b) => {
+    const copy = { ...b };
+    if (copy.from_agent_item_id === CTX_ID && copy.from_var === oldName) copy.from_var = newName;
+    if (copy.to_agent_item_id === CTX_ID && copy.to_var === oldName) copy.to_var = newName;
+    return copy;
+  });
 }
 
 function addAgentVar(kind) {
@@ -444,7 +630,10 @@ function addAgentVar(kind) {
   const name = prompt(`Нова змінна для ${kind}`);
   if (!name) return;
   if (kind === "inputs") state.current.inputs.push({ name });
-  if (kind === "locals") state.current.locals.push({ name, value: "" });
+  if (kind === "locals") {
+    const valueRaw = prompt("Значення за замовчуванням (JSON дозволено)", "");
+    state.current.locals.push({ name, value: parseValueInput(valueRaw, "") });
+  }
   if (kind === "outputs") state.current.outputs.push({ name });
   renderCanvas();
 }

@@ -1,0 +1,17 @@
+name: llm_ollama
+title_ua: LLM (Ollama)
+description_ua: Генерує текст через клієнт LLM з параметрами Ollama
+kind: atomic
+executor: llm
+inputs:
+  - name: prompt
+  - name: вхідні_дані
+  - name: ollama_host
+  - name: ollama_model
+locals:
+  - name: options
+    value: '{"model": "llama3", "temperature": 0.2}'
+  - name: parse_json
+    value: false
+outputs:
+  - name: результат
