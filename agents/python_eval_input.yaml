@@ -1,0 +1,11 @@
+name: python_eval_input
+title_ua: Python (вхідний код)
+description_ua: Виконує наданий у вході код Python з використанням змінної input (JSON)
+kind: atomic
+executor: python
+inputs:
+  - name: code
+  - name: input
+locals: []
+outputs:
+  - name: output

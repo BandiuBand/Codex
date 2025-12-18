@@ -101,6 +101,8 @@ class AtomicExecutor:
         output_text = self.llm_client.generate(prompt, **options)
         parse_json = bool(ctx.get("parse_json", False))
         result: Dict[str, Any] = {"output_text": output_text}
+        if "результат" in {v.name for v in spec.outputs}:
+            result["результат"] = output_text
         if parse_json:
             parsed, reason = extract_first_json(output_text)
             result["output_json"] = parsed
@@ -241,11 +243,10 @@ class ExecutionEngine:
 
     def _execute_graph(self, graph: GraphSpec, ctx: ExecutionContext, trace: ExecutionTrace, depth: int) -> None:
         all_bindings: List[BindingSpec] = []
-        ctx_bindings: List[BindingSpec] = []
         for lane in graph.lanes:
             for item in lane.items:
                 all_bindings.extend(item.bindings)
-        ctx_bindings.extend(getattr(graph, "__ctx_bindings", []) or [])
+        ctx_bindings: List[BindingSpec] = list(getattr(graph, "ctx_bindings", []))
         for lane_index, lane in enumerate(graph.lanes):
             items = sorted(lane.items, key=lambda i: i.ui.order if i.ui else 0)
             for item in items:
@@ -258,15 +259,18 @@ class ExecutionEngine:
                 for name, value in child_ctx.variables.items():
                     ctx.set(f"{item.id}.{name}", value)
                     ctx.set(name, value)
-                # застосувати вихідні прив'язки у контекст
                 for binding in ctx_bindings:
-                    if binding.from_agent_item_id != item.id:
+                    if binding.from_agent_item_id != item.id or binding.to_agent_item_id != "__CTX__":
                         continue
-                    if binding.to_agent_item_id != "__CTX__":
-                        continue
-                    value = child_ctx.get(binding.from_var)
-                    ctx.set(binding.to_var, value)
-                trace.add({"item_id": item.id, "agent": item.agent, "lane": lane_index, "outputs": dict(child_ctx.variables)})
+                    ctx.set(binding.to_var, child_ctx.get(binding.from_var))
+                trace.add(
+                    {
+                        "item_id": item.id,
+                        "agent": item.agent,
+                        "lane": lane_index,
+                        "outputs": dict(child_ctx.variables),
+                    }
+                )
 
     def _build_child_context(
         self,
@@ -319,5 +323,4 @@ __all__ = [
     "ExecutionEngine",
     "ExecutionState",
     "ExecutionTrace",
-    "agent_spec_from_dict",
 ]

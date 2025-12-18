@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from agentfw.core.agent_spec import AgentItemSpec, AgentSpec, BindingSpec, GraphSpec, LaneSpec, LocalVarSpec, VarSpec, WhenSpec
@@ -121,7 +123,15 @@ def test_bindings_ctx_to_input_and_output_to_ctx(tmp_path) -> None:
                         )
                     ]
                 )
-            ]
+            ],
+            ctx_bindings=[
+                BindingSpec(
+                    from_agent_item_id="echo1",
+                    from_var="text",
+                    to_agent_item_id="__CTX__",
+                    to_var="echo_output",
+                )
+            ],
         ),
     )
     save_agent_spec(tmp_path / "wrapper.yaml", composite)
@@ -131,3 +141,114 @@ def test_bindings_ctx_to_input_and_output_to_ctx(tmp_path) -> None:
 
     assert state.vars["text"] == "hello"
     assert state.vars["echo1.text"] == "hello"
+    assert state.vars["echo_output"] == "hello"
+
+
+def test_llm_alias_result_output(tmp_path) -> None:
+    llm_agent = AgentSpec(
+        name="llm_alias",
+        title_ua="llm_alias",
+        description_ua=None,
+        kind="atomic",
+        executor="llm",
+        inputs=[VarSpec(name="prompt")],
+        locals=[],
+        outputs=[VarSpec(name="результат")],
+    )
+    save_agent_spec(tmp_path / "llm_alias.yaml", llm_agent)
+
+    engine = ExecutionEngine(repository=AgentRepository(tmp_path), runs_dir=tmp_path / "runs")
+    state = engine.run_to_completion("llm_alias", input_json={"prompt": "hello"})
+
+    assert state.vars["результат"].startswith("LLM: hello")
+
+
+def test_python_exec_from_input(tmp_path) -> None:
+    spec = AgentSpec(
+        name="python_eval_input",
+        title_ua="python_eval_input",
+        description_ua=None,
+        kind="atomic",
+        executor="python",
+        inputs=[VarSpec(name="code"), VarSpec(name="input")],
+        locals=[],
+        outputs=[VarSpec(name="output")],
+    )
+    save_agent_spec(tmp_path / "python_eval_input.yaml", spec)
+
+    engine = ExecutionEngine(repository=AgentRepository(tmp_path), runs_dir=tmp_path / "runs")
+    state = engine.run_to_completion(
+        "python_eval_input",
+        input_json={"code": "output = input.get('x', 0) * 2", "input": {"x": 3}},
+    )
+
+    assert state.vars["output"] == 6
+
+
+def test_json_pack_and_extract(tmp_path) -> None:
+    pack = AgentSpec(
+        name="json_pack",
+        title_ua="json_pack",
+        description_ua=None,
+        kind="atomic",
+        executor="python",
+        inputs=[VarSpec(name="ключ"), VarSpec(name="значення")],
+        locals=[
+            LocalVarSpec(
+                name="code",
+                value="import json as json_lib\npayload = {ключ: значення}\noutput = json_lib.dumps(payload, ensure_ascii=False)",
+            )
+        ],
+        outputs=[VarSpec(name="output")],
+    )
+    extract = AgentSpec(
+        name="json_extract",
+        title_ua="json_extract",
+        description_ua=None,
+        kind="atomic",
+        executor="python",
+        inputs=[VarSpec(name="json"), VarSpec(name="ключ")],
+        locals=[
+            LocalVarSpec(
+                name="code",
+                value="import json as json_lib\nsource = json\nif isinstance(source, str):\n    source = json_lib.loads(source)\noutput = source.get(ключ) if isinstance(source, dict) else None",
+            )
+        ],
+        outputs=[VarSpec(name="output")],
+    )
+    save_agent_spec(tmp_path / "json_pack.yaml", pack)
+    save_agent_spec(tmp_path / "json_extract.yaml", extract)
+
+    repo = AgentRepository(tmp_path)
+    engine = ExecutionEngine(repository=repo, runs_dir=tmp_path / "runs")
+    packed = engine.run_to_completion("json_pack", input_json={"ключ": "answer", "значення": 42})
+    extracted = engine.run_to_completion(
+        "json_extract", input_json={"json": packed.vars["output"], "ключ": "answer"}
+    )
+
+    assert packed.vars["output"] == "{\"answer\": 42}"
+    assert extracted.vars["output"] == 42
+
+
+@pytest.mark.parametrize(
+    "task_text,expected_plan",
+    [
+        ("коротке завдання", False),
+        ("це дуже довгий текст задачі який точно перевищує ліміт символів", True),
+    ],
+)
+def test_workflow_demo_branching(task_text, expected_plan, tmp_path) -> None:
+    repo = AgentRepository(Path("agents"))
+    engine = ExecutionEngine(repository=repo, runs_dir=tmp_path / "runs")
+
+    state = engine.run_to_completion("workflow_demo", input_json={"task_text": task_text})
+
+    assert state.vars["обрати_план"] is expected_plan
+    assert state.vars["класифікація"] is expected_plan
+    assert state.vars["вихідний_запит"] == task_text
+    if expected_plan:
+        assert state.vars["гілка_так"] == task_text
+        assert "План" in state.vars["відповідь"]
+    else:
+        assert state.vars["гілка_ні"] == task_text
+        assert "Проста" in state.vars["відповідь"]
