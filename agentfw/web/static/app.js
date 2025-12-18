@@ -13,6 +13,17 @@ const state = {
 
 const CTX_ID = "__CTX__";
 
+let drawBindingsScheduled = false;
+
+function scheduleDrawBindings() {
+  if (drawBindingsScheduled) return;
+  drawBindingsScheduled = true;
+  requestAnimationFrame(() => {
+    drawBindingsScheduled = false;
+    drawBindings();
+  });
+}
+
 function $(id) {
   return document.getElementById(id);
 }
@@ -219,6 +230,10 @@ async function renderCanvas() {
   if (container) container.innerHTML = "";
   if (svg) svg.innerHTML = "";
   if (!state.current || !container) return;
+  if (!container._scrollBindingAttached) {
+    container.addEventListener("scroll", scheduleDrawBindings);
+    container._scrollBindingAttached = true;
+  }
   ensureGraph(state.current);
 
   if (!state.loadingChildren) {
@@ -246,6 +261,7 @@ async function renderCanvas() {
       if (!state.cardDrag) return;
       moveCardToLane(state.cardDrag.itemId, state.cardDrag.fromLane, laneIndex);
     });
+    laneEl.addEventListener("scroll", scheduleDrawBindings);
     const laneTitle = document.createElement("div");
     laneTitle.className = "lane-title";
     laneTitle.textContent = `Лейн ${laneIndex + 1}`;
@@ -700,7 +716,7 @@ function bindEvents() {
   setupZoneButtons();
 }
 
-window.addEventListener("resize", drawBindings);
+window.addEventListener("resize", scheduleDrawBindings);
 
 bindEvents();
 loadAgentsList();
