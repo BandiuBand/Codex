@@ -1,0 +1,15 @@
+name: branch_condition
+title_ua: Умова розгалуження
+description_ua: Повертає булеве значення для гілки на основі рівності значень
+kind: atomic
+inputs:
+- name: left
+- name: right
+locals:
+- name: code
+  value: 'value = left == right
+
+    '
+outputs:
+- name: value
+executor: python

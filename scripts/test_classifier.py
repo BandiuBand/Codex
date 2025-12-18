@@ -9,8 +9,8 @@ def main() -> None:
         input_json={"task_text": "Зроби план складного проєкту з агентами і гілками."},
     )
 
-    print(state.variables.get("task_text"))
-    print(state.variables.get("needs_planning"))
+    print(state.vars.get("task_text"))
+    print(state.vars.get("needs_planning"))
 
 
 if __name__ == "__main__":
