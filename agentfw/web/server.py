@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -8,6 +9,7 @@ from typing import Dict, List
 
 from agentfw.core.agent_spec import agent_spec_from_dict, agent_spec_to_dict
 from agentfw.io.agent_yaml import load_agent_spec, save_agent_spec
+from agentfw.llm.base import DummyLLMClient, OllamaLLMClient
 from agentfw.runtime.engine import AgentRepository, ExecutionEngine
 
 
@@ -18,7 +20,7 @@ class AgentEditorHandler(SimpleHTTPRequestHandler):
         self.static_dir = Path(__file__).parent / "static"
         self.agents_dir = self._find_agents_dir()
         self.repository = AgentRepository(self.agents_dir)
-        self.engine = ExecutionEngine(repository=self.repository)
+        self.engine = ExecutionEngine(repository=self.repository, llm_client_factory=self._build_llm_factory())
         super().__init__(*args, directory=str(self.static_dir), **kwargs)
 
     def end_headers(self) -> None:  # type: ignore[override]
@@ -36,6 +38,8 @@ class AgentEditorHandler(SimpleHTTPRequestHandler):
             return self._handle_list_agents()
         if self.path.startswith("/api/agent/"):
             return self._handle_get_agent()
+        if self.path == "/run":
+            self.path = "/run.html"
         if self.path == "/":
             self.path = "/index.html"
         return super().do_GET()
@@ -77,6 +81,13 @@ class AgentEditorHandler(SimpleHTTPRequestHandler):
             if candidate.exists() and candidate.is_dir():
                 return candidate
         return env / "agents"
+
+    @staticmethod
+    def _build_llm_factory():  # pragma: no cover - simple wiring
+        mode = (os.getenv("AGENTFW_WEB_LLM_MODE") or "dummy").lower()
+        if mode == "ollama":
+            return lambda host, model: OllamaLLMClient(base_url=host, model=model or "")
+        return lambda host, model: DummyLLMClient(prefix=f"LLM({model})@{host}: ")
 
     # API
     def _handle_list_agents(self) -> None:

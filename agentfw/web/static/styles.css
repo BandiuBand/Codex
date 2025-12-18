@@ -79,6 +79,17 @@ button:hover {
   background: #1f6feb33;
 }
 
+.hidden {
+  display: none;
+}
+
+.link-btn {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .layout {
   display: grid;
   grid-template-columns: 1fr;
@@ -323,15 +334,11 @@ button:hover {
   pointer-events: auto;
 }
 
-.runner {
-  padding: 12px;
-  background: #0b0f14;
-  border-top: 1px solid #30363d;
-}
-
-.runner label {
-  display: block;
-  margin-bottom: 10px;
+.runner-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
 }
 
 select,

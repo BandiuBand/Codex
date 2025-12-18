@@ -66,7 +66,6 @@ async function loadAgentsList() {
     const data = await fetchJSON("/api/agents");
     state.agents = Array.isArray(data) ? data : [];
     renderMenus();
-    renderRunnerSelect();
   } catch (err) {
     console.error(err);
     setStatus("Не вдалося завантажити список агентів", "error");
@@ -663,53 +662,11 @@ function setupZoneButtons() {
   });
 }
 
-function renderRunnerSelect() {
-  const select = $("runAgent");
-  if (!select) return;
-  select.innerHTML = "";
-  const placeholder = document.createElement("option");
-  placeholder.value = "";
-  placeholder.textContent = "— оберіть агента —";
-  select.appendChild(placeholder);
-  state.agents.forEach((agent) => {
-    const opt = document.createElement("option");
-    opt.value = agent.name;
-    opt.textContent = agent.title_ua || agent.name;
-    select.appendChild(opt);
-  });
-}
-
-async function runAgent() {
-  const select = $("runAgent");
-  if (!select) return;
-  const name = select.value;
-  if (!name) return setStatus("Оберіть агента для запуску", "error");
-  let inputPayload = {};
-  try {
-    inputPayload = JSON.parse($("runInput").value || "{}");
-  } catch (err) {
-    return setStatus("Некоректний JSON", "error");
-  }
-  try {
-    const result = await fetchJSON(`/api/run/${encodeURIComponent(name)}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ input: inputPayload }),
-    });
-    $("runOutput").value = JSON.stringify(result, null, 2);
-    setStatus("Агент виконано");
-  } catch (err) {
-    console.error(err);
-    setStatus("Помилка виконання", "error");
-  }
-}
-
 function bindEvents() {
   $("btnNew")?.addEventListener("click", newAgent);
   $("btnSave")?.addEventListener("click", saveAgent);
   $("btnCreate")?.addEventListener("click", createAgent);
   $("btnAddLane")?.addEventListener("click", addLane);
-  $("runBtn")?.addEventListener("click", runAgent);
   document.addEventListener("mouseup", () => {
     state.drag = null;
   });

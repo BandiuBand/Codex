@@ -1,0 +1,14 @@
+name: prompt_builder
+title_ua: Побудова промпта
+description_ua: Формує фінальний промпт для LLM на основі користувацького запиту
+kind: atomic
+executor: python
+inputs:
+  - name: користувацький_запит
+locals:
+  - name: code
+    value: |
+      текст = str(користувацький_запит)
+      prompt = f"Ти помічник Codex. Відповідай українською. Запит: {текст}"
+outputs:
+  - name: prompt

@@ -20,6 +20,7 @@
           <button id="btnAddAgent">Додати агента на канву ▾</button>
           <div class="dropdown-menu" id="addMenu"></div>
         </div>
+        <a href="/run" id="btnRunOpen" class="ghost link-btn">Запустити</a>
       </div>
     </header>
 
@@ -54,23 +55,6 @@
         <svg id="bindingsLayer" class="bindings" xmlns="http://www.w3.org/2000/svg"></svg>
       </section>
     </main>
-
-    <section class="runner">
-      <h2>Запуск агента</h2>
-      <label>
-        Агент
-        <select id="runAgent"></select>
-      </label>
-      <label>
-        Вхід (JSON)
-        <textarea id="runInput" rows="6">{"task": ""}</textarea>
-      </label>
-      <button id="runBtn">Запустити</button>
-      <label>
-        Вихід
-        <textarea id="runOutput" rows="6" readonly></textarea>
-      </label>
-    </section>
 
     <div id="status" class="status"></div>
     <script src="/app.js"></script>

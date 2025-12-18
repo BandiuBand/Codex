@@ -6,6 +6,7 @@ import pytest
 
 from agentfw.core.agent_spec import AgentItemSpec, AgentSpec, BindingSpec, GraphSpec, LaneSpec, LocalVarSpec, VarSpec, WhenSpec
 from agentfw.io.agent_yaml import save_agent_spec
+from agentfw.llm.base import LLMClient
 from agentfw.runtime.engine import AgentRepository, ExecutionEngine
 
 
@@ -161,6 +162,52 @@ def test_llm_alias_result_output(tmp_path) -> None:
     state = engine.run_to_completion("llm_alias", input_json={"prompt": "hello"})
 
     assert state.vars["результат"].startswith("LLM: hello")
+
+
+class RecordingLLMClient(LLMClient):
+    def __init__(self, base_url: str, model: str) -> None:
+        self.base_url = base_url
+        self.model = model
+        self.calls: list[dict[str, object]] = []
+
+    def generate(self, prompt: str, **kwargs: object) -> str:  # noqa: ANN003
+        self.calls.append({"prompt": prompt, "kwargs": kwargs})
+        return f"{self.model}@{self.base_url}:{kwargs.get('temperature')}"
+
+
+def test_llm_variables_required(tmp_path) -> None:
+    llm_spec = AgentSpec(
+        name="llm_configured",
+        title_ua="llm_configured",
+        description_ua=None,
+        kind="atomic",
+        executor="llm",
+        inputs=[VarSpec(name="prompt"), VarSpec(name="host"), VarSpec(name="model"), VarSpec(name="temperature")],
+        locals=[LocalVarSpec(name="parse_json", value=False)],
+        outputs=[VarSpec(name="output_text")],
+    )
+    save_agent_spec(tmp_path / "llm_configured.yaml", llm_spec)
+
+    created: dict[str, RecordingLLMClient] = {}
+
+    def factory(host: str, model: str) -> RecordingLLMClient:
+        client = RecordingLLMClient(host, model)
+        created["client"] = client
+        return client
+
+    engine = ExecutionEngine(repository=AgentRepository(tmp_path), runs_dir=tmp_path / "runs", llm_client_factory=factory)
+    state = engine.run_to_completion(
+        "llm_configured",
+        input_json={"prompt": "ping", "host": "http://llm.local", "model": "demo-model", "temperature": 0.5},
+    )
+
+    assert created["client"].base_url == "http://llm.local"
+    assert created["client"].model == "demo-model"
+    assert created["client"].calls and created["client"].calls[0]["kwargs"].get("temperature") == 0.5
+    assert state.vars["output_text"].startswith("demo-model@http://llm.local")
+
+    with pytest.raises(RuntimeError, match="host"):
+        engine.run_to_completion("llm_configured", input_json={"prompt": "missing host", "model": "demo-model"})
 
 
 def test_python_exec_from_input(tmp_path) -> None:
