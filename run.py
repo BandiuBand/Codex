@@ -65,8 +65,8 @@ def main() -> None:
     subparsers = parser.add_subparsers(dest="command", required=False)
 
     web_parser = subparsers.add_parser("web", help="Run the web graph editor server")
-    web_parser.add_argument("--host", default="127.0.0.1", help="Host to bind (default: 127.0.0.1)")
-    web_parser.add_argument("--port", type=int, default=8000, help="Port to bind (default: 8000)")
+    web_parser.add_argument("--host", default="127.0.0.2", help="Host to bind (default: 127.0.0.2)")
+    web_parser.add_argument("--port", type=int, default=8002, help="Port to bind (default: 8002)")
 
     subparsers.add_parser("demo", help="Run the simple agent demo suite")
 
@@ -82,8 +82,8 @@ def main() -> None:
     elif args.command == "web" or args.command is None:
         if unknown:
             parser.error(f"unrecognized arguments: {' '.join(unknown)}")
-        host = getattr(args, "host", "127.0.0.1")
-        port = getattr(args, "port", 8000)
+        host = getattr(args, "host", "127.0.0.2")
+        port = getattr(args, "port", 8002)
         run_web(host=host, port=port)
     else:
         parser.error(f"unrecognized command: {args.command}")
