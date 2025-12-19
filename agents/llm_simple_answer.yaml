@@ -1,0 +1,12 @@
+name: llm_simple_answer
+title_ua: Швидка відповідь простого рівня
+description_ua: Викликає LLM для прямої відповіді на просте завдання
+kind: atomic
+executor: llm
+inputs:
+  - name: task_text
+locals:
+  - name: prompt
+    value: "Швидка відповідь українською на просте завдання: {task_text}"
+outputs:
+  - name: результат

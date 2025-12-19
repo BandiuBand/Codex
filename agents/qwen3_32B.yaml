@@ -1,6 +1,6 @@
-name: llm_ollama
-title_ua: LLM (Ollama)
-description_ua: Генерує текст через клієнт LLM з параметрами Ollama
+name: qwen3_32B
+title_ua: Qwen3 32B (локальний Ollama)
+description_ua: Статично налаштований клієнт Ollama з моделлю qwen3:32b та фіксованими параметрами
 kind: atomic
 executor: llm
 inputs:
