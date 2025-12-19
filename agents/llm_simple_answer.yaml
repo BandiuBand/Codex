@@ -5,9 +5,6 @@ kind: atomic
 executor: llm
 inputs:
   - name: task_text
-  - name: ollama_host
-  - name: ollama_model
-  - name: temperature
 locals:
   - name: prompt
     value: "Швидка відповідь українською на просте завдання: {task_text}"

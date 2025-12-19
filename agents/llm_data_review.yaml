@@ -5,9 +5,6 @@ kind: atomic
 executor: llm
 inputs:
   - name: завдання
-  - name: ollama_host
-  - name: ollama_model
-  - name: temperature
 locals:
   - name: parse_json
     value: true

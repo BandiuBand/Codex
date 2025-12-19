@@ -4,9 +4,6 @@ description_ua: Обирає простий або складний ланцюж
 kind: composite
 inputs:
   - name: завдання
-  - name: ollama_host
-  - name: ollama_model
-  - name: temperature
   - name: max_reviews
 locals: []
 outputs:
@@ -45,18 +42,6 @@ graph:
               from_var: завдання
               to_agent_item_id: simple
               to_var: task_text
-            - from_agent_item_id: "__CTX__"
-              from_var: ollama_host
-              to_agent_item_id: simple
-              to_var: ollama_host
-            - from_agent_item_id: "__CTX__"
-              from_var: ollama_model
-              to_agent_item_id: simple
-              to_var: ollama_model
-            - from_agent_item_id: "__CTX__"
-              from_var: temperature
-              to_agent_item_id: simple
-              to_var: temperature
           ui:
             lane_index: 1
             order: 0
@@ -71,18 +56,6 @@ graph:
               from_var: завдання
               to_agent_item_id: complex
               to_var: завдання
-            - from_agent_item_id: "__CTX__"
-              from_var: ollama_host
-              to_agent_item_id: complex
-              to_var: ollama_host
-            - from_agent_item_id: "__CTX__"
-              from_var: ollama_model
-              to_agent_item_id: complex
-              to_var: ollama_model
-            - from_agent_item_id: "__CTX__"
-              from_var: temperature
-              to_agent_item_id: complex
-              to_var: temperature
             - from_agent_item_id: "__CTX__"
               from_var: max_reviews
               to_agent_item_id: complex

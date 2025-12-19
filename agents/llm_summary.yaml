@@ -9,9 +9,6 @@ inputs:
   - name: пройшло_перевірку
   - name: коментар_цербера
   - name: next_stage_hint
-  - name: ollama_host
-  - name: ollama_model
-  - name: temperature
 locals:
   - name: prompt
     value: |

@@ -92,9 +92,6 @@ def test_adaptive_agent_simple(tmp_path: Path) -> None:
         "adaptive_task_agent",
         input_json={
             "завдання": "коротке завдання",
-            "ollama_host": "http://local",
-            "ollama_model": "demo",
-            "temperature": 0.1,
             "max_reviews": 2,
         },
     )
@@ -112,9 +109,6 @@ def test_adaptive_agent_complex(tmp_path: Path) -> None:
         "adaptive_task_agent",
         input_json={
             "завдання": long_task,
-            "ollama_host": "http://local",
-            "ollama_model": "demo",
-            "temperature": 0.3,
             "max_reviews": 3,
         },
     )

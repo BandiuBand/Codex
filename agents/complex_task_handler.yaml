@@ -4,9 +4,6 @@ description_ua: Перевірка даних, планування, викон�
 kind: composite
 inputs:
   - name: завдання
-  - name: ollama_host
-  - name: ollama_model
-  - name: temperature
   - name: max_reviews
 locals: []
 outputs:
@@ -39,18 +36,6 @@ graph:
               from_var: завдання
               to_agent_item_id: review
               to_var: завдання
-            - from_agent_item_id: "__CTX__"
-              from_var: ollama_host
-              to_agent_item_id: review
-              to_var: ollama_host
-            - from_agent_item_id: "__CTX__"
-              from_var: ollama_model
-              to_agent_item_id: review
-              to_var: ollama_model
-            - from_agent_item_id: "__CTX__"
-              from_var: temperature
-              to_agent_item_id: review
-              to_var: temperature
           ui:
             lane_index: 0
             order: 0
@@ -77,18 +62,6 @@ graph:
               from_var: попередній_контекст
               to_agent_item_id: planner
               to_var: попередній_контекст
-            - from_agent_item_id: "__CTX__"
-              from_var: ollama_host
-              to_agent_item_id: planner
-              to_var: ollama_host
-            - from_agent_item_id: "__CTX__"
-              from_var: ollama_model
-              to_agent_item_id: planner
-              to_var: ollama_model
-            - from_agent_item_id: "__CTX__"
-              from_var: temperature
-              to_agent_item_id: planner
-              to_var: temperature
           ui:
             lane_index: 1
             order: 1
@@ -161,18 +134,6 @@ graph:
               from_var: next_stage_hint
               to_agent_item_id: summary
               to_var: next_stage_hint
-            - from_agent_item_id: "__CTX__"
-              from_var: ollama_host
-              to_agent_item_id: summary
-              to_var: ollama_host
-            - from_agent_item_id: "__CTX__"
-              from_var: ollama_model
-              to_agent_item_id: summary
-              to_var: ollama_model
-            - from_agent_item_id: "__CTX__"
-              from_var: temperature
-              to_agent_item_id: summary
-              to_var: temperature
           ui:
             lane_index: 4
             order: 0
