@@ -1,0 +1,46 @@
+name: plan_normalizer
+title_ua: Нормалізація плану
+description_ua: Перетворює JSON плану на окремі кроки та критерії
+kind: atomic
+executor: python
+inputs:
+  - name: план_json
+locals:
+  - name: code
+    value: |
+      steps = []
+      criteria = []
+      next_stage_hint = None
+      source = план_json
+      if isinstance(source, str):
+          import json as json_lib
+          try:
+              source = json_lib.loads(source)
+          except Exception:  # noqa: BLE001
+              source = {}
+      if isinstance(source, dict):
+          steps = source.get('steps') or []
+          criteria = source.get('criteria') or []
+          next_stage_hint = source.get('next_stage_hint')
+      if not isinstance(steps, list):
+          steps = [str(steps)] if steps else []
+      if not isinstance(criteria, list):
+          criteria = [str(criteria)] if criteria else []
+      min_len = min(len(steps), len(criteria)) if criteria else len(steps)
+      if criteria and len(criteria) < len(steps):
+          criteria.extend(["Прийняти, якщо крок виконано"] * (len(steps) - len(criteria)))
+      steps = list(map(str, steps[: min_len or len(steps)]))
+      criteria = list(map(str, criteria[: len(steps)]))
+      результат = {
+          'steps': steps,
+          'criteria': criteria,
+          'next_stage_hint': next_stage_hint,
+      }
+      кроки = steps
+      критерії = criteria
+      next_stage_hint = next_stage_hint
+outputs:
+  - name: результат
+  - name: кроки
+  - name: критерії
+  - name: next_stage_hint
