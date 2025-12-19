@@ -1,0 +1,23 @@
+{
+  "trace": [
+    {
+      "agent": "task_classifier",
+      "kind": "atomic",
+      "outputs": {
+        "is_complex": false,
+        "original_task": "None"
+      }
+    },
+    {
+      "item_id": "classify",
+      "agent": "task_classifier",
+      "lane": 0,
+      "outputs": {
+        "code": "text = str(task_text)\nis_complex = len(text) > 30\noriginal_task = text\n",
+        "task_text": null,
+        "is_complex": false,
+        "original_task": "None"
+      }
+    }
+  ]
+}

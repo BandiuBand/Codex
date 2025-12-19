@@ -1,0 +1,53 @@
+{
+  "trace": [
+    {
+      "agent": "task_classifier",
+      "kind": "atomic",
+      "outputs": {
+        "is_complex": false,
+        "original_task": "None"
+      }
+    },
+    {
+      "item_id": "classify",
+      "agent": "task_classifier",
+      "lane": 0,
+      "outputs": {
+        "code": "text = str(task_text)\nis_complex = len(text) > 30\noriginal_task = text\n",
+        "task_text": null,
+        "is_complex": false,
+        "original_task": "None"
+      }
+    },
+    {
+      "agent": "llm_simple_answer",
+      "kind": "atomic",
+      "outputs": {
+        "результат": "LLM(qwen3:32b)@http://127.0.0.1:11434: Швидка відповідь українською на просте завдання: None"
+      }
+    },
+    {
+      "item_id": "simple",
+      "agent": "llm_simple_answer",
+      "lane": 1,
+      "outputs": {
+        "prompt": "Швидка відповідь українською на просте завдання: {task_text}",
+        "temperature": 0.2,
+        "ollama_host": "http://127.0.0.1:11434",
+        "ollama_model": "qwen3:32b",
+        "task_text": null,
+        "результат": "LLM(qwen3:32b)@http://127.0.0.1:11434: Швидка відповідь українською на просте завдання: None"
+      }
+    },
+    {
+      "item_id": "complex",
+      "agent": "complex_task_handler",
+      "skipped": true,
+      "lane": 2
+    },
+    {
+      "agent": "adaptive_task_agent",
+      "kind": "composite_end"
+    }
+  ]
+}
