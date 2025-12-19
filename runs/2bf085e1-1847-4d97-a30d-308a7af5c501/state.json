@@ -1,0 +1,11 @@
+{
+  "agent": "task_classifier",
+  "run_id": "2bf085e1-1847-4d97-a30d-308a7af5c501",
+  "ok": true,
+  "vars": {
+    "task": "Скільки буде 2+2?",
+    "code": "text = str(task_text)\nis_complex = len(text) > 30\noriginal_task = text\n"
+  },
+  "error": null,
+  "created_at": 1766116233
+}

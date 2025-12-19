@@ -1,0 +1,18 @@
+{
+  "agent": "llm_ollama",
+  "run_id": "a24f4337-7326-4237-98d3-e9753cea72f3",
+  "ok": true,
+  "vars": {
+    "task": "",
+    "ollama_host": "http://127.0.0.1:11434",
+    "options": {
+      "model": "llama3",
+      "temperature": 0.2
+    },
+    "parse_json": false,
+    "output_text": "LLM(llama3)@http://127.0.0.1:11434: ",
+    "результат": "LLM(llama3)@http://127.0.0.1:11434: "
+  },
+  "error": null,
+  "created_at": 1766058063
+}

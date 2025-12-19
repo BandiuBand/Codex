@@ -1,0 +1,19 @@
+{
+  "agent": "adaptive_task_agent",
+  "run_id": "a5466c8c-2571-456f-aa80-613d2271acd4",
+  "ok": false,
+  "vars": {
+    "task": "ЩДШПРШЩРЖЩ",
+    "classify.code": "text = str(task_text)\nis_complex = len(text) > 30\noriginal_task = text\n",
+    "code": "text = str(task_text)\nis_complex = len(text) > 30\noriginal_task = text\n",
+    "classify.task_text": null,
+    "task_text": null,
+    "classify.is_complex": false,
+    "is_complex": false,
+    "classify.original_task": "None",
+    "original_task": "None",
+    "класифікація": false
+  },
+  "error": "LLM agent requires host via змінні агента",
+  "created_at": 1766115265
+}
