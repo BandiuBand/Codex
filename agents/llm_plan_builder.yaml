@@ -1,0 +1,24 @@
+name: llm_plan_builder
+title_ua: Планувальник складних задач
+description_ua: LLM формує покроковий план із критеріями приймання
+kind: atomic
+executor: llm
+inputs:
+  - name: завдання
+  - name: попередній_контекст
+locals:
+  - name: parse_json
+    value: true
+  - name: prompt
+    value: |
+      Ти планувальник. Для задачі: {завдання}
+      Додатковий контекст: {попередній_контекст}
+      Побудуй стислий JSON з ключами:
+      - steps: список 2-5 коротких кроків
+      - criteria: список тих самих розмірів з критеріями перевірки виконання
+      - next_stage_hint: необов'язковий рядок, якщо потрібне продовження після цих кроків
+      Виведи тільки JSON без пояснень.
+outputs:
+  - name: результат
+  - name: output_json
+  - name: json_error
