@@ -68,6 +68,32 @@ def test_execution_state_status_and_error_persistence(tmp_path) -> None:
     assert error_payload.get("error")
 
 
+def test_missing_inputs_return_blocked_state(tmp_path) -> None:
+    spec = AgentSpec(
+        name="needs_input",
+        title_ua="needs_input",
+        description_ua=None,
+        kind="atomic",
+        executor="python",
+        inputs=[VarSpec(name="text")],
+        locals=[LocalVarSpec(name="code", value="output = text")],
+        outputs=[VarSpec(name="output")],
+    )
+    save_agent_spec(tmp_path / "needs_input.yaml", spec)
+
+    engine = ExecutionEngine(repository=AgentRepository(tmp_path), runs_dir=tmp_path / "runs")
+    state = engine.run_to_completion("needs_input", input_json={})
+
+    assert state.status == "blocked"
+    assert state.ok is False
+    assert state.missing_inputs == ["text"]
+    assert state.error is None
+
+    persisted = json.loads((tmp_path / "runs" / state.run_id / "state.json").read_text())
+    assert persisted["status"] == "blocked"
+    assert persisted["missing_inputs"] == ["text"]
+
+
 def test_composite_lane_barrier_and_skip(tmp_path) -> None:
     _save_atomic(tmp_path, "emit_first", "first_value = 'first'", "first_value")
     _save_atomic(tmp_path, "emit_second", "second_value = 'second'", "second_value")
@@ -250,8 +276,10 @@ def test_llm_variables_required(tmp_path) -> None:
     assert created["client"].calls and created["client"].calls[0]["kwargs"].get("temperature") == 0.5
     assert state.vars["output_text"].startswith("demo-model@http://llm.local")
 
-    with pytest.raises(RuntimeError, match="host"):
-        engine.run_to_completion("llm_configured", input_json={"prompt": "missing host", "model": "demo-model"})
+    blocked = engine.run_to_completion("llm_configured", input_json={"prompt": "missing host", "model": "demo-model"})
+
+    assert blocked.status == "blocked"
+    assert set(blocked.missing_inputs or []) == {"host", "temperature"}
 
 
 def test_python_exec_from_input(tmp_path) -> None:
