@@ -47,7 +47,7 @@ class OllamaLLMClient(LLMClient):
 
     base_url: str = "http://localhost:11434"
     model: str = "qwen3:32b"
-    timeout: float = 60.0
+    timeout: float = 600.0
     api_key: Optional[str] = None
 
     def generate(self, prompt: str, **kwargs: Any) -> str:
@@ -57,6 +57,14 @@ class OllamaLLMClient(LLMClient):
         kwargs may contain model options such as temperature, num_ctx, etc.
         """
         url = self.base_url.rstrip("/") + "/api/generate"
+
+        request_timeout = kwargs.pop("request_timeout", None)
+        if request_timeout is None:
+            request_timeout = kwargs.pop("timeout", None)
+        try:
+            effective_timeout = float(request_timeout) if request_timeout is not None else self.timeout
+        except (TypeError, ValueError):  # noqa: BLE001
+            effective_timeout = self.timeout
 
         payload: Dict[str, Any] = {
             "model": self.model,
@@ -74,7 +82,7 @@ class OllamaLLMClient(LLMClient):
 
         try:
             resp = requests.post(
-                url, json=payload, headers=headers, timeout=self.timeout
+                url, json=payload, headers=headers, timeout=effective_timeout
             )
         except Exception as exc:  # pragma: no cover - network errors are runtime concerns
             raise RuntimeError(f"Ollama request failed: {exc}") from exc
