@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -240,7 +241,15 @@ class ExecutionEngine:
         max_depth: int = 50,
     ) -> None:
         self.repository = repository or AgentRepository()
-        self.atomic = AtomicExecutor(llm_client=llm_client, llm_client_factory=llm_client_factory)
+        llm_mode = (os.getenv("AGENTFW_DEFAULT_LLM") or "dummy").lower()
+        fallback_llm: LLMClient
+        if llm_mode == "ollama":
+            fallback_llm = OllamaLLMClient()
+        else:
+            fallback_llm = DummyLLMClient()
+
+        default_llm = llm_client or fallback_llm
+        self.atomic = AtomicExecutor(llm_client=default_llm, llm_client_factory=llm_client_factory)
         self.runs_dir = runs_dir or Path("runs")
         self.max_total_steps = max_total_steps
         self.max_depth = max_depth

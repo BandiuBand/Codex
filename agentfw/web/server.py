@@ -20,7 +20,11 @@ class AgentEditorHandler(SimpleHTTPRequestHandler):
         self.static_dir = Path(__file__).parent / "static"
         self.agents_dir = self._find_agents_dir()
         self.repository = AgentRepository(self.agents_dir)
-        self.engine = ExecutionEngine(repository=self.repository, llm_client_factory=self._build_llm_factory())
+        self.engine = ExecutionEngine(
+            repository=self.repository,
+            llm_client=OllamaLLMClient(),
+            llm_client_factory=self._build_llm_factory(),
+        )
         super().__init__(*args, directory=str(self.static_dir), **kwargs)
 
     def end_headers(self) -> None:  # type: ignore[override]
@@ -147,6 +151,9 @@ class AgentEditorHandler(SimpleHTTPRequestHandler):
         except ValueError as exc:
             return self._json_error(str(exc), status=HTTPStatus.BAD_REQUEST)
         input_json = payload.get("input") or payload.get("input_json") or {}
+        if isinstance(input_json, dict) and "task" in input_json and "завдання" not in input_json:
+            input_json = dict(input_json)
+            input_json["завдання"] = input_json.get("task")
         if not isinstance(input_json, dict):
             return self._json_error("input має бути об’єктом", status=HTTPStatus.BAD_REQUEST)
         if not agent_name:
