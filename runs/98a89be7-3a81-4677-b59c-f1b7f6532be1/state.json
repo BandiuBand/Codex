@@ -1,0 +1,19 @@
+{
+  "agent": "adaptive_task_agent",
+  "run_id": "98a89be7-3a81-4677-b59c-f1b7f6532be1",
+  "ok": false,
+  "vars": {
+    "task": "Напиши агента що може працювати над задачею 24/7, запитувати у людини питання якщо щось не зрозумыло, намагатись допомогти юзерові в його житті",
+    "classify.code": "text = str(task_text)\nis_complex = len(text) > 30\noriginal_task = text\n",
+    "code": "text = str(task_text)\nis_complex = len(text) > 30\noriginal_task = text\n",
+    "classify.task_text": null,
+    "task_text": null,
+    "classify.is_complex": false,
+    "is_complex": false,
+    "classify.original_task": "None",
+    "original_task": "None",
+    "класифікація": false
+  },
+  "error": "LLM agent requires host via змінні агента",
+  "created_at": 1766115249
+}

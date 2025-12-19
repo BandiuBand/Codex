@@ -1,0 +1,12 @@
+{
+  "trace": [
+    {
+      "agent": "llm_ollama",
+      "kind": "atomic",
+      "outputs": {
+        "output_text": "LLM(llama3)@http://127.0.0.1:11434: ",
+        "результат": "LLM(llama3)@http://127.0.0.1:11434: "
+      }
+    }
+  ]
+}

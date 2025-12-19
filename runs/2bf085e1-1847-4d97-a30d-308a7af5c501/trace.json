@@ -1,0 +1,9 @@
+{
+  "trace": [
+    {
+      "agent": "task_classifier",
+      "kind": "atomic",
+      "outputs": {}
+    }
+  ]
+}
