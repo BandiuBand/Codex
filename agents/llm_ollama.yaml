@@ -5,15 +5,12 @@ kind: atomic
 executor: llm
 inputs:
   - name: prompt
-locals:
   - name: ollama_host
-    value: http://127.0.0.1:11434
+    required: true
   - name: options
-    value:
-      model: qwen3:32b
-      temperature: 0.2
+    required: true
   - name: parse_json
-    value: false
+    required: true
 outputs:
   - name: результат
   - name: output_text
