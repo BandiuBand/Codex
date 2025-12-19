@@ -1,0 +1,25 @@
+name: llm_summary
+title_ua: Підсумовуюча відповідь
+description_ua: LLM формує фінальну відповідь за результатами виконання плану
+kind: atomic
+executor: llm
+inputs:
+  - name: завдання
+  - name: виконані_кроки
+  - name: пройшло_перевірку
+  - name: коментар_цербера
+  - name: next_stage_hint
+  - name: ollama_host
+  - name: ollama_model
+  - name: temperature
+locals:
+  - name: prompt
+    value: |
+      Підсумуй виконання задачі українською.
+      Завдання: {завдання}
+      Кроки: {виконані_кроки}
+      Перевірка: {пройшло_перевірку}, коментар: {коментар_цербера}
+      Якщо next_stage_hint непорожній ({next_stage_hint}), додай пропозицію наступного етапу.
+      Видай лаконічну відповідь.
+outputs:
+  - name: результат
