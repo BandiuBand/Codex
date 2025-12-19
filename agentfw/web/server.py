@@ -161,8 +161,27 @@ class AgentEditorHandler(SimpleHTTPRequestHandler):
         try:
             state = self.engine.run_to_completion(agent_name, input_json=input_json)
         except Exception as exc:  # noqa: BLE001
-            return self._send_json({"ok": False, "vars": {}, "log": [], "error": str(exc)}, status=HTTPStatus.INTERNAL_SERVER_ERROR)
-        payload = {"ok": True, "vars": state.vars, "log": state.trace, "error": None, "run_id": state.run_id}
+            return self._send_json(
+                {
+                    "ok": False,
+                    "status": "error",
+                    "vars": {},
+                    "log": [],
+                    "error": str(exc),
+                },
+                status=HTTPStatus.INTERNAL_SERVER_ERROR,
+            )
+        payload = {
+            "ok": state.ok,
+            "status": getattr(state, "status", "ok" if state.ok else "error"),
+            "vars": state.vars,
+            "log": state.trace,
+            "error": state.error,
+            "run_id": state.run_id,
+            "missing_inputs": getattr(state, "missing_inputs", None),
+            "questions_to_user": getattr(state, "questions_to_user", None),
+            "why_blocked": getattr(state, "why_blocked", None),
+        }
         return self._send_json(payload)
 
 
