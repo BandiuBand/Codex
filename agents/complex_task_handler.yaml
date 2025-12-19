@@ -127,6 +127,17 @@ graph:
             lane_index: 3
             order: 0
     - items:
+        - id: execution_map
+          agent: execution_result_mapper
+          bindings:
+            - from_agent_item_id: executor
+              from_var: output_json
+              to_agent_item_id: execution_map
+              to_var: виконання_json
+          ui:
+            lane_index: 3
+            order: 1
+    - items:
         - id: summary
           agent: llm_summary
           bindings:
@@ -198,23 +209,23 @@ graph:
       from_var: результат
       to_agent_item_id: "__CTX__"
       to_var: нормалізований_план
-    - from_agent_item_id: executor
+    - from_agent_item_id: execution_map
       from_var: виконані_кроки
       to_agent_item_id: "__CTX__"
       to_var: виконані_кроки
-    - from_agent_item_id: executor
+    - from_agent_item_id: execution_map
       from_var: пройшло_перевірку
       to_agent_item_id: "__CTX__"
       to_var: пройшло_перевірку
-    - from_agent_item_id: executor
+    - from_agent_item_id: execution_map
       from_var: коментар_цербера
       to_agent_item_id: "__CTX__"
       to_var: коментар_цербера
-    - from_agent_item_id: executor
+    - from_agent_item_id: execution_map
       from_var: потрібно_повторити
       to_agent_item_id: "__CTX__"
       to_var: потрібно_повторити
-    - from_agent_item_id: executor
+    - from_agent_item_id: execution_map
       from_var: результат_виконання
       to_agent_item_id: "__CTX__"
       to_var: результат_виконання

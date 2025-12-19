@@ -3,143 +3,139 @@ title_ua: Адаптивний агент для завдань
 description_ua: Обирає простий або складний ланцюжок виконання залежно від задачі
 kind: composite
 inputs:
-- name: завдання
-locals:
-- name: ollamaModel
-  value: qwen3:32b
-- name: ollamaHost
-  value: http://127.0.0.1:11434
-- name: temperature
-  value: 0.2
-- name: max_reviews
-  value: 5
+  - name: завдання
+  - name: ollama_host
+  - name: ollama_model
+  - name: temperature
+  - name: max_reviews
+locals: []
 outputs:
-- name: is_complex
-- name: класифікація
-- name: фінальна_відповідь
-- name: швидка_відповідь
-- name: план
-- name: кроки
-- name: критерії
-- name: виконані_кроки
-- name: пройшло_перевірку
-- name: коментар_цербера
-- name: потрібно_повторити
+  - name: is_complex
+  - name: класифікація
+  - name: фінальна_відповідь
+  - name: швидка_відповідь
+  - name: план
+  - name: кроки
+  - name: критерії
+  - name: виконані_кроки
+  - name: пройшло_перевірку
+  - name: коментар_цербера
+  - name: потрібно_повторити
 graph:
   lanes:
-  - items:
-    - id: classify
-      agent: task_classifier
-      bindings:
-      - from_agent_item_id: __CTX__
-        from_var: завдання
-        to_agent_item_id: classify
-        to_var: task_text
-      ui:
-        lane_index: 0
-        order: 0
-  - items:
-    - id: simple
-      agent: llm_simple_answer
-      bindings:
-      - from_agent_item_id: __CTX__
-        from_var: temperature
-        to_agent_item_id: simple
-        to_var: temperature
-      - from_agent_item_id: __CTX__
-        from_var: ollamaHost
-        to_agent_item_id: simple
-        to_var: ollama_host
-      - from_agent_item_id: __CTX__
-        from_var: ollamaModel
-        to_agent_item_id: simple
-        to_var: ollama_model
-      - from_agent_item_id: __CTX__
-        from_var: завдання
-        to_agent_item_id: simple
-        to_var: task_text
-      when:
-        var: is_complex
-        equals: false
-      ui:
-        lane_index: 1
-        order: 0
-  - items:
-    - id: complex
-      agent: complex_task_handler
-      bindings:
-      - from_agent_item_id: __CTX__
-        from_var: завдання
-        to_agent_item_id: complex
-        to_var: завдання
-      - from_agent_item_id: __CTX__
-        from_var: max_reviews
-        to_agent_item_id: complex
-        to_var: max_reviews
-      - from_agent_item_id: __CTX__
-        from_var: ollamaModel
-        to_agent_item_id: complex
-        to_var: ollama_model
-      - from_agent_item_id: __CTX__
-        from_var: temperature
-        to_agent_item_id: complex
-        to_var: temperature
-      - from_agent_item_id: __CTX__
-        from_var: ollamaHost
-        to_agent_item_id: complex
-        to_var: ollama_host
-      when:
-        var: is_complex
-        equals: true
-      ui:
-        lane_index: 2
-        order: 0
+    - items:
+        - id: classify
+          agent: task_classifier
+          bindings:
+            - from_agent_item_id: "__CTX__"
+              from_var: завдання
+              to_agent_item_id: classify
+              to_var: task_text
+          ui:
+            lane_index: 0
+            order: 0
+    - items:
+        - id: simple
+          agent: llm_simple_answer
+          when:
+            var: is_complex
+            equals: false
+          bindings:
+            - from_agent_item_id: "__CTX__"
+              from_var: завдання
+              to_agent_item_id: simple
+              to_var: task_text
+            - from_agent_item_id: "__CTX__"
+              from_var: ollama_host
+              to_agent_item_id: simple
+              to_var: ollama_host
+            - from_agent_item_id: "__CTX__"
+              from_var: ollama_model
+              to_agent_item_id: simple
+              to_var: ollama_model
+            - from_agent_item_id: "__CTX__"
+              from_var: temperature
+              to_agent_item_id: simple
+              to_var: temperature
+          ui:
+            lane_index: 1
+            order: 0
+    - items:
+        - id: complex
+          agent: complex_task_handler
+          when:
+            var: is_complex
+            equals: true
+          bindings:
+            - from_agent_item_id: "__CTX__"
+              from_var: завдання
+              to_agent_item_id: complex
+              to_var: завдання
+            - from_agent_item_id: "__CTX__"
+              from_var: ollama_host
+              to_agent_item_id: complex
+              to_var: ollama_host
+            - from_agent_item_id: "__CTX__"
+              from_var: ollama_model
+              to_agent_item_id: complex
+              to_var: ollama_model
+            - from_agent_item_id: "__CTX__"
+              from_var: temperature
+              to_agent_item_id: complex
+              to_var: temperature
+            - from_agent_item_id: "__CTX__"
+              from_var: max_reviews
+              to_agent_item_id: complex
+              to_var: max_reviews
+          ui:
+            lane_index: 2
+            order: 0
   __ctx_bindings:
-  - from_agent_item_id: classify
-    from_var: is_complex
-    to_agent_item_id: __CTX__
-    to_var: is_complex
-  - from_agent_item_id: classify
-    from_var: is_complex
-    to_agent_item_id: __CTX__
-    to_var: класифікація
-  - from_agent_item_id: simple
-    from_var: результат
-    to_agent_item_id: __CTX__
-    to_var: фінальна_відповідь
-  - from_agent_item_id: simple
-    from_var: результат
-    to_agent_item_id: __CTX__
-    to_var: швидка_відповідь
-  - from_agent_item_id: complex
-    from_var: фінальна_відповідь
-    to_agent_item_id: __CTX__
-    to_var: фінальна_відповідь
-  - from_agent_item_id: complex
-    from_var: план
-    to_agent_item_id: __CTX__
-    to_var: план
-  - from_agent_item_id: complex
-    from_var: кроки
-    to_agent_item_id: __CTX__
-    to_var: кроки
-  - from_agent_item_id: complex
-    from_var: критерії
-    to_agent_item_id: __CTX__
-    to_var: критерії
-  - from_agent_item_id: complex
-    from_var: виконані_кроки
-    to_agent_item_id: __CTX__
-    to_var: виконані_кроки
-  - from_agent_item_id: complex
-    from_var: пройшло_перевірку
-    to_agent_item_id: __CTX__
-    to_var: пройшло_перевірку
-  - from_agent_item_id: complex
-    from_var: коментар_цербера
-    to_agent_item_id: __CTX__
-    to_var: коментар_цербера
-  - from_agent_item_id: complex
-    from_var: потрібно_повторити
-    to_agent_item_id: __CTX__
-    to_var: потрібно_повторити
+    - from_agent_item_id: classify
+      from_var: is_complex
+      to_agent_item_id: "__CTX__"
+      to_var: is_complex
+    - from_agent_item_id: classify
+      from_var: is_complex
+      to_agent_item_id: "__CTX__"
+      to_var: класифікація
+    - from_agent_item_id: simple
+      from_var: результат
+      to_agent_item_id: "__CTX__"
+      to_var: фінальна_відповідь
+    - from_agent_item_id: simple
+      from_var: результат
+      to_agent_item_id: "__CTX__"
+      to_var: швидка_відповідь
+    - from_agent_item_id: complex
+      from_var: фінальна_відповідь
+      to_agent_item_id: "__CTX__"
+      to_var: фінальна_відповідь
+    - from_agent_item_id: complex
+      from_var: план
+      to_agent_item_id: "__CTX__"
+      to_var: план
+    - from_agent_item_id: complex
+      from_var: кроки
+      to_agent_item_id: "__CTX__"
+      to_var: кроки
+    - from_agent_item_id: complex
+      from_var: критерії
+      to_agent_item_id: "__CTX__"
+      to_var: критерії
+    - from_agent_item_id: complex
+      from_var: виконані_кроки
+      to_agent_item_id: "__CTX__"
+      to_var: виконані_кроки
+    - from_agent_item_id: complex
+      from_var: пройшло_перевірку
+      to_agent_item_id: "__CTX__"
+      to_var: пройшло_перевірку
+    - from_agent_item_id: complex
+      from_var: коментар_цербера
+      to_agent_item_id: "__CTX__"
+      to_var: коментар_цербера
+    - from_agent_item_id: complex
+      from_var: потрібно_повторити
+      to_agent_item_id: "__CTX__"
+      to_var: потрібно_повторити

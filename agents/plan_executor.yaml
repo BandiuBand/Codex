@@ -1,63 +1,39 @@
 name: plan_executor
 title_ua: Виконання плану з перевіркою
-description_ua: Послідовно виконує кроки плану та моделює перевірку агентом Цербер
+description_ua: LLM симулює виконання кроків і перевірку їх відповідності критеріям
 kind: atomic
-executor: python
+executor: llm
 inputs:
   - name: завдання
   - name: кроки
   - name: критерії
   - name: max_reviews
 locals:
-  - name: code
+  - name: parse_json
+    value: true
+  - name: prompt
     value: |
-      from typing import Any
-      def review_step(step: str, criterion: str, attempt: int) -> tuple[bool, str]:
-          text = step.lower()
-          if 'повтор' in text and attempt == 1:
-              return False, 'Цербер просить перевиконати крок'
-          if 'даних' in text and 'нема' in text:
-              return False, 'Цербер: забагато невідомих'
-          return True, 'Цербер прийняв'
+      Ти агент-"Цербер", який виконує та перевіряє план задачі.
+      Завдання: {завдання}
+      Кроки: {кроки}
+      Критерії: {критерії}
+      Максимальна кількість перевірок для одного кроку: {max_reviews}
 
-      steps: list[str] = list(кроки or []) if isinstance(кроки, (list, tuple)) else []
-      crits: list[str] = list(критерії or []) if isinstance(критерії, (list, tuple)) else []
-      limit = int(max_reviews or 2)
-      results: list[dict[str, Any]] = []
-      overall_ok = True
-      comments: list[str] = []
+      Для кожного кроку:
+      - Опиши короткий результат виконання.
+      - Порівняй із відповідним критерієм.
+      - Якщо крок не проходить, врахуй, що він може бути перероблений ще раз до {max_reviews} разів.
 
-      for idx, step in enumerate(steps):
-          criterion = crits[idx] if idx < len(crits) else 'Критерій відсутній'
-          attempt = 0
-          accepted = False
-          comment = ''
-          while attempt < limit and not accepted:
-              attempt += 1
-              accepted, comment = review_step(str(step), str(criterion), attempt)
-              if not accepted and attempt < limit:
-                  comment = f"{comment} (спроба {attempt})"
-          if not accepted:
-              overall_ok = False
-          comments.append(comment)
-          results.append(
-              {
-                  'крок': str(step),
-                  'критерій': str(criterion),
-                  'спроб': attempt,
-                  'прийнято': accepted,
-                  'коментар': comment,
-                  'результат': f"Результат кроку {idx + 1}: {step}",
-              }
-          )
-
-      підсумок = "Усі кроки пройшли перевірку" if overall_ok else "Деякі кроки потребують уваги"
-      виконані_кроки = results
-      пройшло_перевірку = overall_ok
-      коментар_цербера = "; ".join(comments)
-      потрібно_повторити = not overall_ok
-      результат_виконання = підсумок
+      Поверни тільки JSON з полями:
+      - executed_steps: список об'єктів {{"крок", "критерій", "результат", "коментар", "прийнято", "спроб"}}
+      - passed: true/false чи пройшов увесь план перевірку
+      - cerber_comment: стислий підсумок від Цербера
+      - needs_retry: чи треба повторити будь-який крок
+      - summary: загальний підсумок виконання
 outputs:
+  - name: результат
+  - name: output_json
+  - name: json_error
   - name: виконані_кроки
   - name: пройшло_перевірку
   - name: коментар_цербера

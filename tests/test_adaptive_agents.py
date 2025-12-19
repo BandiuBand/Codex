@@ -15,6 +15,12 @@ class ScriptedLLM(LLMClient):
     def generate(self, prompt: str, **kwargs: object) -> str:  # noqa: ANN003
         self.calls.append({"prompt": prompt, "kwargs": kwargs})
         lowered = prompt.lower()
+        if "визначи чи завдання є складним" in lowered:
+            if "коротке завдання" in lowered:
+                is_complex = False
+            else:
+                is_complex = "довге" in lowered or "дуже довге" in lowered or len(prompt) > 200
+            return json.dumps({"is_complex": is_complex, "reason": "rule based"})
         if "швидка відповідь" in lowered:
             return "LLM_SIMPLE:" + prompt[:32]
         if "перевіряє готовність" in lowered or "готовність" in lowered:
@@ -30,6 +36,33 @@ class ScriptedLLM(LLMClient):
                 {
                     "steps": ["Крок 1: підготувати дані", "Крок 2: виконати дію"],
                     "criteria": ["Перевірити дані", "Перевірити вихід"],
+                }
+            )
+        if "агент-\"цербер\"" in lowered:
+            return json.dumps(
+                {
+                    "executed_steps": [
+                        {
+                            "крок": "Крок 1: підготувати дані",
+                            "критерій": "Перевірити дані",
+                            "результат": "дані підготовлені",
+                            "коментар": "ок",
+                            "прийнято": True,
+                            "спроб": 1,
+                        },
+                        {
+                            "крок": "Крок 2: виконати дію",
+                            "критерій": "Перевірити вихід",
+                            "результат": "дію виконано",
+                            "коментар": "ок",
+                            "прийнято": True,
+                            "спроб": 1,
+                        },
+                    ],
+                    "passed": True,
+                    "cerber_comment": "усі кроки прийнято",
+                    "needs_retry": False,
+                    "summary": "Усі кроки пройшли",
                 }
             )
         if "підсумуй виконання" in lowered:
