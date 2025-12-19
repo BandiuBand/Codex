@@ -1,0 +1,34 @@
+name: execution_result_mapper
+title_ua: Інтерпретація результатів виконання
+description_ua: Перетворює JSON-відповідь Цербера на окремі поля
+kind: atomic
+executor: python
+inputs:
+  - name: виконання_json
+locals:
+  - name: code
+    value: |
+      import json as json_lib
+
+      data = виконання_json
+      if isinstance(data, str):
+          try:
+              data = json_lib.loads(data)
+          except Exception:  # noqa: BLE001
+              data = {}
+      executed = data.get("executed_steps") if isinstance(data, dict) else None
+      if executed is None:
+          executed = []
+      if isinstance(executed, dict):
+          executed = [executed]
+      виконані_кроки = list(executed)
+      пройшло_перевірку = bool(data.get("passed")) if isinstance(data, dict) else False
+      коментар_цербера = str(data.get("cerber_comment") or "") if isinstance(data, dict) else ""
+      потрібно_повторити = bool(data.get("needs_retry")) if isinstance(data, dict) else False
+      результат_виконання = str(data.get("summary") or "") if isinstance(data, dict) else ""
+outputs:
+  - name: виконані_кроки
+  - name: пройшло_перевірку
+  - name: коментар_цербера
+  - name: потрібно_повторити
+  - name: результат_виконання

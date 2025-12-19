@@ -1,0 +1,23 @@
+name: task_classifier_llm
+title_ua: LLM класифікація задачі
+description_ua: Визначає складність задачі через LLM-оцінку
+kind: atomic
+executor: llm
+inputs:
+  - name: task_text
+locals:
+  - name: parse_json
+    value: true
+  - name: prompt
+    value: |
+      Визначи чи завдання є складним і потребує багатокрокового плану.
+      Завдання: {task_text}
+
+      Відповідай JSON-ом з полями:
+      - is_complex: true/false
+      - reason: коротке пояснення
+      Поверни лише JSON без пояснень.
+outputs:
+  - name: результат
+  - name: output_json
+  - name: json_error
