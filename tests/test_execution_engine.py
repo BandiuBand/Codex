@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -22,6 +23,49 @@ def _save_atomic(tmp_path, name: str, code: str, output_name: str) -> None:
         outputs=[VarSpec(name=output_name)],
     )
     save_agent_spec(tmp_path / f"{name}.yaml", spec)
+
+
+def test_execution_state_status_and_error_persistence(tmp_path) -> None:
+    success_spec = AgentSpec(
+        name="ok_agent",
+        title_ua="ok_agent",
+        description_ua=None,
+        kind="atomic",
+        executor="python",
+        inputs=[],
+        locals=[LocalVarSpec(name="code", value="result = 'done'")],
+        outputs=[VarSpec(name="result")],
+    )
+    failing_spec = AgentSpec(
+        name="fail_agent",
+        title_ua="fail_agent",
+        description_ua=None,
+        kind="atomic",
+        executor="shell",
+        inputs=[VarSpec(name="command")],
+        locals=[],
+        outputs=[VarSpec(name="return_code")],
+    )
+    save_agent_spec(tmp_path / "ok_agent.yaml", success_spec)
+    save_agent_spec(tmp_path / "fail_agent.yaml", failing_spec)
+
+    runs_dir = tmp_path / "runs"
+    engine = ExecutionEngine(repository=AgentRepository(tmp_path), runs_dir=runs_dir)
+
+    state = engine.run_to_completion("ok_agent", input_json={})
+    assert state.status == "ok"
+    ok_payload = json.loads((runs_dir / state.run_id / "state.json").read_text())
+    assert ok_payload["status"] == "ok"
+    assert ok_payload["ok"] is True
+
+    with pytest.raises(RuntimeError):
+        engine.run_to_completion("fail_agent", input_json={"command": "false"})
+
+    state_files = sorted(runs_dir.glob("*/state.json"), key=lambda path: path.stat().st_mtime)
+    error_payload = json.loads(state_files[-1].read_text())
+    assert error_payload["status"] == "error"
+    assert error_payload["ok"] is False
+    assert error_payload.get("error")
 
 
 def test_composite_lane_barrier_and_skip(tmp_path) -> None:

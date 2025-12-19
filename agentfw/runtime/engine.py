@@ -64,10 +64,14 @@ class ExecutionTrace:
 class ExecutionState:
     agent_name: str
     run_id: str
-    ok: bool
+    status: str
     vars: Dict[str, Any]
     trace: List[Dict[str, Any]]
+    ok: bool
     error: Optional[str] = None
+    missing_inputs: Optional[List[str]] = None
+    questions_to_user: Optional[List[str]] = None
+    why_blocked: Optional[str] = None
 
 
 class ExecutionContext:
@@ -268,6 +272,7 @@ class ExecutionEngine:
             state = ExecutionState(
                 agent_name=agent_name,
                 run_id=str(uuid.uuid4()),
+                status="ok",
                 ok=True,
                 vars=ctx.variables,
                 trace=trace.entries,
@@ -277,6 +282,7 @@ class ExecutionEngine:
             state = ExecutionState(
                 agent_name=agent_name,
                 run_id=str(uuid.uuid4()),
+                status="error",
                 ok=False,
                 vars=ctx.variables,
                 trace=trace.entries,
@@ -375,9 +381,13 @@ class ExecutionEngine:
         state_payload = {
             "agent": state.agent_name,
             "run_id": state.run_id,
+            "status": state.status,
             "ok": state.ok,
             "vars": state.vars,
             "error": state.error,
+            "missing_inputs": state.missing_inputs,
+            "questions_to_user": state.questions_to_user,
+            "why_blocked": state.why_blocked,
             "created_at": int(time.time()),
         }
         trace_payload = {"trace": state.trace}
