@@ -1,13 +1,12 @@
 name: llm_prompt_chain
 title_ua: Ланцюжок промпт -> LLM -> вихід
-description_ua: Мінімальний воркфлоу з побудовою промпта та викликом llm_ollama
+description_ua: Мінімальний воркфлоу з побудовою промпта та викликом qwen3_32B
 kind: composite
 inputs:
   - name: користувацький_запит
-  - name: ollama_host
-  - name: ollama_model
-  - name: temperature
-locals: []
+locals:
+  - name: використана_модель
+    value: qwen3:32b
 outputs:
   - name: prompt
   - name: результат
@@ -28,24 +27,12 @@ graph:
             order: 0
     - items:
         - id: llm
-          agent: llm_ollama
+          agent: qwen3_32B
           bindings:
             - from_agent_item_id: "__CTX__"
               from_var: prompt
               to_agent_item_id: llm
               to_var: prompt
-            - from_agent_item_id: "__CTX__"
-              from_var: ollama_host
-              to_agent_item_id: llm
-              to_var: ollama_host
-            - from_agent_item_id: "__CTX__"
-              from_var: ollama_model
-              to_agent_item_id: llm
-              to_var: ollama_model
-            - from_agent_item_id: "__CTX__"
-              from_var: temperature
-              to_agent_item_id: llm
-              to_var: temperature
           ui:
             lane_index: 1
             order: 0
@@ -58,7 +45,7 @@ graph:
               to_agent_item_id: finisher
               to_var: llm_text
             - from_agent_item_id: "__CTX__"
-              from_var: ollama_model
+              from_var: використана_модель
               to_agent_item_id: finisher
               to_var: модель
           ui:

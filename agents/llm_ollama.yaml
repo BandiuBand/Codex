@@ -6,17 +6,11 @@ executor: llm
 inputs:
   - name: prompt
   - name: ollama_host
-  - name: ollama_model
-  - name: temperature
-locals:
-  - name: ollama_host
-    value: http://127.0.0.1:11434
+    required: true
   - name: options
-    value:
-      model: llama3
-      temperature: 0.2
+    required: true
   - name: parse_json
-    value: false
+    required: true
 outputs:
   - name: результат
   - name: output_text
