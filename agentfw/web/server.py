@@ -84,10 +84,17 @@ class AgentEditorHandler(SimpleHTTPRequestHandler):
 
     @staticmethod
     def _build_llm_factory():  # pragma: no cover - simple wiring
-        mode = (os.getenv("AGENTFW_WEB_LLM_MODE") or "dummy").lower()
-        if mode == "ollama":
-            return lambda host, model: OllamaLLMClient(base_url=host, model=model or "")
-        return lambda host, model: DummyLLMClient(prefix=f"LLM({model})@{host}: ")
+        """Return an LLM client factory based on the configured mode.
+
+        By default we now prioritize real Ollama calls so the API behaves as
+        expected out of the box. To keep the previous mocked behavior, set the
+        environment variable ``AGENTFW_WEB_LLM_MODE`` to ``dummy``.
+        """
+
+        mode = (os.getenv("AGENTFW_WEB_LLM_MODE") or "ollama").lower()
+        if mode == "dummy":
+            return lambda host, model: DummyLLMClient(prefix=f"LLM({model})@{host}: ")
+        return lambda host, model: OllamaLLMClient(base_url=host, model=model or "")
 
     # API
     def _handle_list_agents(self) -> None:
