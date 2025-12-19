@@ -20,7 +20,11 @@ class AgentEditorHandler(SimpleHTTPRequestHandler):
         self.static_dir = Path(__file__).parent / "static"
         self.agents_dir = self._find_agents_dir()
         self.repository = AgentRepository(self.agents_dir)
-        self.engine = ExecutionEngine(repository=self.repository, llm_client_factory=self._build_llm_factory())
+        self.engine = ExecutionEngine(
+            repository=self.repository,
+            llm_client=OllamaLLMClient(),
+            llm_client_factory=self._build_llm_factory(),
+        )
         super().__init__(*args, directory=str(self.static_dir), **kwargs)
 
     def end_headers(self) -> None:  # type: ignore[override]
@@ -84,10 +88,17 @@ class AgentEditorHandler(SimpleHTTPRequestHandler):
 
     @staticmethod
     def _build_llm_factory():  # pragma: no cover - simple wiring
-        mode = (os.getenv("AGENTFW_WEB_LLM_MODE") or "dummy").lower()
-        if mode == "ollama":
-            return lambda host, model: OllamaLLMClient(base_url=host, model=model or "")
-        return lambda host, model: DummyLLMClient(prefix=f"LLM({model})@{host}: ")
+        """Return an LLM client factory based on the configured mode.
+
+        By default we now prioritize real Ollama calls so the API behaves as
+        expected out of the box. To keep the previous mocked behavior, set the
+        environment variable ``AGENTFW_WEB_LLM_MODE`` to ``dummy``.
+        """
+
+        mode = (os.getenv("AGENTFW_WEB_LLM_MODE") or "ollama").lower()
+        if mode == "dummy":
+            return lambda host, model: DummyLLMClient(prefix=f"LLM({model})@{host}: ")
+        return lambda host, model: OllamaLLMClient(base_url=host, model=model or "")
 
     # API
     def _handle_list_agents(self) -> None:
@@ -140,6 +151,9 @@ class AgentEditorHandler(SimpleHTTPRequestHandler):
         except ValueError as exc:
             return self._json_error(str(exc), status=HTTPStatus.BAD_REQUEST)
         input_json = payload.get("input") or payload.get("input_json") or {}
+        if isinstance(input_json, dict) and "task" in input_json and "завдання" not in input_json:
+            input_json = dict(input_json)
+            input_json["завдання"] = input_json.get("task")
         if not isinstance(input_json, dict):
             return self._json_error("input має бути об’єктом", status=HTTPStatus.BAD_REQUEST)
         if not agent_name:
