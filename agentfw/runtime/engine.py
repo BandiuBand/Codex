@@ -64,10 +64,28 @@ class ExecutionTrace:
 class ExecutionState:
     agent_name: str
     run_id: str
-    ok: bool
+    status: str
     vars: Dict[str, Any]
     trace: List[Dict[str, Any]]
+    ok: bool
     error: Optional[str] = None
+    missing_inputs: Optional[List[str]] = None
+    questions_to_user: Optional[List[str]] = None
+    why_blocked: Optional[str] = None
+
+
+class BlockedExecution(Exception):
+    def __init__(
+        self,
+        *,
+        missing_inputs: Optional[List[str]] = None,
+        questions_to_user: Optional[List[str]] = None,
+        why_blocked: Optional[str] = None,
+    ) -> None:
+        super().__init__(why_blocked or "execution blocked")
+        self.missing_inputs = missing_inputs
+        self.questions_to_user = questions_to_user
+        self.why_blocked = why_blocked
 
 
 class ExecutionContext:
@@ -110,11 +128,22 @@ class AtomicExecutor:
         output_text = client.generate(prompt, **options)
         parse_json = bool(ctx.get("parse_json", False))
         result: Dict[str, Any] = {"output_text": output_text}
-        if "результат" in {v.name for v in spec.outputs}:
+        output_names = {v.name for v in spec.outputs}
+        if "результат" in output_names:
             result["результат"] = output_text
         if parse_json:
             parsed, reason = extract_first_json(output_text)
             result["output_json"] = parsed
+            if isinstance(parsed, dict):
+                if parsed.get("status") == "blocked":
+                    raise BlockedExecution(
+                        missing_inputs=parsed.get("missing_inputs"),
+                        questions_to_user=parsed.get("questions_to_user"),
+                        why_blocked=parsed.get("why_blocked") or parsed.get("reason"),
+                    )
+                preferred_answer = parsed.get("answer") or parsed.get("result") or parsed.get("output")
+                if preferred_answer is not None and "результат" in output_names:
+                    result["результат"] = preferred_answer
             if reason:
                 result["json_error"] = reason
         return self._filter_outputs(result, spec)
@@ -182,6 +211,8 @@ class AtomicExecutor:
         try:
             compiled = compile(code, "<agent_python>", "exec")
             exec(compiled, sandbox, sandbox)  # noqa: S102
+        except BlockedExecution:
+            raise
         except Exception as exc:  # noqa: BLE001
             sandbox["error"] = str(exc)
         if stdout_lines:
@@ -268,22 +299,37 @@ class ExecutionEngine:
             state = ExecutionState(
                 agent_name=agent_name,
                 run_id=str(uuid.uuid4()),
+                status="ok",
                 ok=True,
                 vars=ctx.variables,
                 trace=trace.entries,
                 error=None,
             )
+        except BlockedExecution as blocked:
+            state = ExecutionState(
+                agent_name=agent_name,
+                run_id=str(uuid.uuid4()),
+                status="blocked",
+                ok=False,
+                vars=ctx.variables,
+                trace=trace.entries,
+                error=None,
+                missing_inputs=blocked.missing_inputs,
+                questions_to_user=blocked.questions_to_user,
+                why_blocked=blocked.why_blocked or str(blocked),
+            )
         except Exception as exc:  # noqa: BLE001
             state = ExecutionState(
                 agent_name=agent_name,
                 run_id=str(uuid.uuid4()),
+                status="error",
                 ok=False,
                 vars=ctx.variables,
                 trace=trace.entries,
                 error=str(exc),
             )
         self._persist_state(state)
-        if not state.ok:
+        if not state.ok and state.status != "blocked":
             raise RuntimeError(state.error or "execution failed")
         return state
 
@@ -294,6 +340,7 @@ class ExecutionEngine:
         trace: ExecutionTrace,
         depth: int,
     ) -> None:
+        self._require_inputs(spec, ctx, depth=depth)
         if self._step_counter >= self.max_total_steps:
             raise RuntimeError("max_total_steps exceeded")
         if depth > self.max_depth:
@@ -359,9 +406,18 @@ class ExecutionEngine:
                 prefixed = f"{binding.from_agent_item_id}.{binding.from_var}"
                 value = parent_ctx.get(prefixed, parent_ctx.get(binding.from_var))
             child_vars[binding.to_var] = value
-        for input_spec in spec.inputs:
-            child_vars.setdefault(input_spec.name, None)
         return ExecutionContext(child_vars)
+
+    def _require_inputs(self, spec: AgentSpec, ctx: ExecutionContext, *, depth: int) -> None:
+        if depth > 0:
+            return
+        missing = [var.name for var in spec.inputs if ctx.get(var.name) is None]
+        if missing:
+            raise BlockedExecution(
+                missing_inputs=missing,
+                questions_to_user=[],
+                why_blocked="Не вистачає вхідних змінних",
+            )
 
     @staticmethod
     def _should_run(when: Optional[WhenSpec], ctx: ExecutionContext) -> bool:
@@ -375,9 +431,13 @@ class ExecutionEngine:
         state_payload = {
             "agent": state.agent_name,
             "run_id": state.run_id,
+            "status": state.status,
             "ok": state.ok,
             "vars": state.vars,
             "error": state.error,
+            "missing_inputs": state.missing_inputs,
+            "questions_to_user": state.questions_to_user,
+            "why_blocked": state.why_blocked,
             "created_at": int(time.time()),
         }
         trace_payload = {"trace": state.trace}
@@ -387,6 +447,7 @@ class ExecutionEngine:
 
 __all__ = [
     "AgentRepository",
+    "BlockedExecution",
     "ExecutionContext",
     "ExecutionEngine",
     "ExecutionState",
