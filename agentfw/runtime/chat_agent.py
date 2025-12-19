@@ -35,9 +35,16 @@ class ChatAgentGateway:
     проходять через єдиний вхід ChatAgent.
     """
 
-    def __init__(self, engine: ExecutionEngine, orchestrator: str = "adaptive_task_agent") -> None:
+    def __init__(
+        self,
+        engine: ExecutionEngine,
+        orchestrator: str = "adaptive_task_agent",
+        *,
+        default_max_reviews: int = 1,
+    ) -> None:
         self.engine = engine
         self.orchestrator = orchestrator
+        self.default_max_reviews = default_max_reviews
         self._conversations: Dict[str, ChatConversation] = {}
 
     def send_user_message(
@@ -68,6 +75,7 @@ class ChatAgentGateway:
                 "history": [msg.to_dict() for msg in conversation.history],
                 "attachments": user_envelope.attachments,
                 "expected_output": expected_output,
+                "max_reviews": self.default_max_reviews,
             },
         )
 

@@ -107,3 +107,12 @@ def test_chat_agent_preserves_attachment_list() -> None:
     gateway.send_user_message("hello", attachments=[{"name": "file.txt"}])
 
     assert engine.calls[0]["input"]["attachments"] == [{"name": "file.txt"}]
+
+
+def test_chat_agent_supplies_default_max_reviews() -> None:
+    engine = DummyEngine([_state("ok", vars={"result": "ok"})])
+    gateway = ChatAgentGateway(engine, default_max_reviews=2)
+
+    gateway.send_user_message("do it")
+
+    assert engine.calls[0]["input"]["max_reviews"] == 2

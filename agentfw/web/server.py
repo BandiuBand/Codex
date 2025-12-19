@@ -47,6 +47,8 @@ class AgentEditorHandler(SimpleHTTPRequestHandler):
             return self._handle_get_agent()
         if self.path.startswith("/api/chat/history"):
             return self._handle_chat_history()
+        if self.path == "/chat":
+            self.path = "/chat.html"
         if self.path == "/run":
             self.path = "/run.html"
         if self.path == "/":
