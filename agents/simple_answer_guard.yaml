@@ -1,0 +1,34 @@
+name: simple_answer_guard
+title_ua: Перевірка на вимогу інструментів
+description_ua: Блокує прямі відповіді, якщо задача потребує файлів чи додаткових фактів
+kind: atomic
+executor: python
+inputs:
+  - name: task_text
+locals:
+  - name: code
+    value: |
+      from agentfw.runtime.engine import BlockedExecution
+
+      text = str(task_text or "").strip().lower()
+      if not text:
+          raise BlockedExecution(
+              missing_inputs=["task_text"],
+              questions_to_user=["Опишіть, будь ласка, задачу"],
+              why_blocked="Не отримано змісту запиту",
+          )
+
+      file_triggers = [
+          "файл", "папк", "директор", "repo", "readme", "код", "source", "проект",
+          "прочитай", "відкрий", "переглянь", "list files",
+      ]
+      if any(trigger in text for trigger in file_triggers):
+          raise BlockedExecution(
+              missing_inputs=["необхідний файл або вміст"],
+              questions_to_user=["Який саме файл потрібно прочитати чи оновити?"],
+              why_blocked="Завдання вимагає роботи з файлами, спершу треба уточнення",
+          )
+
+      result = "ok"
+outputs:
+  - name: result
