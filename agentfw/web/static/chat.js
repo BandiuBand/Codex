@@ -25,17 +25,11 @@ async function fetchJSON(url, options = {}) {
   return resp.json();
 }
 
-const STORAGE_KEY = "chatConversationId";
 let conversationId = null;
 let pollTimer = null;
 
 function setConversationId(id) {
   conversationId = id;
-  if (id) {
-    localStorage.setItem(STORAGE_KEY, id);
-  } else {
-    localStorage.removeItem(STORAGE_KEY);
-  }
 }
 
 function renderMessage(message) {
@@ -114,11 +108,11 @@ async function loadHistory({ usePollEndpoint = false } = {}) {
   }
 }
 
-async function sendMessage(event, { autoStart = false } = {}) {
+async function sendMessage(event) {
   event?.preventDefault?.();
   const text = ($("chatMessage")?.value || "").trim();
   const startingConversation = !conversationId;
-  if (!text && !startingConversation && !autoStart) {
+  if (!text && !startingConversation) {
     setStatus("Введіть повідомлення", "error");
     return;
   }
@@ -162,27 +156,5 @@ function bindEvents() {
   $("newConversationBtn")?.addEventListener("click", resetConversation);
   pollTimer = setInterval(() => loadHistory({ usePollEndpoint: true }), 2000);
 }
-
-let autoStarted = false;
-
-function initConversation() {
-  const stored = localStorage.getItem(STORAGE_KEY);
-  if (stored) {
-    setConversationId(stored);
-    loadHistory({ usePollEndpoint: true });
-    setStatus("Відновлено попередню розмову");
-  } else {
-    setStatus("Запитуємо перше повідомлення...");
-    if (!autoStarted) {
-      autoStarted = true;
-      // Автоматично запускаємо розмову, щоб агент одразу поставив питання
-      sendMessage(null, { autoStart: true }).catch((err) => {
-        console.error(err);
-        setStatus("Не вдалося ініціювати розмову", "error");
-      });
-    }
-  }
-}
-
 bindEvents();
-initConversation();
+setStatus("Почніть діалог");

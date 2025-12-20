@@ -23,6 +23,7 @@ class ChatConversation:
     def __init__(self, conversation_id: Optional[str] = None) -> None:
         self.conversation_id = conversation_id or str(uuid.uuid4())
         self.history: List[AgentEnvelope] = []
+        self.last_state: Optional[ExecutionState] = None
 
     def record(self, envelope: AgentEnvelope) -> None:
         self.history.append(envelope)
@@ -56,27 +57,40 @@ class ChatAgentGateway:
         expected_output: Optional[str] = None,
     ) -> ChatResponse:
         conversation = self._get_or_create(conversation_id)
-        user_envelope = AgentEnvelope(
-            conversation_id=conversation.conversation_id,
-            message_id=str(uuid.uuid4()),
-            role="user",
-            timestamp=time.time(),
-            content=content,
-            attachments=list(attachments or []),
-            expected_output=expected_output,
-        )
-        conversation.record(user_envelope)
+        clean_content = (content or "").strip()
+        has_user_message = bool(clean_content)
+
+        if not has_user_message and conversation.last_state and conversation.last_state.status == "blocked":
+            last_chat_reply = next((msg for msg in reversed(conversation.history) if msg.role == "chat"), None)
+            if last_chat_reply:
+                return ChatResponse(
+                    conversation_id=conversation.conversation_id,
+                    status=conversation.last_state.status,
+                    message=last_chat_reply,
+                    run_id=conversation.last_state.run_id,
+                    state=conversation.last_state,
+                )
+
+        if has_user_message:
+            user_envelope = AgentEnvelope(
+                conversation_id=conversation.conversation_id,
+                message_id=str(uuid.uuid4()),
+                role="user",
+                timestamp=time.time(),
+                content=clean_content,
+                attachments=list(attachments or []),
+                expected_output=expected_output,
+            )
+            conversation.record(user_envelope)
 
         try:
-            payload = {
-                "завдання": content,
-                "user_message": content,
-                "max_reviews": self.default_max_reviews,
-            }
+            payload: Dict[str, object] = {"max_reviews": self.default_max_reviews}
+            if has_user_message:
+                payload.update({"завдання": clean_content, "user_message": clean_content})
             if expected_output is not None:
                 payload["expected_output"] = expected_output
-            if user_envelope.attachments:
-                payload["attachments"] = user_envelope.attachments
+            if attachments:
+                payload["attachments"] = attachments
             state = self.engine.run_to_completion(
                 self.orchestrator,
                 input_json=payload,
@@ -107,6 +121,7 @@ class ChatAgentGateway:
             why_blocked=state.why_blocked,
         )
         conversation.record(reply_envelope)
+        conversation.last_state = state
 
         return ChatResponse(
             conversation_id=conversation.conversation_id,
