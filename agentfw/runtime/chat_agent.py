@@ -70,6 +70,7 @@ class ChatAgentGateway:
         try:
             payload = {
                 "завдання": content,
+                "user_message": content,
                 "max_reviews": self.default_max_reviews,
             }
             if expected_output is not None:
