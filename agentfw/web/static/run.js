@@ -63,7 +63,7 @@ async function runAgent() {
     setStatus("Агент виконано");
   } catch (err) {
     console.error(err);
-    setStatus("Помилка виконання", "error");
+    setStatus(err?.message || "Помилка виконання", "error");
   }
 }
 

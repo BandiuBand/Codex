@@ -303,10 +303,6 @@ class ExecutionEngine:
                 or normalized_input.get("task")
                 or ""
             ).strip()
-            if not user_msg:
-                raise ValueError(
-                    "adaptive_task_agent вимагає непорожнє завдання користувача. Надішліть повідомлення через чат."
-                )
             normalized_input.setdefault("завдання", user_msg)
             normalized_input["user_message"] = user_msg
         if "user_message" not in normalized_input and "завдання" in normalized_input:

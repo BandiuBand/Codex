@@ -39,5 +39,7 @@ def test_adaptive_agent_blocks_to_collect_clarifications_via_chat() -> None:
 def test_adaptive_agent_blocks_initially_when_no_task_provided() -> None:
     engine = ExecutionEngine()
 
-    with pytest.raises(ValueError):
-        engine.run_to_completion("adaptive_task_agent", input_json={}, raise_on_error=False)
+    state = engine.run_to_completion("adaptive_task_agent", input_json={}, raise_on_error=False)
+
+    assert state.status == "blocked"
+    assert state.questions_to_user == ["Опиши завдання, яке потрібно виконати"]
