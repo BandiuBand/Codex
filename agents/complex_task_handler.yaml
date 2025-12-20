@@ -50,6 +50,37 @@ graph:
           ui:
             lane_index: 1
             order: 0
+        - id: clarify
+          agent: chat_agent
+          when:
+            var: потрібні_уточнення
+            equals: true
+          bindings:
+            - from_agent_item_id: "__CTX__"
+              from_var: уточнюючі_питання
+              to_agent_item_id: clarify
+              to_var: message_to_user
+            - from_agent_item_id: "__CTX__"
+              from_var: потрібні_уточнення
+              to_agent_item_id: clarify
+              to_var: needs_response
+          ui:
+            lane_index: 1
+            order: 1
+        - id: merge_context
+          agent: clarification_context
+          bindings:
+            - from_agent_item_id: review_map
+              from_var: попередній_контекст
+              to_agent_item_id: merge_context
+              to_var: базовий_контекст
+            - from_agent_item_id: "__CTX__"
+              from_var: відповідь_користувача
+              to_agent_item_id: merge_context
+              to_var: відповідь_користувача
+          ui:
+            lane_index: 1
+            order: 2
     - items:
         - id: planner
           agent: llm_plan_builder
@@ -64,7 +95,7 @@ graph:
               to_var: попередній_контекст
           ui:
             lane_index: 1
-            order: 1
+            order: 3
     - items:
         - id: normalize
           agent: plan_normalizer
@@ -163,6 +194,18 @@ graph:
       to_agent_item_id: "__CTX__"
       to_var: уточнюючі_питання
     - from_agent_item_id: review_map
+      from_var: попередній_контекст
+      to_agent_item_id: "__CTX__"
+      to_var: попередній_контекст
+    - from_agent_item_id: review_map
+      from_var: відповідь_користувача
+      to_agent_item_id: "__CTX__"
+      to_var: відповідь_користувача
+    - from_agent_item_id: clarify
+      from_var: user_message
+      to_agent_item_id: "__CTX__"
+      to_var: відповідь_користувача
+    - from_agent_item_id: merge_context
       from_var: попередній_контекст
       to_agent_item_id: "__CTX__"
       to_var: попередній_контекст
