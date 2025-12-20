@@ -1,0 +1,29 @@
+name: llm_simple_answer_llm
+title_ua: Швидка LLM-відповідь
+description_ua: Формує коротку відповідь або сигналізує про блокування у форматі JSON
+kind: atomic
+executor: llm
+inputs:
+  - name: task_text
+locals:
+  - name: parse_json
+    value: true
+  - name: prompt
+    value: |
+      Маркер: LLM_SIMPLE
+      Ти стислий помічник. Завдання: {task_text}
+
+      Якщо можна дати коротку та точну відповідь без додаткових фактів — зроби це.
+      Якщо даних не вистачає або потрібні файли/інструменти, поверни статус "blocked" і сформуй:
+      - missing_inputs: перелік конкретних фактів чи файлів, яких бракує
+      - questions_to_user: 1-3 конкретні питання, щоб отримати ці дані
+      - why_blocked: стислий опис, чому відповідь неможлива зараз
+
+      Відповідай лише валідним JSON-ом з полями:
+      - status: "ok" або "blocked"
+      - answer: текст відповіді, якщо status=ok
+      - missing_inputs, questions_to_user, why_blocked — якщо status=blocked
+outputs:
+  - name: результат
+  - name: output_json
+  - name: json_error

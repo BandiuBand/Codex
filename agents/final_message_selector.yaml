@@ -1,0 +1,17 @@
+name: final_message_selector
+title_ua: Вибір фінального повідомлення
+description_ua: Обирає підсумковий текст для користувача з наявних результатів
+kind: atomic
+executor: python
+inputs:
+  - name: фінальна_відповідь
+  - name: швидка_відповідь
+locals:
+  - name: code
+    value: |
+      final_text = фінальна_відповідь or швидка_відповідь or ""
+      final_message_to_user = str(final_text)
+      needs_response = False
+outputs:
+  - name: final_message_to_user
+  - name: needs_response

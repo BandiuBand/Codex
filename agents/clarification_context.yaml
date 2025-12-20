@@ -1,0 +1,20 @@
+name: clarification_context
+title_ua: Додавання відповіді користувача
+description_ua: Об'єднує базовий контекст із відповіддю користувача на уточнення
+kind: atomic
+executor: python
+inputs:
+  - name: базовий_контекст
+  - name: відповідь_користувача
+locals:
+  - name: code
+    value: |
+      base = str(базовий_контекст or "").strip()
+      answer = str(відповідь_користувача or "").strip()
+
+      if answer:
+          попередній_контекст = (base + "\n\nВідповідь користувача: " + answer).strip()
+      else:
+          попередній_контекст = base
+outputs:
+  - name: попередній_контекст
