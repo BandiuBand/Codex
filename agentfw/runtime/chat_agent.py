@@ -38,7 +38,7 @@ class ChatAgentGateway:
     def __init__(
         self,
         engine: ExecutionEngine,
-        orchestrator: str = "chat_agent",
+        orchestrator: str = "adaptive_task_agent",
         *,
         default_max_reviews: int = 1,
     ) -> None:
@@ -69,14 +69,13 @@ class ChatAgentGateway:
 
         try:
             payload = {
-                "message": content,
                 "завдання": content,
-                "conversation_id": conversation.conversation_id,
-                "history": [msg.to_dict() for msg in conversation.history],
-                "attachments": user_envelope.attachments,
-                "expected_output": expected_output,
                 "max_reviews": self.default_max_reviews,
             }
+            if expected_output is not None:
+                payload["expected_output"] = expected_output
+            if user_envelope.attachments:
+                payload["attachments"] = user_envelope.attachments
             state = self.engine.run_to_completion(
                 self.orchestrator,
                 input_json=payload,

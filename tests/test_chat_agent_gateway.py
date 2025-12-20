@@ -64,10 +64,7 @@ def test_chat_agent_blocks_and_echoes_questions() -> None:
 
     assert len(engine.calls) == 1
     payload = engine.calls[0]["input"]
-    assert payload["history"]
-    assert payload["history"][0]["role"] == "user"
-    assert payload["history"][0]["content"] == "Привіт"
-    assert payload["message"] == "Привіт"
+    assert payload["завдання"] == "Привіт"
 
 
 def test_chat_agent_reuses_conversation_history() -> None:
