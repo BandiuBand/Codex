@@ -47,6 +47,8 @@ class AgentEditorHandler(SimpleHTTPRequestHandler):
             return self._handle_get_agent()
         if self.path.startswith("/api/chat/history"):
             return self._handle_chat_history()
+        if self.path.startswith("/api/chat/poll"):
+            return self._handle_chat_poll()
         if self.path == "/chat":
             self.path = "/chat.html"
         if self.path == "/run":
@@ -235,6 +237,22 @@ class AgentEditorHandler(SimpleHTTPRequestHandler):
             return self._json_error("conversation_id обов'язковий", status=HTTPStatus.BAD_REQUEST)
         history = [msg.to_dict() for msg in self.chat_agent.history(conversation_id)]
         return self._send_json({"conversation_id": conversation_id, "history": history})
+
+    def _handle_chat_poll(self) -> None:
+        parsed = urlparse(self.path)
+        params = parse_qs(parsed.query)
+        conversation_id = params.get("conversation_id", [""])[0]
+        if not conversation_id:
+            return self._json_error("conversation_id обов'язковий", status=HTTPStatus.BAD_REQUEST)
+        history = [msg.to_dict() for msg in self.chat_agent.history(conversation_id)]
+        status = history[-1].get("status") if history else None
+        return self._send_json(
+            {
+                "conversation_id": conversation_id,
+                "history": history,
+                "status": status,
+            }
+        )
 
 
 def run_server(host: str = "127.0.0.1", port: int = 8000) -> None:

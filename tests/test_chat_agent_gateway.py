@@ -15,7 +15,13 @@ class DummyEngine:
         self.states = states
         self.calls: List[Dict[str, Any]] = []
 
-    def run_to_completion(self, agent_name: str, input_json: Dict[str, Any]) -> ExecutionState:
+    def run_to_completion(
+        self,
+        agent_name: str,
+        input_json: Dict[str, Any],
+        *,
+        raise_on_error: bool = True,
+    ) -> ExecutionState:
         self.calls.append({"agent": agent_name, "input": input_json})
         if not self.states:
             raise AssertionError("No more states configured")
@@ -61,6 +67,7 @@ def test_chat_agent_blocks_and_echoes_questions() -> None:
     assert payload["history"]
     assert payload["history"][0]["role"] == "user"
     assert payload["history"][0]["content"] == "Привіт"
+    assert payload["message"] == "Привіт"
 
 
 def test_chat_agent_reuses_conversation_history() -> None:
@@ -116,3 +123,19 @@ def test_chat_agent_supplies_default_max_reviews() -> None:
     gateway.send_user_message("do it")
 
     assert engine.calls[0]["input"]["max_reviews"] == 2
+
+
+def test_chat_agent_survives_engine_errors() -> None:
+    class ExplodingEngine(DummyEngine):
+        def run_to_completion(
+            self, agent_name: str, input_json: Dict[str, Any], *, raise_on_error: bool = True
+        ) -> ExecutionState:
+            raise RuntimeError("engine boom")
+
+    gateway = ChatAgentGateway(ExplodingEngine([]))
+
+    response = gateway.send_user_message("help")
+
+    assert response.status == "error"
+    assert "boom" in (response.message.content or "")
+    assert response.message.status == "error"

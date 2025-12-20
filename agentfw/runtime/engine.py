@@ -286,7 +286,13 @@ class ExecutionEngine:
         self.max_depth = max_depth
         self._step_counter = 0
 
-    def run_to_completion(self, agent_name: str, input_json: Dict[str, Any]) -> ExecutionState:
+    def run_to_completion(
+        self,
+        agent_name: str,
+        input_json: Dict[str, Any],
+        *,
+        raise_on_error: bool = True,
+    ) -> ExecutionState:
         self._step_counter = 0
         spec = self.repository.get(agent_name)
         ctx_vars: Dict[str, Any] = dict(input_json or {})
@@ -329,7 +335,7 @@ class ExecutionEngine:
                 error=str(exc),
             )
         self._persist_state(state)
-        if not state.ok and state.status != "blocked":
+        if raise_on_error and (not state.ok and state.status != "blocked"):
             raise RuntimeError(state.error or "execution failed")
         return state
 

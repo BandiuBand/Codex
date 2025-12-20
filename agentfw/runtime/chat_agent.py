@@ -38,7 +38,7 @@ class ChatAgentGateway:
     def __init__(
         self,
         engine: ExecutionEngine,
-        orchestrator: str = "adaptive_task_agent",
+        orchestrator: str = "chat_agent",
         *,
         default_max_reviews: int = 1,
     ) -> None:
@@ -67,17 +67,31 @@ class ChatAgentGateway:
         )
         conversation.record(user_envelope)
 
-        state = self.engine.run_to_completion(
-            self.orchestrator,
-            input_json={
+        try:
+            payload = {
+                "message": content,
                 "завдання": content,
                 "conversation_id": conversation.conversation_id,
                 "history": [msg.to_dict() for msg in conversation.history],
                 "attachments": user_envelope.attachments,
                 "expected_output": expected_output,
                 "max_reviews": self.default_max_reviews,
-            },
-        )
+            }
+            state = self.engine.run_to_completion(
+                self.orchestrator,
+                input_json=payload,
+                raise_on_error=False,
+            )
+        except Exception as exc:  # noqa: BLE001
+            state = ExecutionState(
+                agent_name=self.orchestrator,
+                run_id=str(uuid.uuid4()),
+                status="error",
+                ok=False,
+                vars={},
+                trace=[],
+                error=str(exc),
+            )
 
         reply_content = self._extract_reply_content(state)
         reply_envelope = AgentEnvelope(

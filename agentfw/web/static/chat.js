@@ -26,6 +26,7 @@ async function fetchJSON(url, options = {}) {
 }
 
 let conversationId = null;
+let pollTimer = null;
 
 function renderMessage(message) {
   const wrapper = document.createElement("div");
@@ -86,13 +87,17 @@ function renderHistory(history) {
   container.scrollTop = container.scrollHeight;
 }
 
-async function loadHistory() {
+async function loadHistory({ usePollEndpoint = false } = {}) {
   if (!conversationId) return;
   try {
-    const data = await fetchJSON(
-      `/api/chat/history?conversation_id=${encodeURIComponent(conversationId)}`,
-    );
+    const endpoint = usePollEndpoint
+      ? `/api/chat/poll?conversation_id=${encodeURIComponent(conversationId)}`
+      : `/api/chat/history?conversation_id=${encodeURIComponent(conversationId)}`;
+    const data = await fetchJSON(endpoint);
     renderHistory(data.history || []);
+    if (data.status) {
+      setChatStatus(`Статус: ${data.status}`);
+    }
   } catch (err) {
     console.error(err);
     setStatus("Не вдалося завантажити історію", "error");
@@ -135,11 +140,16 @@ function resetConversation() {
   renderHistory([]);
   setChatStatus("Нова розмова");
   setStatus("Почніть діалог");
+  if (pollTimer) {
+    clearInterval(pollTimer);
+    pollTimer = null;
+  }
 }
 
 function bindEvents() {
   $("chatForm")?.addEventListener("submit", sendMessage);
   $("newConversationBtn")?.addEventListener("click", resetConversation);
+  pollTimer = setInterval(() => loadHistory({ usePollEndpoint: true }), 2000);
 }
 
 bindEvents();
