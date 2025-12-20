@@ -11,7 +11,7 @@ def test_chat_agent_blocks_until_user_message():
     )
 
     assert state.status == "blocked"
-    assert state.missing_inputs == ["user_message"]
+    assert state.missing_inputs in (None, [])
     assert state.questions_to_user == ["Дай задачу"]
 
 

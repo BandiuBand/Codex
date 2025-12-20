@@ -11,14 +11,18 @@ locals:
     value: ""
   - name: code
     value: |
+      # Якщо потрібна відповідь користувача, але значення user_message відсутнє,
+      # піднімаємо BlockedExecution із missing_inputs/why_blocked, щоб зовнішній
+      # чат показав питання й зачекав на наступне реальне повідомлення.
       from agentfw.runtime.engine import BlockedExecution
 
       text = message_to_user or ""
       wants_reply = True if needs_response is None else bool(needs_response)
 
       if wants_reply and not user_message:
+          # Блокуємо виконання лише з поясненням/питанням,
+          # не вимагаючи конкретних missing_inputs.
           raise BlockedExecution(
-              missing_inputs=["user_message"],
               questions_to_user=[text] if text else None,
               why_blocked=text or "Очікуємо відповідь користувача",
           )
