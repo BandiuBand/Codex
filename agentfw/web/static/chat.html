@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="utf-8" />
+    <title>Чат із агентом</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="logo">Codex</div>
+      <div class="controls">
+        <a href="/" class="ghost link-btn">Редактор</a>
+        <a href="/run" class="ghost link-btn">Запуск агентів</a>
+      </div>
+    </header>
+
+    <main class="layout chat-layout">
+      <section class="canvas chat-panel">
+        <div class="canvas-top">
+          <div class="canvas-title">Живий чат з оркестратором</div>
+          <div class="chat-status" id="chatStatus">Очікування повідомлення</div>
+        </div>
+        <div id="chatHistory" class="chat-history"></div>
+        <form id="chatForm" class="chat-input" autocomplete="off">
+          <label class="chat-label" for="chatMessage">Повідомлення</label>
+          <textarea id="chatMessage" rows="3" placeholder="Опишіть завдання або дайте відповідь на питання"></textarea>
+          <div class="chat-hint">Чат працює як консоль: усе, що ви бачите, стосується лише поточної сесії сервера.</div>
+          <div class="chat-actions">
+            <label class="chat-inline">
+              Очікуваний результат
+              <select id="expectedOutput">
+                <option value="">Авто</option>
+                <option value="final">Фінальна відповідь</option>
+                <option value="question">Питання до мене</option>
+                <option value="file_written">Файл/звіт</option>
+              </select>
+            </label>
+            <button type="submit" id="sendBtn">Надіслати</button>
+          </div>
+        </form>
+      </section>
+    </main>
+
+    <div id="status" class="status"></div>
+    <script src="/chat.js"></script>
+  </body>
+</html>
