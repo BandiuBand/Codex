@@ -104,6 +104,9 @@ def test_chat_agent_requires_message_content() -> None:
     with pytest.raises(TypeError):  # missing message argument
         gateway.send_user_message()  # type: ignore[arg-type]
 
+    with pytest.raises(ValueError):
+        gateway.send_user_message("   ")
+
 
 def test_chat_agent_preserves_attachment_list() -> None:
     engine = DummyEngine([_state("ok", vars={"result": "ok"})])
@@ -121,55 +124,6 @@ def test_chat_agent_supplies_default_max_reviews() -> None:
     gateway.send_user_message("do it")
 
     assert engine.calls[0]["input"]["max_reviews"] == 2
-
-
-def test_chat_agent_does_not_log_empty_user_message() -> None:
-    engine = DummyEngine(
-        [
-            _state(
-                "blocked",
-                vars={},
-                missing_inputs=["user_message"],
-                questions_to_user=["Опиши завдання, яке потрібно виконати"],
-                why_blocked="Опиши завдання, яке потрібно виконати",
-            )
-        ]
-    )
-    gateway = ChatAgentGateway(engine)
-
-    response = gateway.send_user_message("   ")
-
-    assert response.status == "blocked"
-    history = gateway.history(response.conversation_id)
-    assert [msg.role for msg in history] == ["chat"]
-    payload = engine.calls[0]["input"]
-    assert "user_message" not in payload
-    assert payload["max_reviews"] == 1
-
-
-def test_chat_agent_waits_without_new_user_message() -> None:
-    engine = DummyEngine(
-        [
-            _state(
-                "blocked",
-                vars={},
-                missing_inputs=["user_message"],
-                questions_to_user=["Опиши завдання, яке потрібно виконати"],
-                why_blocked="Опиши завдання, яке потрібно виконати",
-            )
-        ]
-    )
-    gateway = ChatAgentGateway(engine)
-
-    first = gateway.send_user_message("  ")
-    second = gateway.send_user_message("", conversation_id=first.conversation_id)
-
-    assert first.status == "blocked"
-    assert second.status == "blocked"
-    assert len(engine.calls) == 1
-    history = gateway.history(first.conversation_id)
-    assert len(history) == 1
-    assert history[0].content == "Опиши завдання, яке потрібно виконати"
 
 
 def test_chat_agent_survives_engine_errors() -> None:

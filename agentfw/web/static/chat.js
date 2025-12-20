@@ -25,12 +25,8 @@ async function fetchJSON(url, options = {}) {
   return resp.json();
 }
 
-let conversationId = null;
+let conversationId = "default";
 let pollTimer = null;
-
-function setConversationId(id) {
-  conversationId = id;
-}
 
 function renderMessage(message) {
   const wrapper = document.createElement("div");
@@ -111,15 +107,14 @@ async function loadHistory({ usePollEndpoint = false } = {}) {
 async function sendMessage(event) {
   event?.preventDefault?.();
   const text = ($("chatMessage")?.value || "").trim();
-  const startingConversation = !conversationId;
-  if (!text && !startingConversation) {
+  if (!text) {
     setStatus("Введіть повідомлення", "error");
     return;
   }
-  setStatus(startingConversation ? "Запитуємо завдання..." : "Надсилаємо...");
+  setStatus("Надсилаємо...");
   try {
     const payload = {
-      message: text || "",
+      message: text,
       conversation_id: conversationId,
     };
     const expected = $("expectedOutput")?.value;
@@ -129,7 +124,6 @@ async function sendMessage(event) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    setConversationId(data.conversation_id);
     $("chatMessage").value = "";
     setStatus("Відповідь отримано");
     setChatStatus(`Статус: ${data.status}`);
@@ -140,20 +134,8 @@ async function sendMessage(event) {
   }
 }
 
-function resetConversation() {
-  setConversationId(null);
-  renderHistory([]);
-  setChatStatus("Нова розмова");
-  setStatus("Почніть діалог");
-  if (pollTimer) {
-    clearInterval(pollTimer);
-    pollTimer = null;
-  }
-}
-
 function bindEvents() {
   $("chatForm")?.addEventListener("submit", sendMessage);
-  $("newConversationBtn")?.addEventListener("click", resetConversation);
   pollTimer = setInterval(() => loadHistory({ usePollEndpoint: true }), 2000);
 }
 bindEvents();

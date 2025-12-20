@@ -93,9 +93,9 @@ class AgentEditorHandler(SimpleHTTPRequestHandler):
         if not isinstance(message, str):
             raise ValueError("message обов'язковий")
         clean_message = message.strip()
-        if not clean_message and conversation_id:
+        if not clean_message:
             raise ValueError("message обов'язковий")
-        return clean_message if clean_message or conversation_id else ""
+        return clean_message
 
     @staticmethod
     def _find_agents_dir() -> Path:
@@ -209,14 +209,16 @@ class AgentEditorHandler(SimpleHTTPRequestHandler):
             payload = self._read_json()
         except ValueError as exc:
             return self._json_error(str(exc), status=HTTPStatus.BAD_REQUEST)
-        conversation_id = payload.get("conversation_id")
+        conversation_id = payload.get("conversation_id") if isinstance(payload.get("conversation_id"), str) else None
+        if not conversation_id:
+            conversation_id = "default"
         try:
             message = self._normalize_chat_message(payload.get("message") or payload.get("text"), conversation_id)
         except ValueError as exc:
             return self._json_error(str(exc), status=HTTPStatus.BAD_REQUEST)
         response = self.chat_agent.send_user_message(
             message.strip(),
-            conversation_id=conversation_id if isinstance(conversation_id, str) else None,
+            conversation_id=conversation_id,
             attachments=payload.get("attachments") if isinstance(payload.get("attachments"), list) else None,
             expected_output=payload.get("expected_output") if isinstance(payload.get("expected_output"), str) else None,
         )
@@ -242,18 +244,14 @@ class AgentEditorHandler(SimpleHTTPRequestHandler):
     def _handle_chat_history(self) -> None:
         parsed = urlparse(self.path)
         params = parse_qs(parsed.query)
-        conversation_id = params.get("conversation_id", [""])[0]
-        if not conversation_id:
-            return self._json_error("conversation_id обов'язковий", status=HTTPStatus.BAD_REQUEST)
+        conversation_id = params.get("conversation_id", ["default"])[0] or "default"
         history = [msg.to_dict() for msg in self.chat_agent.history(conversation_id)]
         return self._send_json({"conversation_id": conversation_id, "history": history})
 
     def _handle_chat_poll(self) -> None:
         parsed = urlparse(self.path)
         params = parse_qs(parsed.query)
-        conversation_id = params.get("conversation_id", [""])[0]
-        if not conversation_id:
-            return self._json_error("conversation_id обов'язковий", status=HTTPStatus.BAD_REQUEST)
+        conversation_id = params.get("conversation_id", ["default"])[0] or "default"
         history = [msg.to_dict() for msg in self.chat_agent.history(conversation_id)]
         status = history[-1].get("status") if history else None
         return self._send_json(
