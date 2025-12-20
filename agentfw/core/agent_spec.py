@@ -199,6 +199,7 @@ def agent_spec_from_dict(raw: Dict[str, Any]) -> AgentSpec:
     inputs = [_parse_var_spec(v) for v in raw.get("inputs", []) or []]
     locals_vars = [_parse_local_var_spec(v) for v in raw.get("locals", []) or []]
     outputs = [_parse_var_spec(v) for v in raw.get("outputs", []) or []]
+    _validate_unique_names(inputs, locals_vars, outputs)
     graph = _parse_graph_spec(raw["graph"]) if kind == "composite" else None
     if kind == "composite" and graph is None:
         raise ValueError("Composite agent requires 'graph'")
@@ -214,6 +215,25 @@ def agent_spec_from_dict(raw: Dict[str, Any]) -> AgentSpec:
         outputs=outputs,
         graph=graph,
     )
+
+
+def _validate_unique_names(
+    inputs: List[VarSpec], locals_vars: List[LocalVarSpec], outputs: List[VarSpec]
+) -> None:
+    for label, items in (
+        ("input", [var.name for var in inputs]),
+        ("local", [var.name for var in locals_vars]),
+        ("output", [var.name for var in outputs]),
+    ):
+        duplicates: List[str] = []
+        seen = set()
+        for name in items:
+            if name in seen and name not in duplicates:
+                duplicates.append(name)
+            seen.add(name)
+        if duplicates:
+            dup_str = ", ".join(sorted(duplicates))
+            raise ValueError(f"Duplicate {label} variable names are not allowed: {dup_str}")
 
 
 def _varspec_to_dict(var: VarSpec) -> Dict[str, Any]:

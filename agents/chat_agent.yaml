@@ -1,0 +1,126 @@
+name: chat_agent
+title_ua: Вхідний чат-агент
+description_ua: Приймає повідомлення від користувача та делегує їх оркестратору adaptive_task_agent
+kind: composite
+inputs:
+  - name: message
+  - name: conversation_id
+  - name: history
+  - name: attachments
+  - name: expected_output
+  - name: max_reviews
+locals: []
+outputs:
+  - name: final_message_to_user
+  - name: фінальна_відповідь
+  - name: швидка_відповідь
+  - name: план
+  - name: кроки
+  - name: критерії
+  - name: виконані_кроки
+  - name: пройшло_перевірку
+  - name: коментар_цербера
+  - name: потрібно_повторити
+  - name: результат
+  - name: план_json
+  - name: план_як_рядок
+  - name: уточнення
+  - name: уточнюючі_питання
+  - name: резюме
+  - name: аналіз_даних
+  - name: результат_виконання
+  - name: next_stage_hint
+graph:
+  lanes:
+    - items:
+        - id: orchestrator
+          agent: adaptive_task_agent
+          bindings:
+            - from_agent_item_id: "__CTX__"
+              from_var: message
+              to_agent_item_id: orchestrator
+              to_var: завдання
+            - from_agent_item_id: "__CTX__"
+              from_var: max_reviews
+              to_agent_item_id: orchestrator
+              to_var: max_reviews
+          ui:
+            lane_index: 0
+            order: 0
+  __ctx_bindings:
+    - from_agent_item_id: orchestrator
+      from_var: фінальна_відповідь
+      to_agent_item_id: "__CTX__"
+      to_var: фінальна_відповідь
+    - from_agent_item_id: orchestrator
+      from_var: швидка_відповідь
+      to_agent_item_id: "__CTX__"
+      to_var: швидка_відповідь
+    - from_agent_item_id: orchestrator
+      from_var: план
+      to_agent_item_id: "__CTX__"
+      to_var: план
+    - from_agent_item_id: orchestrator
+      from_var: кроки
+      to_agent_item_id: "__CTX__"
+      to_var: кроки
+    - from_agent_item_id: orchestrator
+      from_var: критерії
+      to_agent_item_id: "__CTX__"
+      to_var: критерії
+    - from_agent_item_id: orchestrator
+      from_var: виконані_кроки
+      to_agent_item_id: "__CTX__"
+      to_var: виконані_кроки
+    - from_agent_item_id: orchestrator
+      from_var: пройшло_перевірку
+      to_agent_item_id: "__CTX__"
+      to_var: пройшло_перевірку
+    - from_agent_item_id: orchestrator
+      from_var: коментар_цербера
+      to_agent_item_id: "__CTX__"
+      to_var: коментар_цербера
+    - from_agent_item_id: orchestrator
+      from_var: потрібно_повторити
+      to_agent_item_id: "__CTX__"
+      to_var: потрібно_повторити
+    - from_agent_item_id: orchestrator
+      from_var: план_json
+      to_agent_item_id: "__CTX__"
+      to_var: план_json
+    - from_agent_item_id: orchestrator
+      from_var: план_як_рядок
+      to_agent_item_id: "__CTX__"
+      to_var: план_як_рядок
+    - from_agent_item_id: orchestrator
+      from_var: уточнення
+      to_agent_item_id: "__CTX__"
+      to_var: уточнення
+    - from_agent_item_id: orchestrator
+      from_var: уточнюючі_питання
+      to_agent_item_id: "__CTX__"
+      to_var: уточнюючі_питання
+    - from_agent_item_id: orchestrator
+      from_var: резюме
+      to_agent_item_id: "__CTX__"
+      to_var: резюме
+    - from_agent_item_id: orchestrator
+      from_var: аналіз_даних
+      to_agent_item_id: "__CTX__"
+      to_var: аналіз_даних
+    - from_agent_item_id: orchestrator
+      from_var: результат_виконання
+      to_agent_item_id: "__CTX__"
+      to_var: результат_виконання
+    - from_agent_item_id: orchestrator
+      from_var: next_stage_hint
+      to_agent_item_id: "__CTX__"
+      to_var: next_stage_hint
+    - from_agent_item_id: orchestrator
+      from_var: фінальна_відповідь
+      to_agent_item_id: "__CTX__"
+      to_var: final_message_to_user
+    - from_agent_item_id: orchestrator
+      from_var: швидка_відповідь
+      to_agent_item_id: "__CTX__"
+      to_var: результат
