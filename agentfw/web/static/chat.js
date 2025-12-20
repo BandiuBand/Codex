@@ -25,8 +25,18 @@ async function fetchJSON(url, options = {}) {
   return resp.json();
 }
 
+const STORAGE_KEY = "chatConversationId";
 let conversationId = null;
 let pollTimer = null;
+
+function setConversationId(id) {
+  conversationId = id;
+  if (id) {
+    localStorage.setItem(STORAGE_KEY, id);
+  } else {
+    localStorage.removeItem(STORAGE_KEY);
+  }
+}
 
 function renderMessage(message) {
   const wrapper = document.createElement("div");
@@ -104,11 +114,11 @@ async function loadHistory({ usePollEndpoint = false } = {}) {
   }
 }
 
-async function sendMessage(event) {
-  event?.preventDefault();
+async function sendMessage(event, { autoStart = false } = {}) {
+  event?.preventDefault?.();
   const text = ($("chatMessage")?.value || "").trim();
   const startingConversation = !conversationId;
-  if (!text && !startingConversation) {
+  if (!text && !startingConversation && !autoStart) {
     setStatus("Введіть повідомлення", "error");
     return;
   }
@@ -125,7 +135,7 @@ async function sendMessage(event) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    conversationId = data.conversation_id;
+    setConversationId(data.conversation_id);
     $("chatMessage").value = "";
     setStatus("Відповідь отримано");
     setChatStatus(`Статус: ${data.status}`);
@@ -137,7 +147,7 @@ async function sendMessage(event) {
 }
 
 function resetConversation() {
-  conversationId = null;
+  setConversationId(null);
   renderHistory([]);
   setChatStatus("Нова розмова");
   setStatus("Почніть діалог");
@@ -153,5 +163,26 @@ function bindEvents() {
   pollTimer = setInterval(() => loadHistory({ usePollEndpoint: true }), 2000);
 }
 
+let autoStarted = false;
+
+function initConversation() {
+  const stored = localStorage.getItem(STORAGE_KEY);
+  if (stored) {
+    setConversationId(stored);
+    loadHistory({ usePollEndpoint: true });
+    setStatus("Відновлено попередню розмову");
+  } else {
+    setStatus("Запитуємо перше повідомлення...");
+    if (!autoStarted) {
+      autoStarted = true;
+      // Автоматично запускаємо розмову, щоб агент одразу поставив питання
+      sendMessage(null, { autoStart: true }).catch((err) => {
+        console.error(err);
+        setStatus("Не вдалося ініціювати розмову", "error");
+      });
+    }
+  }
+}
+
 bindEvents();
-setStatus("Почніть діалог");
+initConversation();
