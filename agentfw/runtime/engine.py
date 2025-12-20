@@ -295,7 +295,10 @@ class ExecutionEngine:
     ) -> ExecutionState:
         self._step_counter = 0
         spec = self.repository.get(agent_name)
-        ctx_vars: Dict[str, Any] = dict(input_json or {})
+        normalized_input = dict(input_json or {})
+        if "user_message" not in normalized_input and "завдання" in normalized_input:
+            normalized_input["user_message"] = normalized_input.get("завдання")
+        ctx_vars: Dict[str, Any] = dict(normalized_input)
         for local in spec.locals:
             ctx_vars.setdefault(local.name, local.value)
         ctx = ExecutionContext(ctx_vars)

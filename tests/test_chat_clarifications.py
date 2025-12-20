@@ -23,10 +23,22 @@ def test_adaptive_agent_blocks_to_collect_clarifications_via_chat() -> None:
     engine = ExecutionEngine(llm_client=queue_llm)
 
     state = engine.run_to_completion(
-        "adaptive_task_agent", {"завдання": "", "max_reviews": 1, "user_message": ""}, raise_on_error=False
+        "adaptive_task_agent",
+        {"user_message": "Потрібен план поєднання даних", "max_reviews": 1},
+        raise_on_error=False,
     )
 
     assert state.status == "blocked"
     assert state.questions_to_user == ["Уточніть деталі"]
     assert "user_message" in (state.missing_inputs or [])
     assert queue_llm.responses == []
+
+
+def test_adaptive_agent_blocks_initially_when_no_task_provided() -> None:
+    engine = ExecutionEngine()
+
+    state = engine.run_to_completion("adaptive_task_agent", input_json={}, raise_on_error=False)
+
+    assert state.status == "blocked"
+    assert state.missing_inputs == ["user_message"]
+    assert state.questions_to_user == ["Опиши завдання, яке потрібно виконати"]
