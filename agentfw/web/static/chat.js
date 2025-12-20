@@ -107,14 +107,15 @@ async function loadHistory({ usePollEndpoint = false } = {}) {
 async function sendMessage(event) {
   event?.preventDefault();
   const text = ($("chatMessage")?.value || "").trim();
-  if (!text) {
+  const startingConversation = !conversationId;
+  if (!text && !startingConversation) {
     setStatus("Введіть повідомлення", "error");
     return;
   }
-  setStatus("Надсилаємо...");
+  setStatus(startingConversation ? "Запитуємо завдання..." : "Надсилаємо...");
   try {
     const payload = {
-      message: text,
+      message: text || "",
       conversation_id: conversationId,
     };
     const expected = $("expectedOutput")?.value;

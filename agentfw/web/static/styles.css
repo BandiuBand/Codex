@@ -259,6 +259,11 @@ button:hover {
   color: #7d8590;
 }
 
+.chat-hint {
+  font-size: 12px;
+  color: #7d8590;
+}
+
 .chat-input textarea {
   width: 100%;
   resize: vertical;

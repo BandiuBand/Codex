@@ -89,6 +89,15 @@ class AgentEditorHandler(SimpleHTTPRequestHandler):
         self._send_json({"ok": False, "error": message}, status=status)
 
     @staticmethod
+    def _normalize_chat_message(message: object, conversation_id: object) -> str:
+        if not isinstance(message, str):
+            raise ValueError("message обов'язковий")
+        clean_message = message.strip()
+        if not clean_message and conversation_id:
+            raise ValueError("message обов'язковий")
+        return clean_message if clean_message or conversation_id else ""
+
+    @staticmethod
     def _find_agents_dir() -> Path:
         env = Path.cwd()
         for parent in [env] + list(env.parents):
@@ -200,10 +209,11 @@ class AgentEditorHandler(SimpleHTTPRequestHandler):
             payload = self._read_json()
         except ValueError as exc:
             return self._json_error(str(exc), status=HTTPStatus.BAD_REQUEST)
-        message = payload.get("message") or payload.get("text")
         conversation_id = payload.get("conversation_id")
-        if not isinstance(message, str) or not message.strip():
-            return self._json_error("message обов'язковий", status=HTTPStatus.BAD_REQUEST)
+        try:
+            message = self._normalize_chat_message(payload.get("message") or payload.get("text"), conversation_id)
+        except ValueError as exc:
+            return self._json_error(str(exc), status=HTTPStatus.BAD_REQUEST)
         response = self.chat_agent.send_user_message(
             message.strip(),
             conversation_id=conversation_id if isinstance(conversation_id, str) else None,
