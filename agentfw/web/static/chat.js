@@ -25,7 +25,7 @@ async function fetchJSON(url, options = {}) {
   return resp.json();
 }
 
-let conversationId = "default";
+let lastMessageId = null;
 let pollTimer = null;
 
 function renderMessage(message) {
@@ -34,47 +34,13 @@ function renderMessage(message) {
 
   const header = document.createElement("div");
   header.className = "chat-meta";
-  header.textContent = message.role === "user" ? "Користувач" : "Агент";
+  header.textContent = message.role === "user" ? "Користувач" : message.author || "Агент";
   wrapper.appendChild(header);
 
   const bubble = document.createElement("div");
   bubble.className = "chat-bubble";
-  bubble.textContent = message.content || "";
+  bubble.textContent = message.text || message.content || "";
   wrapper.appendChild(bubble);
-
-  if (message.status && message.status !== "ok") {
-    const statusLine = document.createElement("div");
-    statusLine.className = `chat-status-line status-${message.status}`;
-    statusLine.textContent = `Статус: ${message.status}`;
-    wrapper.appendChild(statusLine);
-  }
-
-  if (message.questions_to_user?.length) {
-    const list = document.createElement("ul");
-    list.className = "chat-questions";
-    message.questions_to_user.forEach((q) => {
-      const li = document.createElement("li");
-      li.textContent = q;
-      list.appendChild(li);
-    });
-    wrapper.appendChild(list);
-  }
-
-  if (message.missing_inputs?.length) {
-    const info = document.createElement("div");
-    info.className = "chat-missing";
-    info.textContent = `Не вистачає: ${message.missing_inputs.join(", ")}`;
-    wrapper.appendChild(info);
-  }
-
-  if (message.expected_output === "file_written" && message.attachments?.length) {
-    const files = document.createElement("div");
-    files.className = "chat-files";
-    files.textContent = `Файли: ${message.attachments
-      .map((a) => a.path || a.name || "файл")
-      .join(", ")}`;
-    wrapper.appendChild(files);
-  }
 
   return wrapper;
 }
@@ -87,17 +53,14 @@ function renderHistory(history) {
   container.scrollTop = container.scrollHeight;
 }
 
-async function loadHistory({ usePollEndpoint = false } = {}) {
-  if (!conversationId) return;
+async function loadHistory() {
   try {
-    const endpoint = usePollEndpoint
-      ? `/api/chat/poll?conversation_id=${encodeURIComponent(conversationId)}`
-      : `/api/chat/history?conversation_id=${encodeURIComponent(conversationId)}`;
-    const data = await fetchJSON(endpoint);
-    renderHistory(data.history || []);
-    if (data.status) {
-      setChatStatus(`Статус: ${data.status}`);
+    const data = await fetchJSON(`/chat/history?after=${encodeURIComponent(lastMessageId || "")}`);
+    const history = data.history || [];
+    if (history.length) {
+      lastMessageId = history[history.length - 1].id;
     }
+    renderHistory(history);
   } catch (err) {
     console.error(err);
     setStatus("Не вдалося завантажити історію", "error");
@@ -113,20 +76,14 @@ async function sendMessage(event) {
   }
   setStatus("Надсилаємо...");
   try {
-    const payload = {
-      message: text,
-      conversation_id: conversationId,
-    };
-    const expected = $("expectedOutput")?.value;
-    if (expected) payload.expected_output = expected;
-    const data = await fetchJSON("/api/chat/send", {
+    const payload = { text };
+    await fetchJSON("/chat/user_message", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
     $("chatMessage").value = "";
-    setStatus("Відповідь отримано");
-    setChatStatus(`Статус: ${data.status}`);
+    setStatus("Повідомлення надіслано");
     await loadHistory();
   } catch (err) {
     console.error(err);
@@ -136,7 +93,7 @@ async function sendMessage(event) {
 
 function bindEvents() {
   $("chatForm")?.addEventListener("submit", sendMessage);
-  pollTimer = setInterval(() => loadHistory({ usePollEndpoint: true }), 2000);
+  pollTimer = setInterval(() => loadHistory(), 2000);
 }
 bindEvents();
 setStatus("Почніть діалог");

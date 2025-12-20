@@ -22,9 +22,10 @@ locals:
       if wants_reply and not user_message:
           # Блокуємо виконання лише з поясненням/питанням,
           # не вимагаючи конкретних missing_inputs.
+          reason = text or "Очікуємо відповідь користувача"
           raise BlockedExecution(
               questions_to_user=[text] if text else None,
-              why_blocked=text or "Очікуємо відповідь користувача",
+              why_blocked=f"{reason}. Актуального повідомлення від користувача немає — чат чекає на новий текст.",
           )
 
       user_message = user_message or ""

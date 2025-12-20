@@ -296,6 +296,19 @@ class ExecutionEngine:
         self._step_counter = 0
         spec = self.repository.get(agent_name)
         normalized_input = dict(input_json or {})
+        if agent_name == "adaptive_task_agent":
+            user_msg = str(
+                normalized_input.get("user_message")
+                or normalized_input.get("завдання")
+                or normalized_input.get("task")
+                or ""
+            ).strip()
+            if not user_msg:
+                raise ValueError(
+                    "adaptive_task_agent вимагає непорожнє завдання користувача. Надішліть повідомлення через чат."
+                )
+            normalized_input.setdefault("завдання", user_msg)
+            normalized_input["user_message"] = user_msg
         if "user_message" not in normalized_input and "завдання" in normalized_input:
             normalized_input["user_message"] = normalized_input.get("завдання")
         ctx_vars: Dict[str, Any] = dict(normalized_input)

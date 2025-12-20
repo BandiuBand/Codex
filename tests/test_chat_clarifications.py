@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 from agentfw.llm.base import LLMClient
 from agentfw.runtime.engine import ExecutionEngine
 
@@ -37,8 +39,5 @@ def test_adaptive_agent_blocks_to_collect_clarifications_via_chat() -> None:
 def test_adaptive_agent_blocks_initially_when_no_task_provided() -> None:
     engine = ExecutionEngine()
 
-    state = engine.run_to_completion("adaptive_task_agent", input_json={}, raise_on_error=False)
-
-    assert state.status == "blocked"
-    assert state.missing_inputs in (None, [])
-    assert state.questions_to_user == ["Опиши завдання, яке потрібно виконати"]
+    with pytest.raises(ValueError):
+        engine.run_to_completion("adaptive_task_agent", input_json={}, raise_on_error=False)

@@ -11,7 +11,7 @@ from urllib.parse import parse_qs, urlparse
 from agentfw.core.agent_spec import agent_spec_from_dict, agent_spec_to_dict
 from agentfw.io.agent_yaml import load_agent_spec, save_agent_spec
 from agentfw.llm.base import DummyLLMClient, OllamaLLMClient
-from agentfw.runtime.chat_agent import ChatAgentGateway
+from agentfw.runtime.chat_agent import ChatAgentGateway, ChatMessage
 from agentfw.runtime.engine import AgentRepository, ExecutionEngine
 
 
@@ -27,7 +27,7 @@ class AgentEditorHandler(SimpleHTTPRequestHandler):
             llm_client=OllamaLLMClient(),
             llm_client_factory=self._build_llm_factory(),
         )
-        self.chat_agent = ChatAgentGateway(self.engine)
+        self.chat_agent = ChatAgentGateway()
         super().__init__(*args, directory=str(self.static_dir), **kwargs)
 
     def end_headers(self) -> None:  # type: ignore[override]
@@ -45,10 +45,8 @@ class AgentEditorHandler(SimpleHTTPRequestHandler):
             return self._handle_list_agents()
         if self.path.startswith("/api/agent/"):
             return self._handle_get_agent()
-        if self.path.startswith("/api/chat/history"):
+        if self.path.startswith("/chat/history"):
             return self._handle_chat_history()
-        if self.path.startswith("/api/chat/poll"):
-            return self._handle_chat_poll()
         if self.path == "/chat":
             self.path = "/chat.html"
         if self.path == "/run":
@@ -64,7 +62,7 @@ class AgentEditorHandler(SimpleHTTPRequestHandler):
             return self._handle_run_agent()
         if self.path.startswith("/api/agents/") and self.path.endswith("/run"):
             return self._handle_run_agent(compat=True)
-        if self.path == "/api/chat/send":
+        if self.path in {"/api/chat/send", "/chat/user_message"}:
             return self._handle_chat_send()
         return self._json_error("Невідомий маршрут", status=HTTPStatus.NOT_FOUND)
 
@@ -89,12 +87,12 @@ class AgentEditorHandler(SimpleHTTPRequestHandler):
         self._send_json({"ok": False, "error": message}, status=status)
 
     @staticmethod
-    def _normalize_chat_message(message: object, conversation_id: object) -> str:
+    def _normalize_chat_message(message: object) -> str:
         if not isinstance(message, str):
-            raise ValueError("message обов'язковий")
+            raise ValueError("text обов'язковий")
         clean_message = message.strip()
         if not clean_message:
-            raise ValueError("message обов'язковий")
+            raise ValueError("text обов'язковий")
         return clean_message
 
     @staticmethod
@@ -180,6 +178,8 @@ class AgentEditorHandler(SimpleHTTPRequestHandler):
             return self._json_error("Назва агента обов’язкова", status=HTTPStatus.BAD_REQUEST)
         try:
             state = self.engine.run_to_completion(agent_name, input_json=input_json)
+        except ValueError as exc:
+            return self._json_error(str(exc), status=HTTPStatus.BAD_REQUEST)
         except Exception as exc:  # noqa: BLE001
             return self._send_json(
                 {
@@ -209,58 +209,31 @@ class AgentEditorHandler(SimpleHTTPRequestHandler):
             payload = self._read_json()
         except ValueError as exc:
             return self._json_error(str(exc), status=HTTPStatus.BAD_REQUEST)
-        conversation_id = payload.get("conversation_id") if isinstance(payload.get("conversation_id"), str) else None
-        if not conversation_id:
-            conversation_id = "default"
         try:
-            message = self._normalize_chat_message(payload.get("message") or payload.get("text"), conversation_id)
+            message = self._normalize_chat_message(payload.get("message") or payload.get("text"))
         except ValueError as exc:
             return self._json_error(str(exc), status=HTTPStatus.BAD_REQUEST)
-        response = self.chat_agent.send_user_message(
-            message.strip(),
-            conversation_id=conversation_id,
-            attachments=payload.get("attachments") if isinstance(payload.get("attachments"), list) else None,
-            expected_output=payload.get("expected_output") if isinstance(payload.get("expected_output"), str) else None,
-        )
-        return self._send_json(
-            {
-                "conversation_id": response.conversation_id,
-                "status": response.status,
-                "message": response.message.to_dict(),
-                "run_id": response.run_id,
-                "state": {
-                    "status": response.state.status,
-                    "vars": response.state.vars,
-                    "trace": response.state.trace,
-                    "ok": response.state.ok,
-                    "error": response.state.error,
-                    "missing_inputs": response.state.missing_inputs,
-                    "questions_to_user": response.state.questions_to_user,
-                    "why_blocked": response.state.why_blocked,
-                },
-            }
-        )
+        saved = self.chat_agent.post_user(message)
+        return self._send_json({"ok": True, "message": self._serialize_message(saved)})
 
     def _handle_chat_history(self) -> None:
         parsed = urlparse(self.path)
         params = parse_qs(parsed.query)
-        conversation_id = params.get("conversation_id", ["default"])[0] or "default"
-        history = [msg.to_dict() for msg in self.chat_agent.history(conversation_id)]
-        return self._send_json({"conversation_id": conversation_id, "history": history})
+        after_raw = params.get("after", [None])[0]
+        after = int(after_raw) if after_raw else None
+        history = [self._serialize_message(msg) for msg in self.chat_agent.history(after=after)]
+        return self._send_json({"history": history})
 
-    def _handle_chat_poll(self) -> None:
-        parsed = urlparse(self.path)
-        params = parse_qs(parsed.query)
-        conversation_id = params.get("conversation_id", ["default"])[0] or "default"
-        history = [msg.to_dict() for msg in self.chat_agent.history(conversation_id)]
-        status = history[-1].get("status") if history else None
-        return self._send_json(
-            {
-                "conversation_id": conversation_id,
-                "history": history,
-                "status": status,
-            }
-        )
+    @staticmethod
+    def _serialize_message(message: ChatMessage) -> Dict[str, object]:
+        return {
+            "id": message.id,
+            "ts": message.ts,
+            "role": message.role,
+            "author": message.author,
+            "text": message.text,
+            "meta": message.meta,
+        }
 
 
 def run_server(host: str = "127.0.0.1", port: int = 8000) -> None:
