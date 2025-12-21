@@ -40,7 +40,11 @@
           </div>
         </div>
         <div id="canvasViewport" class="canvas-viewport">
-          <div class="canvas-content" id="canvasContent">
+          <div class="canvas-layer">
+            <div class="canvas-content" id="canvasContent">
+              <div id="lanesContainer" class="lanes"></div>
+              <svg id="bindingsLayer" class="bindings" xmlns="http://www.w3.org/2000/svg"></svg>
+            </div>
             <div class="var-zone var-zone-left">
               <div class="zone-title">
                 Вхідні
@@ -62,8 +66,6 @@
               </div>
               <div id="canvasOutputs" class="zone-ports"></div>
             </div>
-            <div id="lanesContainer" class="lanes"></div>
-            <svg id="bindingsLayer" class="bindings" xmlns="http://www.w3.org/2000/svg"></svg>
           </div>
         </div>
       </section>

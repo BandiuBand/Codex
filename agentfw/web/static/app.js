@@ -269,7 +269,9 @@ async function renderCanvas() {
   if (container) container.innerHTML = "";
   if (svg) svg.innerHTML = "";
   if (!state.current || !container || !viewport || !canvasContent) return;
+  const gap = 12;
   canvasContent.style.setProperty("--canvas-scale", state.canvasScale);
+  canvasContent.style.setProperty("--canvas-gap", `${gap}px`);
   if (!viewport._scrollBindingAttached) {
     viewport.addEventListener("scroll", scheduleDrawBindings);
     viewport._scrollBindingAttached = true;
@@ -288,6 +290,16 @@ async function renderCanvas() {
       state.loadingChildren = false;
     }
   }
+
+  const leftZone = viewport.querySelector(".var-zone-left");
+  const rightZone = viewport.querySelector(".var-zone-right");
+  const topZone = viewport.querySelector(".var-zone-top");
+  const leftOffset = leftZone?.offsetWidth || 0;
+  const rightOffset = rightZone?.offsetWidth || 0;
+  const topOffset = topZone?.offsetHeight || 0;
+  canvasContent.style.setProperty("--canvas-left-offset", `${leftOffset}px`);
+  canvasContent.style.setProperty("--canvas-right-offset", `${rightOffset}px`);
+  canvasContent.style.setProperty("--canvas-top-offset", `${topOffset}px`);
 
   state.current.graph.lanes.forEach((lane, laneIndex) => {
     const laneEl = document.createElement("div");
