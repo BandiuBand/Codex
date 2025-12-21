@@ -308,8 +308,17 @@ async function renderCanvas() {
       card.className = `agent-card ${state.selectedItemId === item.id ? "selected" : ""}`;
       card.dataset.itemId = item.id;
       card.draggable = true;
-      card.addEventListener("dragstart", (event) => {
+      card.addEventListener("mousedown", (event) => {
+        // Блокувати перетягування картки, якщо взаємодія почалася з порту
+        // (перетягуємо порт для зв'язку, а не всю картку)
         if (event.target.closest(".port")) {
+          card.draggable = false;
+          return;
+        }
+        card.draggable = true;
+      });
+      card.addEventListener("dragstart", (event) => {
+        if (state.draggingPort) {
           event.preventDefault();
           return;
         }
@@ -317,6 +326,7 @@ async function renderCanvas() {
       });
       card.addEventListener("dragend", () => {
         state.cardDrag = null;
+        card.draggable = true;
       });
       card.addEventListener("click", () => {
         state.selectedItemId = item.id;
@@ -395,6 +405,7 @@ function makePort(itemId, varName, role, extraLabel = "") {
 
 function startDrag(event, itemId, varName, role = "ctx") {
   event.stopPropagation();
+  state.draggingPort = true;
   state.drag = { fromItem: itemId, fromVar: varName, role };
 }
 
@@ -402,19 +413,23 @@ function finishDrag(event, itemId, varName, targetRole) {
   if (!state.drag || !state.current) return;
   event.stopPropagation();
   const source = state.drag;
+  const clearDrag = () => {
+    state.drag = null;
+    state.draggingPort = false;
+  };
 
   // правила: до input дочірнього агента може йти output/ctx
   if (targetRole === "input") {
     const allowedSources = ["output", "ctx-input", "ctx-local", "ctx-output"];
     if (!allowedSources.includes(source.role)) {
-      state.drag = null;
+      clearDrag();
       return;
     }
     const sourceLane = getItemLaneIndex(source.fromItem);
     const targetLane = getItemLaneIndex(itemId);
     if (sourceLane !== null && targetLane !== null && sourceLane === targetLane) {
       setStatus("Не можна створити зв'язок між елементами в одному lane", "warn");
-      state.drag = null;
+      clearDrag();
       return;
     }
     const fromId = source.fromItem;
@@ -425,7 +440,7 @@ function finishDrag(event, itemId, varName, targetRole) {
       to_var: varName,
     };
     addBinding(binding);
-    state.drag = null;
+    clearDrag();
     drawBindings();
     return;
   }
@@ -438,7 +453,7 @@ function finishDrag(event, itemId, varName, targetRole) {
     const targetLane = getItemLaneIndex(CTX_ID);
     if (sourceLane !== null && targetLane !== null && sourceLane === targetLane) {
       setStatus("Не можна створити зв'язок між елементами в одному lane", "warn");
-      state.drag = null;
+      clearDrag();
       return;
     }
     const binding = {
@@ -448,12 +463,12 @@ function finishDrag(event, itemId, varName, targetRole) {
       to_var: varName,
     };
     addBinding(binding);
-    state.drag = null;
+    clearDrag();
     drawBindings();
     return;
   }
 
-  state.drag = null;
+  clearDrag();
 }
 
 function addBinding(binding) {
