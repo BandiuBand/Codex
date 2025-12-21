@@ -308,7 +308,11 @@ async function renderCanvas() {
       card.className = `agent-card ${state.selectedItemId === item.id ? "selected" : ""}`;
       card.dataset.itemId = item.id;
       card.draggable = true;
-      card.addEventListener("dragstart", () => {
+      card.addEventListener("dragstart", (event) => {
+        if (event.target.closest(".port")) {
+          event.preventDefault();
+          return;
+        }
         state.cardDrag = { itemId: item.id, fromLane: laneIndex };
       });
       card.addEventListener("dragend", () => {
