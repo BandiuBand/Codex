@@ -574,9 +574,9 @@ function drawBindings() {
   if (!svg || !canvasContent) return;
   svg.innerHTML = "";
   const contentRect = canvasContent.getBoundingClientRect();
-  const scale = state.canvasScale || 1;
-  svg.setAttribute("width", `${canvasContent.clientWidth}`);
-  svg.setAttribute("height", `${canvasContent.clientHeight}`);
+  svg.setAttribute("width", `${contentRect.width}`);
+  svg.setAttribute("height", `${contentRect.height}`);
+  svg.setAttribute("viewBox", `0 0 ${contentRect.width} ${contentRect.height}`);
   const bindings = allBindings();
   bindings.forEach((b) => {
     const fromEl = document.querySelector(`[data-item-id=\"${b.from_agent_item_id}\"][data-var-name=\"${b.from_var}\"]`);
@@ -584,10 +584,10 @@ function drawBindings() {
     if (!fromEl || !toEl) return;
     const fromRect = fromEl.getBoundingClientRect();
     const toRect = toEl.getBoundingClientRect();
-    const startX = (fromRect.right - contentRect.left) / scale;
-    const startY = (fromRect.top + fromRect.height / 2 - contentRect.top) / scale;
-    const endX = (toRect.left - contentRect.left) / scale;
-    const endY = (toRect.top + toRect.height / 2 - contentRect.top) / scale;
+    const startX = fromRect.right - contentRect.left;
+    const startY = fromRect.top + fromRect.height / 2 - contentRect.top;
+    const endX = toRect.left - contentRect.left;
+    const endY = toRect.top + toRect.height / 2 - contentRect.top;
     const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
     const d = `M ${startX} ${startY} C ${startX + 50} ${startY} ${endX - 50} ${endY} ${endX} ${endY}`;
     path.setAttribute("d", d);
