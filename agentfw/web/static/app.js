@@ -76,6 +76,17 @@ function ensureGraph(spec) {
   }
 }
 
+function getItemLaneIndex(itemId) {
+  if (!state.current?.graph) return null;
+  if (itemId === CTX_ID) return null;
+  for (let laneIndex = 0; laneIndex < state.current.graph.lanes.length; laneIndex += 1) {
+    const lane = state.current.graph.lanes[laneIndex];
+    const item = lane.items.find((i) => i.id === itemId);
+    if (item) return item.ui?.lane_index ?? laneIndex;
+  }
+  return null;
+}
+
 async function loadAgentsList() {
   try {
     const data = await fetchJSON("/api/agents");
@@ -378,6 +389,13 @@ function finishDrag(event, itemId, varName, targetRole) {
       state.drag = null;
       return;
     }
+    const sourceLane = getItemLaneIndex(source.fromItem);
+    const targetLane = getItemLaneIndex(itemId);
+    if (sourceLane !== null && targetLane !== null && sourceLane === targetLane) {
+      setStatus("Не можна створити зв'язок між елементами в одному lane", "warn");
+      state.drag = null;
+      return;
+    }
     const fromId = source.fromItem;
     const binding = {
       from_agent_item_id: fromId === CTX_ID ? CTX_ID : fromId,
@@ -395,6 +413,13 @@ function finishDrag(event, itemId, varName, targetRole) {
   const targetIsCtxOutput = targetRole === "ctx-output" || targetRole === "ctx-local";
   const sourceIsChild = ["output", "local"].includes(source.role);
   if (targetIsCtxOutput && sourceIsChild) {
+    const sourceLane = getItemLaneIndex(source.fromItem);
+    const targetLane = getItemLaneIndex(CTX_ID);
+    if (sourceLane !== null && targetLane !== null && sourceLane === targetLane) {
+      setStatus("Не можна створити зв'язок між елементами в одному lane", "warn");
+      state.drag = null;
+      return;
+    }
     const binding = {
       from_agent_item_id: source.fromItem,
       from_var: source.fromVar,
@@ -413,6 +438,12 @@ function finishDrag(event, itemId, varName, targetRole) {
 function addBinding(binding) {
   if (!state.current) return;
   ensureGraph(state.current);
+  const sourceLane = getItemLaneIndex(binding.from_agent_item_id);
+  const targetLane = getItemLaneIndex(binding.to_agent_item_id);
+  if (sourceLane !== null && targetLane !== null && sourceLane === targetLane) {
+    setStatus("Не можна створити зв'язок між елементами в одному lane", "warn");
+    return;
+  }
   const allItems = state.current.graph.lanes.flatMap((l) => l.items);
   if (binding.to_agent_item_id !== CTX_ID) {
     const target = allItems.find((i) => i.id === binding.to_agent_item_id);
