@@ -404,6 +404,10 @@ async function renderCanvas() {
 
     laneEl.appendChild(card);
   });
+
+    container.appendChild(laneEl);
+  });
+
   applyCanvasScale();
   drawBindings();
 }
