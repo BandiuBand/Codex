@@ -83,7 +83,10 @@ function getItemLaneIndex(itemId) {
   for (let laneIndex = 0; laneIndex < state.current.graph.lanes.length; laneIndex += 1) {
     const lane = state.current.graph.lanes[laneIndex];
     const item = lane.items.find((i) => i.id === itemId);
-    if (item) return item.ui?.lane_index ?? laneIndex;
+    if (item) {
+      if (item.ui) item.ui.lane_index = laneIndex;
+      return laneIndex;
+    }
   }
   return null;
 }
@@ -449,6 +452,7 @@ function startDrag(event, itemId, varName, role = "ctx") {
 function finishDrag(event, itemId, varName, targetRole) {
   if (!state.drag || !state.current) return;
   event.stopPropagation();
+  normalizeLaneOrders();
   const source = state.drag;
   const clearDrag = () => {
     state.drag = null;
@@ -511,6 +515,7 @@ function finishDrag(event, itemId, varName, targetRole) {
 function addBinding(binding) {
   if (!state.current) return;
   ensureGraph(state.current);
+  normalizeLaneOrders();
   const sourceLane = getItemLaneIndex(binding.from_agent_item_id);
   const targetLane = getItemLaneIndex(binding.to_agent_item_id);
   if (sourceLane !== null && targetLane !== null && sourceLane === targetLane) {
