@@ -67,6 +67,7 @@ graph:
           ui:
             lane_index: 1
             order: 1
+    - items:
         - id: merge_context
           agent: clarification_context
           bindings:
@@ -79,8 +80,8 @@ graph:
               to_agent_item_id: merge_context
               to_var: відповідь_користувача
           ui:
-            lane_index: 1
-            order: 2
+            lane_index: 2
+            order: 0
     - items:
         - id: planner
           agent: llm_plan_builder
@@ -94,8 +95,8 @@ graph:
               to_agent_item_id: planner
               to_var: попередній_контекст
           ui:
-            lane_index: 1
-            order: 3
+            lane_index: 3
+            order: 0
     - items:
         - id: normalize
           agent: plan_normalizer
@@ -105,7 +106,7 @@ graph:
               to_agent_item_id: normalize
               to_var: план_json
           ui:
-            lane_index: 2
+            lane_index: 4
             order: 0
     - items:
         - id: executor
@@ -128,7 +129,7 @@ graph:
               to_agent_item_id: executor
               to_var: max_reviews
           ui:
-            lane_index: 3
+            lane_index: 5
             order: 0
     - items:
         - id: execution_map
@@ -139,7 +140,7 @@ graph:
               to_agent_item_id: execution_map
               to_var: виконання_json
           ui:
-            lane_index: 3
+            lane_index: 5
             order: 1
         - id: cerberus
           agent: cerberus_validator
@@ -161,7 +162,7 @@ graph:
               to_agent_item_id: cerberus
               to_var: потрібно_повторити
           ui:
-            lane_index: 3
+            lane_index: 5
             order: 2
     - items:
         - id: summary
@@ -188,7 +189,7 @@ graph:
               to_agent_item_id: summary
               to_var: next_stage_hint
           ui:
-            lane_index: 4
+            lane_index: 6
             order: 0
   __ctx_bindings:
     - from_agent_item_id: review
