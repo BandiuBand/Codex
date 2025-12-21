@@ -111,6 +111,19 @@ button:hover {
   height: 70vh;
 }
 
+.canvas-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  padding: 8px 12px;
+  background: #0b0f14;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  position: sticky;
+  top: 56px;
+  z-index: 150;
+}
+
 .canvas {
   position: relative;
   background: #0b0f14;
