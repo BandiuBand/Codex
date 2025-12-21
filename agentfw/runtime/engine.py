@@ -12,6 +12,7 @@ from agentfw.core.agent_spec import AgentItemSpec, AgentSpec, BindingSpec, Graph
 from agentfw.io.agent_yaml import load_agent_spec, save_agent_spec
 from agentfw.llm.base import DummyLLMClient, LLMClient, OllamaLLMClient
 from agentfw.llm.json_extract import extract_first_json
+from agentfw.runtime.chat_agent import ChatAgentGateway
 
 
 def _find_agents_dir() -> Path:
@@ -64,10 +65,28 @@ class ExecutionTrace:
 class ExecutionState:
     agent_name: str
     run_id: str
-    ok: bool
+    status: str
     vars: Dict[str, Any]
     trace: List[Dict[str, Any]]
+    ok: bool
     error: Optional[str] = None
+    missing_inputs: Optional[List[str]] = None
+    questions_to_user: Optional[List[str]] = None
+    why_blocked: Optional[str] = None
+
+
+class BlockedExecution(Exception):
+    def __init__(
+        self,
+        *,
+        missing_inputs: Optional[List[str]] = None,
+        questions_to_user: Optional[List[str]] = None,
+        why_blocked: Optional[str] = None,
+    ) -> None:
+        super().__init__(why_blocked or "execution blocked")
+        self.missing_inputs = missing_inputs
+        self.questions_to_user = questions_to_user
+        self.why_blocked = why_blocked
 
 
 class ExecutionContext:
@@ -110,11 +129,22 @@ class AtomicExecutor:
         output_text = client.generate(prompt, **options)
         parse_json = bool(ctx.get("parse_json", False))
         result: Dict[str, Any] = {"output_text": output_text}
-        if "результат" in {v.name for v in spec.outputs}:
+        output_names = {v.name for v in spec.outputs}
+        if "результат" in output_names:
             result["результат"] = output_text
         if parse_json:
             parsed, reason = extract_first_json(output_text)
             result["output_json"] = parsed
+            if isinstance(parsed, dict):
+                if parsed.get("status") == "blocked":
+                    raise BlockedExecution(
+                        missing_inputs=parsed.get("missing_inputs"),
+                        questions_to_user=parsed.get("questions_to_user"),
+                        why_blocked=parsed.get("why_blocked") or parsed.get("reason"),
+                    )
+                preferred_answer = parsed.get("answer") or parsed.get("result") or parsed.get("output")
+                if preferred_answer is not None and "результат" in output_names:
+                    result["результат"] = preferred_answer
             if reason:
                 result["json_error"] = reason
         return self._filter_outputs(result, spec)
@@ -182,6 +212,8 @@ class AtomicExecutor:
         try:
             compiled = compile(code, "<agent_python>", "exec")
             exec(compiled, sandbox, sandbox)  # noqa: S102
+        except BlockedExecution:
+            raise
         except Exception as exc:  # noqa: BLE001
             sandbox["error"] = str(exc)
         if stdout_lines:
@@ -239,6 +271,7 @@ class ExecutionEngine:
         runs_dir: Optional[Path] = None,
         max_total_steps: int = 10_000,
         max_depth: int = 50,
+        chat_gateway: Optional[ChatAgentGateway] = None,
     ) -> None:
         self.repository = repository or AgentRepository()
         llm_mode = (os.getenv("AGENTFW_DEFAULT_LLM") or "dummy").lower()
@@ -254,36 +287,74 @@ class ExecutionEngine:
         self.max_total_steps = max_total_steps
         self.max_depth = max_depth
         self._step_counter = 0
+        self.chat_gateway = chat_gateway or ChatAgentGateway()
 
-    def run_to_completion(self, agent_name: str, input_json: Dict[str, Any]) -> ExecutionState:
+    def run_to_completion(
+        self,
+        agent_name: str,
+        input_json: Dict[str, Any],
+        *,
+        raise_on_error: bool = True,
+    ) -> ExecutionState:
         self._step_counter = 0
         spec = self.repository.get(agent_name)
-        ctx_vars: Dict[str, Any] = dict(input_json or {})
+        normalized_input = dict(input_json or {})
+        if agent_name == "adaptive_task_agent":
+            user_msg = str(
+                normalized_input.get("user_message")
+                or normalized_input.get("завдання")
+                or normalized_input.get("task")
+                or ""
+            ).strip()
+            normalized_input.setdefault("завдання", user_msg)
+            normalized_input["user_message"] = user_msg
+        if "user_message" not in normalized_input and "завдання" in normalized_input:
+            normalized_input["user_message"] = normalized_input.get("завдання")
+        ctx_vars: Dict[str, Any] = dict(normalized_input)
+        ctx_vars.setdefault("chat_gateway", self.chat_gateway)
         for local in spec.locals:
             ctx_vars.setdefault(local.name, local.value)
         ctx = ExecutionContext(ctx_vars)
         trace = ExecutionTrace()
         try:
             self._execute_agent(spec, ctx, trace, depth=0)
+            vars_clean = self._clean_vars(ctx.variables)
             state = ExecutionState(
                 agent_name=agent_name,
                 run_id=str(uuid.uuid4()),
+                status="ok",
                 ok=True,
-                vars=ctx.variables,
+                vars=vars_clean,
                 trace=trace.entries,
                 error=None,
             )
-        except Exception as exc:  # noqa: BLE001
+        except BlockedExecution as blocked:
+            vars_clean = self._clean_vars(ctx.variables)
             state = ExecutionState(
                 agent_name=agent_name,
                 run_id=str(uuid.uuid4()),
+                status="blocked",
                 ok=False,
-                vars=ctx.variables,
+                vars=vars_clean,
+                trace=trace.entries,
+                error=None,
+                missing_inputs=blocked.missing_inputs,
+                questions_to_user=blocked.questions_to_user,
+                why_blocked=blocked.why_blocked or str(blocked),
+            )
+        except Exception as exc:  # noqa: BLE001
+            vars_clean = self._clean_vars(ctx.variables)
+            state = ExecutionState(
+                agent_name=agent_name,
+                run_id=str(uuid.uuid4()),
+                status="error",
+                ok=False,
+                vars=vars_clean,
                 trace=trace.entries,
                 error=str(exc),
             )
         self._persist_state(state)
-        if not state.ok:
+        if raise_on_error and (not state.ok and state.status != "blocked"):
             raise RuntimeError(state.error or "execution failed")
         return state
 
@@ -294,6 +365,7 @@ class ExecutionEngine:
         trace: ExecutionTrace,
         depth: int,
     ) -> None:
+        self._require_inputs(spec, ctx, depth=depth)
         if self._step_counter >= self.max_total_steps:
             raise RuntimeError("max_total_steps exceeded")
         if depth > self.max_depth:
@@ -325,20 +397,27 @@ class ExecutionEngine:
                 child_ctx = self._build_child_context(spec, ctx, item, all_bindings)
                 self._execute_agent(spec, child_ctx, trace, depth + 1)
                 for name, value in child_ctx.variables.items():
+                    if name == "chat_gateway":
+                        continue
                     ctx.set(f"{item.id}.{name}", value)
                     ctx.set(name, value)
                 for binding in ctx_bindings:
                     if binding.from_agent_item_id != item.id or binding.to_agent_item_id != "__CTX__":
                         continue
                     ctx.set(binding.to_var, child_ctx.get(binding.from_var))
+                filtered_child = {k: v for k, v in child_ctx.variables.items() if k != "chat_gateway"}
                 trace.add(
                     {
                         "item_id": item.id,
                         "agent": item.agent,
                         "lane": lane_index,
-                        "outputs": dict(child_ctx.variables),
+                        "outputs": filtered_child,
                     }
                 )
+
+    @staticmethod
+    def _clean_vars(values: Dict[str, Any]) -> Dict[str, Any]:
+        return {key: value for key, value in values.items() if key != "chat_gateway"}
 
     def _build_child_context(
         self,
@@ -348,6 +427,8 @@ class ExecutionEngine:
         bindings: List[BindingSpec],
     ) -> ExecutionContext:
         child_vars: Dict[str, Any] = {}
+        if "chat_gateway" in parent_ctx.variables:
+            child_vars["chat_gateway"] = parent_ctx.get("chat_gateway")
         for local in spec.locals:
             child_vars.setdefault(local.name, local.value)
         for binding in bindings:
@@ -359,9 +440,18 @@ class ExecutionEngine:
                 prefixed = f"{binding.from_agent_item_id}.{binding.from_var}"
                 value = parent_ctx.get(prefixed, parent_ctx.get(binding.from_var))
             child_vars[binding.to_var] = value
-        for input_spec in spec.inputs:
-            child_vars.setdefault(input_spec.name, None)
         return ExecutionContext(child_vars)
+
+    def _require_inputs(self, spec: AgentSpec, ctx: ExecutionContext, *, depth: int) -> None:
+        if depth > 0:
+            return
+        missing = [var.name for var in spec.inputs if ctx.get(var.name) is None]
+        if missing:
+            raise BlockedExecution(
+                missing_inputs=missing,
+                questions_to_user=[],
+                why_blocked="Не вистачає вхідних змінних",
+            )
 
     @staticmethod
     def _should_run(when: Optional[WhenSpec], ctx: ExecutionContext) -> bool:
@@ -375,9 +465,13 @@ class ExecutionEngine:
         state_payload = {
             "agent": state.agent_name,
             "run_id": state.run_id,
+            "status": state.status,
             "ok": state.ok,
             "vars": state.vars,
             "error": state.error,
+            "missing_inputs": state.missing_inputs,
+            "questions_to_user": state.questions_to_user,
+            "why_blocked": state.why_blocked,
             "created_at": int(time.time()),
         }
         trace_payload = {"trace": state.trace}
@@ -387,6 +481,7 @@ class ExecutionEngine:
 
 __all__ = [
     "AgentRepository",
+    "BlockedExecution",
     "ExecutionContext",
     "ExecutionEngine",
     "ExecutionState",
