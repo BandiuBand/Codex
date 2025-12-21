@@ -307,31 +307,31 @@ async function renderCanvas() {
       const card = document.createElement("div");
       card.className = `agent-card ${state.selectedItemId === item.id ? "selected" : ""}`;
       card.dataset.itemId = item.id;
-      card.draggable = true;
-      card.addEventListener("mousedown", (event) => {
-        // Блокувати перетягування картки, якщо взаємодія почалася з порту
-        // (перетягуємо порт для зв'язку, а не всю картку)
-        if (event.target.closest(".port")) {
-          card.draggable = false;
-          return;
-        }
-        card.draggable = true;
+      card.draggable = false;
+      card.addEventListener("click", () => {
+        state.selectedItemId = item.id;
+        renderCanvas();
       });
-      card.addEventListener("dragstart", (event) => {
+
+      const dragHandle = document.createElement("div");
+      dragHandle.className = "card-drag-handle";
+      dragHandle.title = "Перетягнути агента";
+      dragHandle.draggable = true;
+      dragHandle.addEventListener("mousedown", (event) => {
+        event.stopPropagation();
+      });
+      dragHandle.addEventListener("dragstart", (event) => {
         if (state.draggingPort) {
           event.preventDefault();
           return;
         }
         state.cardDrag = { itemId: item.id, fromLane: laneIndex };
       });
-      card.addEventListener("dragend", () => {
+      dragHandle.addEventListener("dragend", () => {
         state.cardDrag = null;
         card.draggable = true;
       });
-      card.addEventListener("click", () => {
-        state.selectedItemId = item.id;
-        renderCanvas();
-      });
+      card.appendChild(dragHandle);
 
       const title = document.createElement("div");
       title.className = "agent-title";
