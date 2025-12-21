@@ -140,8 +140,9 @@ graph:
               to_agent_item_id: execution_map
               to_var: виконання_json
           ui:
-            lane_index: 5
-            order: 1
+            lane_index: 6
+            order: 0
+    - items:
         - id: cerberus
           agent: cerberus_validator
           bindings:
@@ -162,8 +163,8 @@ graph:
               to_agent_item_id: cerberus
               to_var: потрібно_повторити
           ui:
-            lane_index: 5
-            order: 2
+            lane_index: 7
+            order: 0
     - items:
         - id: summary
           agent: llm_summary
@@ -189,7 +190,7 @@ graph:
               to_agent_item_id: summary
               to_var: next_stage_hint
           ui:
-            lane_index: 6
+            lane_index: 8
             order: 0
   __ctx_bindings:
     - from_agent_item_id: review

@@ -7,11 +7,21 @@ const state = {
   selectedLane: 0,
   drag: null,
   cardDrag: null,
+  canvasScale: 1,
   counter: 1,
   loadingChildren: false,
 };
 
 const CTX_ID = "__CTX__";
+const DEFAULT_LANE_WIDTH = 340;
+const DEFAULT_ZONE_WIDTH = 200;
+const DEFAULT_GAP = 12;
+
+function cssNumber(varName, fallback) {
+  const raw = getComputedStyle(document.documentElement).getPropertyValue(varName);
+  const parsed = Number.parseFloat(raw);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
 
 let drawBindingsScheduled = false;
 
@@ -262,12 +272,19 @@ async function renderCanvas() {
   renderAgentVarZones();
   const container = $("lanesContainer");
   const svg = $("bindingsLayer");
+  const viewport = $("canvasViewport");
+  const content = $("canvasContent");
+  const scaled = $("canvasScaled");
   if (container) container.innerHTML = "";
   if (svg) svg.innerHTML = "";
-  if (!state.current || !container) return;
-  if (!container._scrollBindingAttached) {
-    container.addEventListener("scroll", scheduleDrawBindings);
-    container._scrollBindingAttached = true;
+  if (!state.current || !container || !viewport) return;
+  if (scaled) {
+    scaled.style.width = "";
+    scaled.style.height = "";
+  }
+  if (!viewport._scrollBindingAttached) {
+    viewport.addEventListener("scroll", scheduleDrawBindings);
+    viewport._scrollBindingAttached = true;
   }
   ensureGraph(state.current);
 
@@ -294,7 +311,8 @@ async function renderCanvas() {
     laneEl.addEventListener("drop", (e) => {
       e.preventDefault();
       if (!state.cardDrag) return;
-      moveCardToLane(state.cardDrag.itemId, state.cardDrag.fromLane, laneIndex);
+      const dropIndex = findDropIndex(laneEl, e.clientY, state.cardDrag.itemId);
+      moveCardToLane(state.cardDrag.itemId, state.cardDrag.fromLane, laneIndex, dropIndex);
     });
     laneEl.addEventListener("scroll", scheduleDrawBindings);
     const laneTitle = document.createElement("div");
@@ -307,21 +325,30 @@ async function renderCanvas() {
       const card = document.createElement("div");
       card.className = `agent-card ${state.selectedItemId === item.id ? "selected" : ""}`;
       card.dataset.itemId = item.id;
-      card.draggable = true;
-      card.addEventListener("dragstart", (event) => {
-        if (event.target.closest(".port")) {
+      card.draggable = false;
+      card.addEventListener("click", () => {
+        state.selectedItemId = item.id;
+        renderCanvas();
+      });
+
+      const dragHandle = document.createElement("div");
+      dragHandle.className = "card-drag-handle";
+      dragHandle.title = "Перетягнути агента";
+      dragHandle.draggable = true;
+      dragHandle.addEventListener("mousedown", (event) => {
+        event.stopPropagation();
+      });
+      dragHandle.addEventListener("dragstart", (event) => {
+        if (state.draggingPort) {
           event.preventDefault();
           return;
         }
         state.cardDrag = { itemId: item.id, fromLane: laneIndex };
       });
-      card.addEventListener("dragend", () => {
+      dragHandle.addEventListener("dragend", () => {
         state.cardDrag = null;
       });
-      card.addEventListener("click", () => {
-        state.selectedItemId = item.id;
-        renderCanvas();
-      });
+      card.appendChild(dragHandle);
 
       const title = document.createElement("div");
       title.className = "agent-title";
@@ -334,18 +361,26 @@ async function renderCanvas() {
       inputsCol.className = "inputs-col";
       const outputsCol = document.createElement("div");
       outputsCol.className = "outputs-col";
-      const localsRow = document.createElement("div");
-      localsRow.className = "locals-row";
       grid.appendChild(inputsCol);
-      grid.appendChild(localsRow);
       grid.appendChild(outputsCol);
       card.appendChild(grid);
 
       const spec = state.specs[item.agent];
       if (spec) {
         spec.inputs.forEach((v) => inputsCol.appendChild(makePort(item.id, v.name, "input")));
-        spec.locals.forEach((v) => localsRow.appendChild(makePort(item.id, v.name, "local", v.value)));
         spec.outputs.forEach((v) => outputsCol.appendChild(makePort(item.id, v.name, "output")));
+        requestAnimationFrame(() => {
+          const maxWidth = (col) =>
+            Array.from(col.children).reduce((max, el) => Math.max(max, el.getBoundingClientRect().width), 0);
+          const widestInput = maxWidth(inputsCol);
+          const widestOutput = maxWidth(outputsCol);
+          const gap = 16; // matches .card-grid column gap
+          const padding = 32; // horizontal padding inside grid/card
+          const minWidth = widestInput + widestOutput + gap + padding;
+          if (minWidth > 0) {
+            card.style.minWidth = `${minWidth}px`;
+          }
+        });
       } else {
         const placeholder = document.createElement("div");
         placeholder.className = "port port-missing";
@@ -357,7 +392,30 @@ async function renderCanvas() {
     });
     container.appendChild(laneEl);
   });
+  applyCanvasScale();
   drawBindings();
+}
+
+function applyCanvasScale() {
+  const content = $("canvasContent");
+  const scaled = $("canvasScaled");
+  const viewport = $("canvasViewport");
+  const lanesEl = $("lanesContainer");
+  if (!content || !scaled || !viewport) return;
+  const scale = state.canvasScale || 1;
+  const laneWidth = cssNumber("--lane-width", DEFAULT_LANE_WIDTH);
+  const zoneWidth = cssNumber("--zone-width", DEFAULT_ZONE_WIDTH);
+  const gap = cssNumber("--canvas-gap", DEFAULT_GAP);
+  const laneCount = Math.max(state.current?.graph?.lanes?.length || 0, 1);
+  const baseWidth = laneCount * laneWidth + zoneWidth * 2 + gap * 2;
+  const laneHeight = lanesEl ? lanesEl.scrollHeight : 0;
+  const baseHeight = Math.max(laneHeight, content.scrollHeight, viewport.clientHeight);
+
+  content.style.width = `${baseWidth}px`;
+  content.style.height = `${baseHeight}px`;
+  content.style.setProperty("--canvas-scale", scale);
+  scaled.style.width = `${baseWidth * scale}px`;
+  scaled.style.height = `${baseHeight * scale}px`;
 }
 
 function makePort(itemId, varName, role, extraLabel = "") {
@@ -395,26 +453,33 @@ function makePort(itemId, varName, role, extraLabel = "") {
 
 function startDrag(event, itemId, varName, role = "ctx") {
   event.stopPropagation();
+  event.preventDefault();
+  state.draggingPort = true;
   state.drag = { fromItem: itemId, fromVar: varName, role };
 }
 
 function finishDrag(event, itemId, varName, targetRole) {
   if (!state.drag || !state.current) return;
   event.stopPropagation();
+  normalizeLaneOrders();
   const source = state.drag;
+  const clearDrag = () => {
+    state.drag = null;
+    state.draggingPort = false;
+  };
 
   // правила: до input дочірнього агента може йти output/ctx
   if (targetRole === "input") {
     const allowedSources = ["output", "ctx-input", "ctx-local", "ctx-output"];
     if (!allowedSources.includes(source.role)) {
-      state.drag = null;
+      clearDrag();
       return;
     }
     const sourceLane = getItemLaneIndex(source.fromItem);
     const targetLane = getItemLaneIndex(itemId);
     if (sourceLane !== null && targetLane !== null && sourceLane === targetLane) {
       setStatus("Не можна створити зв'язок між елементами в одному lane", "warn");
-      state.drag = null;
+      clearDrag();
       return;
     }
     const fromId = source.fromItem;
@@ -425,7 +490,7 @@ function finishDrag(event, itemId, varName, targetRole) {
       to_var: varName,
     };
     addBinding(binding);
-    state.drag = null;
+    clearDrag();
     drawBindings();
     return;
   }
@@ -438,7 +503,7 @@ function finishDrag(event, itemId, varName, targetRole) {
     const targetLane = getItemLaneIndex(CTX_ID);
     if (sourceLane !== null && targetLane !== null && sourceLane === targetLane) {
       setStatus("Не можна створити зв'язок між елементами в одному lane", "warn");
-      state.drag = null;
+      clearDrag();
       return;
     }
     const binding = {
@@ -448,17 +513,18 @@ function finishDrag(event, itemId, varName, targetRole) {
       to_var: varName,
     };
     addBinding(binding);
-    state.drag = null;
+    clearDrag();
     drawBindings();
     return;
   }
 
-  state.drag = null;
+  clearDrag();
 }
 
 function addBinding(binding) {
   if (!state.current) return;
   ensureGraph(state.current);
+  normalizeLaneOrders();
   const sourceLane = getItemLaneIndex(binding.from_agent_item_id);
   const targetLane = getItemLaneIndex(binding.to_agent_item_id);
   if (sourceLane !== null && targetLane !== null && sourceLane === targetLane) {
@@ -505,11 +571,30 @@ function drawBindings() {
     const d = `M ${startX} ${startY} C ${startX + 50} ${startY} ${endX - 50} ${endY} ${endX} ${endY}`;
     path.setAttribute("d", d);
     path.setAttribute("class", "binding-line");
+    path.style.stroke = bindingColor(b);
     path.addEventListener("click", () => {
       removeBinding(b);
     });
     svg.appendChild(path);
   });
+}
+
+function bindingColor(binding) {
+  if (!state.current) return "#58a6ff";
+  const kindOfCtxVar = (varName) => {
+    if (state.current.inputs?.some((v) => v.name === varName)) return "inputs";
+    if (state.current.locals?.some((v) => v.name === varName)) return "locals";
+    if (state.current.outputs?.some((v) => v.name === varName)) return "outputs";
+    return null;
+  };
+
+  const sourceKind = binding.from_agent_item_id === CTX_ID ? kindOfCtxVar(binding.from_var) : null;
+  const targetKind = binding.to_agent_item_id === CTX_ID ? kindOfCtxVar(binding.to_var) : null;
+
+  if (sourceKind === "locals" || targetKind === "locals") return "#f1c40f"; // yellow
+  if (sourceKind === "inputs" || targetKind === "inputs") return "#2ea043"; // green
+  if (sourceKind === "outputs" || targetKind === "outputs") return "#f85149"; // red
+  return "#58a6ff"; // default blue
 }
 
 function removeBinding(binding) {
@@ -540,21 +625,33 @@ function removeBinding(binding) {
   drawBindings();
 }
 
-function moveCardToLane(itemId, fromLaneIdx, toLaneIdx) {
+function moveCardToLane(itemId, fromLaneIdx, toLaneIdx, targetOrder = null) {
   if (!state.current?.graph) return;
-  if (fromLaneIdx === toLaneIdx) return;
   const fromLane = state.current.graph.lanes[fromLaneIdx];
   const toLane = state.current.graph.lanes[toLaneIdx];
   if (!fromLane || !toLane) return;
   const idx = fromLane.items.findIndex((i) => i.id === itemId);
   if (idx === -1) return;
   const [item] = fromLane.items.splice(idx, 1);
-  if (!item.ui) item.ui = { lane_index: toLaneIdx, order: toLane.items.length };
+  const insertAtRaw = targetOrder ?? toLane.items.length;
+  const adjustedInsert = fromLaneIdx === toLaneIdx && idx < insertAtRaw ? insertAtRaw - 1 : insertAtRaw;
+  const insertAt = Math.min(Math.max(adjustedInsert, 0), toLane.items.length);
+  if (!item.ui) item.ui = { lane_index: toLaneIdx, order: insertAt };
   item.ui.lane_index = toLaneIdx;
-  item.ui.order = toLane.items.length;
-  toLane.items.push(item);
+  item.ui.order = insertAt;
+  toLane.items.splice(insertAt, 0, item);
   normalizeLaneOrders();
   renderCanvas();
+}
+
+function findDropIndex(laneEl, clientY, draggingId) {
+  const cards = Array.from(laneEl.querySelectorAll(".agent-card"));
+  const idx = cards.findIndex((card) => {
+    if (card.dataset.itemId === String(draggingId)) return false;
+    const rect = card.getBoundingClientRect();
+    return clientY < rect.top + rect.height / 2;
+  });
+  return idx === -1 ? cards.length : idx;
 }
 
 function renderAgentVarZones() {
@@ -729,6 +826,19 @@ function setupZoneButtons() {
   });
 }
 
+function setupZoomControls() {
+  const slider = $("canvasScale");
+  const valueLabel = $("canvasScaleValue");
+  if (!slider) return;
+  const update = (val) => {
+    state.canvasScale = val / 100;
+    if (valueLabel) valueLabel.textContent = `${val}%`;
+    renderCanvas();
+  };
+  slider.addEventListener("input", (e) => update(Number(e.target.value)));
+  update(Number(slider.value || 100));
+}
+
 function bindEvents() {
   $("btnNew")?.addEventListener("click", newAgent);
   $("btnSave")?.addEventListener("click", saveAgent);
@@ -739,6 +849,7 @@ function bindEvents() {
     state.drag = null;
   });
   setupZoneButtons();
+  setupZoomControls();
 }
 
 window.addEventListener("resize", scheduleDrawBindings);
