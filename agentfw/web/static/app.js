@@ -440,6 +440,7 @@ function makePort(itemId, varName, role, extraLabel = "") {
 }
 
 function startDrag(event, itemId, varName, role = "ctx") {
+  event.preventDefault();
   event.stopPropagation();
   state.draggingPort = true;
   state.drag = { fromItem: itemId, fromVar: varName, role };
