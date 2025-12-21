@@ -471,6 +471,11 @@ button:hover {
   display: inline-flex;
   align-items: center;
   gap: 3px;
+  user-select: none;
+}
+
+.port span {
+  user-select: none;
 }
 
 .port-main {
