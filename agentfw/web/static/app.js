@@ -264,11 +264,12 @@ async function renderCanvas() {
   const container = $("lanesContainer");
   const svg = $("bindingsLayer");
   const viewport = $("canvasViewport");
+  const canvasContent = $("canvasContent");
   const canvas = $("canvas");
   if (container) container.innerHTML = "";
   if (svg) svg.innerHTML = "";
-  if (!state.current || !container || !viewport) return;
-  viewport.style.setProperty("--canvas-scale", state.canvasScale);
+  if (!state.current || !container || !viewport || !canvasContent) return;
+  canvasContent.style.setProperty("--canvas-scale", state.canvasScale);
   if (!viewport._scrollBindingAttached) {
     viewport.addEventListener("scroll", scheduleDrawBindings);
     viewport._scrollBindingAttached = true;
@@ -380,10 +381,23 @@ async function renderCanvas() {
         grid.appendChild(placeholder);
       }
 
-      laneEl.appendChild(card);
-    });
-    container.appendChild(laneEl);
+    laneEl.appendChild(card);
   });
+  container.appendChild(laneEl);
+});
+
+  const scale = state.canvasScale || 1;
+  canvasContent.style.transform = `scale(${scale})`;
+  canvasContent.style.width = "";
+  canvasContent.style.height = "";
+  const baseWidth = canvasContent.scrollWidth;
+  const baseHeight = canvasContent.scrollHeight;
+  const scaledWidth = Math.max(baseWidth * scale, viewport.clientWidth);
+  const scaledHeight = Math.max(baseHeight * scale, viewport.clientHeight);
+  canvasContent.style.width = `${scaledWidth}px`;
+  canvasContent.style.height = `${scaledHeight}px`;
+  svg?.setAttribute("width", `${scaledWidth}`);
+  svg?.setAttribute("height", `${scaledHeight}`);
   drawBindings();
 }
 
@@ -519,9 +533,13 @@ function allBindings() {
 
 function drawBindings() {
   const svg = $("bindingsLayer");
-  if (!svg) return;
+  const canvasContent = $("canvasContent");
+  if (!svg || !canvasContent) return;
   svg.innerHTML = "";
-  const svgRect = svg.getBoundingClientRect();
+  const contentRect = canvasContent.getBoundingClientRect();
+  const scale = state.canvasScale || 1;
+  svg.setAttribute("width", `${canvasContent.clientWidth}`);
+  svg.setAttribute("height", `${canvasContent.clientHeight}`);
   const bindings = allBindings();
   bindings.forEach((b) => {
     const fromEl = document.querySelector(`[data-item-id=\"${b.from_agent_item_id}\"][data-var-name=\"${b.from_var}\"]`);
@@ -529,10 +547,10 @@ function drawBindings() {
     if (!fromEl || !toEl) return;
     const fromRect = fromEl.getBoundingClientRect();
     const toRect = toEl.getBoundingClientRect();
-    const startX = fromRect.right - svgRect.left;
-    const startY = fromRect.top + fromRect.height / 2 - svgRect.top;
-    const endX = toRect.left - svgRect.left;
-    const endY = toRect.top + toRect.height / 2 - svgRect.top;
+    const startX = (fromRect.right - contentRect.left) / scale;
+    const startY = (fromRect.top + fromRect.height / 2 - contentRect.top) / scale;
+    const endX = (toRect.left - contentRect.left) / scale;
+    const endY = (toRect.top + toRect.height / 2 - contentRect.top) / scale;
     const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
     const d = `M ${startX} ${startY} C ${startX + 50} ${startY} ${endX - 50} ${endY} ${endX} ${endY}`;
     path.setAttribute("d", d);

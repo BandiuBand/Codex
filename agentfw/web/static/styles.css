@@ -148,6 +148,12 @@ button:hover {
 .canvas-viewport {
   position: relative;
   min-height: 600px;
+  overflow: auto;
+}
+
+.canvas-content {
+  position: relative;
+  min-height: 100%;
   transform-origin: top left;
   transform: scale(var(--canvas-scale, 1));
 }
