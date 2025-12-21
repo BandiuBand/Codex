@@ -83,7 +83,10 @@ function getItemLaneIndex(itemId) {
   for (let laneIndex = 0; laneIndex < state.current.graph.lanes.length; laneIndex += 1) {
     const lane = state.current.graph.lanes[laneIndex];
     const item = lane.items.find((i) => i.id === itemId);
-    if (item) return item.ui?.lane_index ?? laneIndex;
+    if (item) {
+      if (item.ui) item.ui.lane_index = laneIndex;
+      return laneIndex;
+    }
   }
   return null;
 }
@@ -284,6 +287,16 @@ async function renderCanvas() {
     }
   }
 
+  const leftZone = viewport.querySelector(".var-zone-left");
+  const rightZone = viewport.querySelector(".var-zone-right");
+  const topZone = viewport.querySelector(".var-zone-top");
+  const leftOffset = leftZone?.offsetWidth || 0;
+  const rightOffset = rightZone?.offsetWidth || 0;
+  const topOffset = topZone?.offsetHeight || 0;
+  canvasContent.style.setProperty("--canvas-left-offset", `${leftOffset}px`);
+  canvasContent.style.setProperty("--canvas-right-offset", `${rightOffset}px`);
+  canvasContent.style.setProperty("--canvas-top-offset", `${topOffset}px`);
+
   state.current.graph.lanes.forEach((lane, laneIndex) => {
     const laneEl = document.createElement("div");
     laneEl.className = `lane ${state.selectedLane === laneIndex ? "lane-active" : ""}`;
@@ -334,6 +347,7 @@ async function renderCanvas() {
       });
       dragHandle.addEventListener("dragend", () => {
         state.cardDrag = null;
+        card.draggable = true;
       });
       card.appendChild(dragHandle);
 
@@ -375,10 +389,21 @@ async function renderCanvas() {
         grid.appendChild(placeholder);
       }
 
-      laneEl.appendChild(card);
-    });
-    container.appendChild(laneEl);
+    laneEl.appendChild(card);
   });
+  container.appendChild(laneEl);
+});
+
+  const scale = state.canvasScale || 1;
+  const baseWidth = container.scrollWidth + leftOffset + rightOffset + gap * 2;
+  const baseHeight = container.scrollHeight + topOffset + gap * 2;
+  const scaledWidth = Math.max(baseWidth * scale, viewport.clientWidth);
+  const scaledHeight = Math.max(baseHeight * scale, viewport.clientHeight);
+  canvasContent.style.transform = `scale(${scale})`;
+  canvasContent.style.width = `${scaledWidth}px`;
+  canvasContent.style.height = `${scaledHeight}px`;
+  svg?.setAttribute("width", `${scaledWidth}`);
+  svg?.setAttribute("height", `${scaledHeight}`);
   drawBindings();
 }
 
@@ -416,6 +441,7 @@ function makePort(itemId, varName, role, extraLabel = "") {
 }
 
 function startDrag(event, itemId, varName, role = "ctx") {
+  event.preventDefault();
   event.stopPropagation();
   event.preventDefault();
   state.draggingPort = true;
@@ -517,9 +543,13 @@ function allBindings() {
 
 function drawBindings() {
   const svg = $("bindingsLayer");
-  if (!svg) return;
+  const canvasContent = $("canvasContent");
+  if (!svg || !canvasContent) return;
   svg.innerHTML = "";
-  const svgRect = svg.getBoundingClientRect();
+  const contentRect = canvasContent.getBoundingClientRect();
+  const scale = state.canvasScale || 1;
+  svg.setAttribute("width", `${canvasContent.clientWidth}`);
+  svg.setAttribute("height", `${canvasContent.clientHeight}`);
   const bindings = allBindings();
   bindings.forEach((b) => {
     const fromEl = document.querySelector(`[data-item-id=\"${b.from_agent_item_id}\"][data-var-name=\"${b.from_var}\"]`);
@@ -527,10 +557,10 @@ function drawBindings() {
     if (!fromEl || !toEl) return;
     const fromRect = fromEl.getBoundingClientRect();
     const toRect = toEl.getBoundingClientRect();
-    const startX = fromRect.right - svgRect.left;
-    const startY = fromRect.top + fromRect.height / 2 - svgRect.top;
-    const endX = toRect.left - svgRect.left;
-    const endY = toRect.top + toRect.height / 2 - svgRect.top;
+    const startX = (fromRect.right - contentRect.left) / scale;
+    const startY = (fromRect.top + fromRect.height / 2 - contentRect.top) / scale;
+    const endX = (toRect.left - contentRect.left) / scale;
+    const endY = (toRect.top + toRect.height / 2 - contentRect.top) / scale;
     const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
     const d = `M ${startX} ${startY} C ${startX + 50} ${startY} ${endX - 50} ${endY} ${endX} ${endY}`;
     path.setAttribute("d", d);
