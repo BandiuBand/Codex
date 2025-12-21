@@ -21,10 +21,25 @@ locals:
           executed = []
       if isinstance(executed, dict):
           executed = [executed]
-      виконані_кроки = list(executed)
+      виконані_кроки = []
+      evidence_ok = True
+      for step in executed:
+          if isinstance(step, dict):
+              evidence = step.get("evidence")
+              has_evidence = isinstance(evidence, list) and len(evidence) > 0
+              if not has_evidence:
+                  step = {**step, "прийнято": False, "evidence": evidence or []}
+                  evidence_ok = False
+          виконані_кроки.append(step)
+
       пройшло_перевірку = bool(data.get("passed")) if isinstance(data, dict) else False
+      пройшло_перевірку = пройшло_перевірку and evidence_ok
       коментар_цербера = str(data.get("cerber_comment") or "") if isinstance(data, dict) else ""
+      if not evidence_ok:
+          suffix = " Evidence відсутні для деяких кроків." if коментар_цербера else "Evidence відсутні для деяких кроків."
+          коментар_цербера = (коментар_цербера + suffix).strip()
       потрібно_повторити = bool(data.get("needs_retry")) if isinstance(data, dict) else False
+      потрібно_повторити = потрібно_повторити or not evidence_ok
       результат_виконання = str(data.get("summary") or "") if isinstance(data, dict) else ""
 outputs:
   - name: виконані_кроки
