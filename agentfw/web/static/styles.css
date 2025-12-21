@@ -359,6 +359,24 @@ button:hover {
   position: relative;
 }
 
+.card-drag-handle {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1px solid #6e7681;
+  background: #0d1117;
+  cursor: grab;
+}
+
+.card-drag-handle:active {
+  cursor: grabbing;
+  background: #1f6feb;
+  border-color: #1f6feb;
+}
+
 .agent-card.selected {
   border-color: #2ea043;
   box-shadow: 0 0 0 2px #2ea04333;
@@ -402,21 +420,21 @@ button:hover {
 }
 
 .port {
-  padding: 6px 8px;
+  padding: 4px 6px;
   border-radius: 6px;
   background: #11161f;
-  font-size: 12px;
+  font-size: 8px;
   border: 1px solid #30363d;
   cursor: grab;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
 }
 
 .port-main {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
 }
 
 .port-input {
@@ -448,7 +466,7 @@ button:hover {
 
 .var-value {
   color: #9be9a8;
-  font-size: 12px;
+  font-size: 10px;
 }
 
 .bindings {
