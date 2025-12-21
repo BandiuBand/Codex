@@ -267,13 +267,11 @@ async function renderCanvas() {
   const container = $("lanesContainer");
   const svg = $("bindingsLayer");
   const viewport = $("canvasViewport");
-  const canvasContent = $("canvasContent");
+  const content = $("canvasContent");
   if (container) container.innerHTML = "";
   if (svg) svg.innerHTML = "";
-  if (!state.current || !container || !viewport || !canvasContent) return;
-  const gap = 12;
-  canvasContent.style.setProperty("--canvas-scale", state.canvasScale);
-  canvasContent.style.setProperty("--canvas-gap", `${gap}px`);
+  if (!state.current || !container || !viewport) return;
+  if (content) content.style.setProperty("--canvas-scale", state.canvasScale);
   if (!viewport._scrollBindingAttached) {
     viewport.addEventListener("scroll", scheduleDrawBindings);
     viewport._scrollBindingAttached = true;
@@ -445,6 +443,7 @@ function makePort(itemId, varName, role, extraLabel = "") {
 function startDrag(event, itemId, varName, role = "ctx") {
   event.preventDefault();
   event.stopPropagation();
+  event.preventDefault();
   state.draggingPort = true;
   state.drag = { fromItem: itemId, fromVar: varName, role };
 }
