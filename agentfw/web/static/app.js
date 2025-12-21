@@ -344,17 +344,13 @@ async function renderCanvas() {
       inputsCol.className = "inputs-col";
       const outputsCol = document.createElement("div");
       outputsCol.className = "outputs-col";
-      const localsRow = document.createElement("div");
-      localsRow.className = "locals-row";
       grid.appendChild(inputsCol);
-      grid.appendChild(localsRow);
       grid.appendChild(outputsCol);
       card.appendChild(grid);
 
       const spec = state.specs[item.agent];
       if (spec) {
         spec.inputs.forEach((v) => inputsCol.appendChild(makePort(item.id, v.name, "input")));
-        spec.locals.forEach((v) => localsRow.appendChild(makePort(item.id, v.name, "local", v.value)));
         spec.outputs.forEach((v) => outputsCol.appendChild(makePort(item.id, v.name, "output")));
       } else {
         const placeholder = document.createElement("div");
