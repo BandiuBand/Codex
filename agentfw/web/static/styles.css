@@ -107,7 +107,7 @@ button:hover {
   background: #0b0f14;
   border: 1px solid #30363d;
   border-radius: 8px;
-  overflow: hidden;
+  overflow: auto;
   display: flex;
   flex-direction: column;
   min-height: 420px;
@@ -119,11 +119,37 @@ button:hover {
   justify-content: space-between;
   padding: 8px;
   border-bottom: 1px solid #30363d;
+  gap: 12px;
+}
+
+.canvas-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.zoom-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #7d8590;
+}
+
+.zoom-control input[type="range"] {
+  accent-color: #1f6feb;
 }
 
 .canvas-title {
   font-size: 14px;
   color: #7d8590;
+}
+
+.canvas-viewport {
+  position: relative;
+  min-height: 600px;
+  transform-origin: top left;
+  transform: scale(var(--canvas-scale, 1));
 }
 
 .var-zone {
@@ -332,7 +358,7 @@ button:hover {
 .lane {
   border-right: 1px dashed #30363d;
   padding: 8px;
-  overflow-y: auto;
+  overflow: visible;
   position: relative;
 }
 

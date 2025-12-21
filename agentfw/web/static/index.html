@@ -26,35 +26,44 @@
     </header>
 
     <main class="layout">
-      <section class="canvas">
+      <section class="canvas" id="canvas">
         <div class="canvas-top">
           <div class="canvas-title">Канва агента (lanes)</div>
-          <button id="btnAddLane" class="ghost">Додати lane</button>
-          <button id="btnAddLaneAfter" class="ghost">Вставити lane після активної</button>
-        </div>
-        <div class="var-zone var-zone-left">
-          <div class="zone-title">
-            Вхідні
-            <button class="zone-add" data-kind="inputs">+</button>
+          <div class="canvas-actions">
+            <label class="zoom-control">
+              Масштаб
+              <input id="canvasScale" type="range" min="50" max="200" value="100" />
+              <span id="canvasScaleValue">100%</span>
+            </label>
+            <button id="btnAddLane" class="ghost">Додати lane</button>
+            <button id="btnAddLaneAfter" class="ghost">Вставити lane після активної</button>
           </div>
-          <div id="canvasInputs" class="zone-ports"></div>
         </div>
-        <div class="var-zone var-zone-top">
-          <div class="zone-title">
-            Локальні
-            <button class="zone-add" data-kind="locals">+</button>
+        <div id="canvasViewport" class="canvas-viewport">
+          <div class="var-zone var-zone-left">
+            <div class="zone-title">
+              Вхідні
+              <button class="zone-add" data-kind="inputs">+</button>
+            </div>
+            <div id="canvasInputs" class="zone-ports"></div>
           </div>
-          <div id="canvasLocals" class="zone-ports"></div>
-        </div>
-        <div class="var-zone var-zone-right">
-          <div class="zone-title">
-            Вихідні
-            <button class="zone-add" data-kind="outputs">+</button>
+          <div class="var-zone var-zone-top">
+            <div class="zone-title">
+              Локальні
+              <button class="zone-add" data-kind="locals">+</button>
+            </div>
+            <div id="canvasLocals" class="zone-ports"></div>
           </div>
-          <div id="canvasOutputs" class="zone-ports"></div>
+          <div class="var-zone var-zone-right">
+            <div class="zone-title">
+              Вихідні
+              <button class="zone-add" data-kind="outputs">+</button>
+            </div>
+            <div id="canvasOutputs" class="zone-ports"></div>
+          </div>
+          <div id="lanesContainer" class="lanes"></div>
+          <svg id="bindingsLayer" class="bindings" xmlns="http://www.w3.org/2000/svg"></svg>
         </div>
-        <div id="lanesContainer" class="lanes"></div>
-        <svg id="bindingsLayer" class="bindings" xmlns="http://www.w3.org/2000/svg"></svg>
       </section>
     </main>
 

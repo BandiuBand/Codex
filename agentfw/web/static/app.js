@@ -7,6 +7,7 @@ const state = {
   selectedLane: 0,
   drag: null,
   cardDrag: null,
+  canvasScale: 1,
   counter: 1,
   loadingChildren: false,
 };
@@ -262,12 +263,19 @@ async function renderCanvas() {
   renderAgentVarZones();
   const container = $("lanesContainer");
   const svg = $("bindingsLayer");
+  const viewport = $("canvasViewport");
+  const canvas = $("canvas");
   if (container) container.innerHTML = "";
   if (svg) svg.innerHTML = "";
-  if (!state.current || !container) return;
-  if (!container._scrollBindingAttached) {
-    container.addEventListener("scroll", scheduleDrawBindings);
-    container._scrollBindingAttached = true;
+  if (!state.current || !container || !viewport) return;
+  viewport.style.setProperty("--canvas-scale", state.canvasScale);
+  if (!viewport._scrollBindingAttached) {
+    viewport.addEventListener("scroll", scheduleDrawBindings);
+    viewport._scrollBindingAttached = true;
+  }
+  if (canvas && !canvas._scrollBindingAttached) {
+    canvas.addEventListener("scroll", scheduleDrawBindings);
+    canvas._scrollBindingAttached = true;
   }
   ensureGraph(state.current);
 
@@ -294,7 +302,8 @@ async function renderCanvas() {
     laneEl.addEventListener("drop", (e) => {
       e.preventDefault();
       if (!state.cardDrag) return;
-      moveCardToLane(state.cardDrag.itemId, state.cardDrag.fromLane, laneIndex);
+      const dropIndex = findDropIndex(laneEl, e.clientY, state.cardDrag.itemId);
+      moveCardToLane(state.cardDrag.itemId, state.cardDrag.fromLane, laneIndex, dropIndex);
     });
     laneEl.addEventListener("scroll", scheduleDrawBindings);
     const laneTitle = document.createElement("div");
@@ -582,21 +591,33 @@ function removeBinding(binding) {
   drawBindings();
 }
 
-function moveCardToLane(itemId, fromLaneIdx, toLaneIdx) {
+function moveCardToLane(itemId, fromLaneIdx, toLaneIdx, targetOrder = null) {
   if (!state.current?.graph) return;
-  if (fromLaneIdx === toLaneIdx) return;
   const fromLane = state.current.graph.lanes[fromLaneIdx];
   const toLane = state.current.graph.lanes[toLaneIdx];
   if (!fromLane || !toLane) return;
   const idx = fromLane.items.findIndex((i) => i.id === itemId);
   if (idx === -1) return;
   const [item] = fromLane.items.splice(idx, 1);
-  if (!item.ui) item.ui = { lane_index: toLaneIdx, order: toLane.items.length };
+  const insertAtRaw = targetOrder ?? toLane.items.length;
+  const adjustedInsert = fromLaneIdx === toLaneIdx && idx < insertAtRaw ? insertAtRaw - 1 : insertAtRaw;
+  const insertAt = Math.min(Math.max(adjustedInsert, 0), toLane.items.length);
+  if (!item.ui) item.ui = { lane_index: toLaneIdx, order: insertAt };
   item.ui.lane_index = toLaneIdx;
-  item.ui.order = toLane.items.length;
-  toLane.items.push(item);
+  item.ui.order = insertAt;
+  toLane.items.splice(insertAt, 0, item);
   normalizeLaneOrders();
   renderCanvas();
+}
+
+function findDropIndex(laneEl, clientY, draggingId) {
+  const cards = Array.from(laneEl.querySelectorAll(".agent-card"));
+  const idx = cards.findIndex((card) => {
+    if (card.dataset.itemId === String(draggingId)) return false;
+    const rect = card.getBoundingClientRect();
+    return clientY < rect.top + rect.height / 2;
+  });
+  return idx === -1 ? cards.length : idx;
 }
 
 function renderAgentVarZones() {
@@ -771,6 +792,19 @@ function setupZoneButtons() {
   });
 }
 
+function setupZoomControls() {
+  const slider = $("canvasScale");
+  const valueLabel = $("canvasScaleValue");
+  if (!slider) return;
+  const update = (val) => {
+    state.canvasScale = val / 100;
+    if (valueLabel) valueLabel.textContent = `${val}%`;
+    renderCanvas();
+  };
+  slider.addEventListener("input", (e) => update(Number(e.target.value)));
+  update(Number(slider.value || 100));
+}
+
 function bindEvents() {
   $("btnNew")?.addEventListener("click", newAgent);
   $("btnSave")?.addEventListener("click", saveAgent);
@@ -781,6 +815,7 @@ function bindEvents() {
     state.drag = null;
   });
   setupZoneButtons();
+  setupZoomControls();
 }
 
 window.addEventListener("resize", scheduleDrawBindings);
