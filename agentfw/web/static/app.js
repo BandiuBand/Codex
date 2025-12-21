@@ -329,6 +329,7 @@ async function renderCanvas() {
       });
       dragHandle.addEventListener("dragend", () => {
         state.cardDrag = null;
+        card.draggable = true;
       });
       card.appendChild(dragHandle);
 
