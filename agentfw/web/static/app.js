@@ -352,6 +352,18 @@ async function renderCanvas() {
       if (spec) {
         spec.inputs.forEach((v) => inputsCol.appendChild(makePort(item.id, v.name, "input")));
         spec.outputs.forEach((v) => outputsCol.appendChild(makePort(item.id, v.name, "output")));
+        requestAnimationFrame(() => {
+          const maxWidth = (col) =>
+            Array.from(col.children).reduce((max, el) => Math.max(max, el.getBoundingClientRect().width), 0);
+          const widestInput = maxWidth(inputsCol);
+          const widestOutput = maxWidth(outputsCol);
+          const gap = 16; // matches .card-grid column gap
+          const padding = 32; // horizontal padding inside grid/card
+          const minWidth = widestInput + widestOutput + gap + padding;
+          if (minWidth > 0) {
+            card.style.minWidth = `${minWidth}px`;
+          }
+        });
       } else {
         const placeholder = document.createElement("div");
         placeholder.className = "port port-missing";
@@ -516,11 +528,30 @@ function drawBindings() {
     const d = `M ${startX} ${startY} C ${startX + 50} ${startY} ${endX - 50} ${endY} ${endX} ${endY}`;
     path.setAttribute("d", d);
     path.setAttribute("class", "binding-line");
+    path.style.stroke = bindingColor(b);
     path.addEventListener("click", () => {
       removeBinding(b);
     });
     svg.appendChild(path);
   });
+}
+
+function bindingColor(binding) {
+  if (!state.current) return "#58a6ff";
+  const kindOfCtxVar = (varName) => {
+    if (state.current.inputs?.some((v) => v.name === varName)) return "inputs";
+    if (state.current.locals?.some((v) => v.name === varName)) return "locals";
+    if (state.current.outputs?.some((v) => v.name === varName)) return "outputs";
+    return null;
+  };
+
+  const sourceKind = binding.from_agent_item_id === CTX_ID ? kindOfCtxVar(binding.from_var) : null;
+  const targetKind = binding.to_agent_item_id === CTX_ID ? kindOfCtxVar(binding.to_var) : null;
+
+  if (sourceKind === "locals" || targetKind === "locals") return "#f1c40f"; // yellow
+  if (sourceKind === "inputs" || targetKind === "inputs") return "#2ea043"; // green
+  if (sourceKind === "outputs" || targetKind === "outputs") return "#f85149"; // red
+  return "#58a6ff"; // default blue
 }
 
 function removeBinding(binding) {

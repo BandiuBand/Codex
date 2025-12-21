@@ -420,21 +420,21 @@ button:hover {
 }
 
 .port {
-  padding: 6px 8px;
+  padding: 4px 6px;
   border-radius: 6px;
   background: #11161f;
-  font-size: 12px;
+  font-size: 8px;
   border: 1px solid #30363d;
   cursor: grab;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
 }
 
 .port-main {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
 }
 
 .port-input {
@@ -466,7 +466,7 @@ button:hover {
 
 .var-value {
   color: #9be9a8;
-  font-size: 12px;
+  font-size: 10px;
 }
 
 .bindings {
