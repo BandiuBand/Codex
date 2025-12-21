@@ -89,7 +89,7 @@ graph:
             order: 0
     - items:
         - id: final_message
-          agent: final_message_selector
+          agent: guard_before_finalize
           bindings:
             - from_agent_item_id: "__CTX__"
               from_var: фінальна_відповідь
@@ -99,6 +99,22 @@ graph:
               from_var: швидка_відповідь
               to_agent_item_id: final_message
               to_var: швидка_відповідь
+            - from_agent_item_id: "__CTX__"
+              from_var: виконані_кроки
+              to_agent_item_id: final_message
+              to_var: виконані_кроки
+            - from_agent_item_id: "__CTX__"
+              from_var: пройшло_перевірку
+              to_agent_item_id: final_message
+              to_var: пройшло_перевірку
+            - from_agent_item_id: "__CTX__"
+              from_var: коментар_цербера
+              to_agent_item_id: final_message
+              to_var: коментар_цербера
+            - from_agent_item_id: "__CTX__"
+              from_var: is_complex
+              to_agent_item_id: final_message
+              to_var: is_complex
           ui:
             lane_index: 3
             order: 0

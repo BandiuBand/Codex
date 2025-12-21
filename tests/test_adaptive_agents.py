@@ -49,6 +49,7 @@ class ScriptedLLM(LLMClient):
                             "коментар": "ок",
                             "прийнято": True,
                             "спроб": 1,
+                            "evidence": ["demo-path-1"],
                         },
                         {
                             "крок": "Крок 2: виконати дію",
@@ -57,6 +58,7 @@ class ScriptedLLM(LLMClient):
                             "коментар": "ок",
                             "прийнято": True,
                             "спроб": 1,
+                            "evidence": ["demo-path-2"],
                         },
                     ],
                     "passed": True,
