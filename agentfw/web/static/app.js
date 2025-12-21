@@ -371,6 +371,13 @@ function makePort(itemId, varName, role, extraLabel = "") {
   port.dataset.itemId = itemId;
   port.dataset.varName = varName;
   port.dataset.role = role;
+
+  if (role === "local") {
+    port.classList.add("port-disabled");
+    port.title = "Зовнішні зв'язки для локальних портів недоступні";
+    return port;
+  }
+
   port.addEventListener("mousedown", (e) => {
     if (e.target.closest(".port-actions")) return;
     startDrag(e, itemId, varName, role);
@@ -392,9 +399,9 @@ function finishDrag(event, itemId, varName, targetRole) {
   event.stopPropagation();
   const source = state.drag;
 
-  // правила: до input дочірнього агента може йти output/local/ctx
+  // правила: до input дочірнього агента може йти output/ctx
   if (targetRole === "input") {
-    const allowedSources = ["output", "local", "ctx-input", "ctx-local", "ctx-output"];
+    const allowedSources = ["output", "ctx-input", "ctx-local", "ctx-output"];
     if (!allowedSources.includes(source.role)) {
       state.drag = null;
       return;
@@ -419,9 +426,9 @@ function finishDrag(event, itemId, varName, targetRole) {
     return;
   }
 
-  // до ctx-output/local допускаємо підключення з output/local дочірнього
+  // до ctx-output/local допускаємо підключення лише з output дочірнього
   const targetIsCtxOutput = targetRole === "ctx-output" || targetRole === "ctx-local";
-  const sourceIsChild = ["output", "local"].includes(source.role);
+  const sourceIsChild = ["output"].includes(source.role);
   if (targetIsCtxOutput && sourceIsChild) {
     const sourceLane = getItemLaneIndex(source.fromItem);
     const targetLane = getItemLaneIndex(CTX_ID);
