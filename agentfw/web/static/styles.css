@@ -359,6 +359,24 @@ button:hover {
   position: relative;
 }
 
+.card-drag-handle {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1px solid #6e7681;
+  background: #0d1117;
+  cursor: grab;
+}
+
+.card-drag-handle:active {
+  cursor: grabbing;
+  background: #1f6feb;
+  border-color: #1f6feb;
+}
+
 .agent-card.selected {
   border-color: #2ea043;
   box-shadow: 0 0 0 2px #2ea04333;

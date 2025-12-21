@@ -307,21 +307,30 @@ async function renderCanvas() {
       const card = document.createElement("div");
       card.className = `agent-card ${state.selectedItemId === item.id ? "selected" : ""}`;
       card.dataset.itemId = item.id;
-      card.draggable = true;
-      card.addEventListener("dragstart", (event) => {
-        if (event.target.closest(".port")) {
+      card.draggable = false;
+      card.addEventListener("click", () => {
+        state.selectedItemId = item.id;
+        renderCanvas();
+      });
+
+      const dragHandle = document.createElement("div");
+      dragHandle.className = "card-drag-handle";
+      dragHandle.title = "Перетягнути агента";
+      dragHandle.draggable = true;
+      dragHandle.addEventListener("mousedown", (event) => {
+        event.stopPropagation();
+      });
+      dragHandle.addEventListener("dragstart", (event) => {
+        if (state.draggingPort) {
           event.preventDefault();
           return;
         }
         state.cardDrag = { itemId: item.id, fromLane: laneIndex };
       });
-      card.addEventListener("dragend", () => {
+      dragHandle.addEventListener("dragend", () => {
         state.cardDrag = null;
       });
-      card.addEventListener("click", () => {
-        state.selectedItemId = item.id;
-        renderCanvas();
-      });
+      card.appendChild(dragHandle);
 
       const title = document.createElement("div");
       title.className = "agent-title";
@@ -334,17 +343,13 @@ async function renderCanvas() {
       inputsCol.className = "inputs-col";
       const outputsCol = document.createElement("div");
       outputsCol.className = "outputs-col";
-      const localsRow = document.createElement("div");
-      localsRow.className = "locals-row";
       grid.appendChild(inputsCol);
-      grid.appendChild(localsRow);
       grid.appendChild(outputsCol);
       card.appendChild(grid);
 
       const spec = state.specs[item.agent];
       if (spec) {
         spec.inputs.forEach((v) => inputsCol.appendChild(makePort(item.id, v.name, "input")));
-        spec.locals.forEach((v) => localsRow.appendChild(makePort(item.id, v.name, "local", v.value)));
         spec.outputs.forEach((v) => outputsCol.appendChild(makePort(item.id, v.name, "output")));
       } else {
         const placeholder = document.createElement("div");
@@ -395,6 +400,7 @@ function makePort(itemId, varName, role, extraLabel = "") {
 
 function startDrag(event, itemId, varName, role = "ctx") {
   event.stopPropagation();
+  state.draggingPort = true;
   state.drag = { fromItem: itemId, fromVar: varName, role };
 }
 
@@ -402,19 +408,23 @@ function finishDrag(event, itemId, varName, targetRole) {
   if (!state.drag || !state.current) return;
   event.stopPropagation();
   const source = state.drag;
+  const clearDrag = () => {
+    state.drag = null;
+    state.draggingPort = false;
+  };
 
   // правила: до input дочірнього агента може йти output/ctx
   if (targetRole === "input") {
     const allowedSources = ["output", "ctx-input", "ctx-local", "ctx-output"];
     if (!allowedSources.includes(source.role)) {
-      state.drag = null;
+      clearDrag();
       return;
     }
     const sourceLane = getItemLaneIndex(source.fromItem);
     const targetLane = getItemLaneIndex(itemId);
     if (sourceLane !== null && targetLane !== null && sourceLane === targetLane) {
       setStatus("Не можна створити зв'язок між елементами в одному lane", "warn");
-      state.drag = null;
+      clearDrag();
       return;
     }
     const fromId = source.fromItem;
@@ -425,7 +435,7 @@ function finishDrag(event, itemId, varName, targetRole) {
       to_var: varName,
     };
     addBinding(binding);
-    state.drag = null;
+    clearDrag();
     drawBindings();
     return;
   }
@@ -438,7 +448,7 @@ function finishDrag(event, itemId, varName, targetRole) {
     const targetLane = getItemLaneIndex(CTX_ID);
     if (sourceLane !== null && targetLane !== null && sourceLane === targetLane) {
       setStatus("Не можна створити зв'язок між елементами в одному lane", "warn");
-      state.drag = null;
+      clearDrag();
       return;
     }
     const binding = {
@@ -448,12 +458,12 @@ function finishDrag(event, itemId, varName, targetRole) {
       to_var: varName,
     };
     addBinding(binding);
-    state.drag = null;
+    clearDrag();
     drawBindings();
     return;
   }
 
-  state.drag = null;
+  clearDrag();
 }
 
 function addBinding(binding) {
