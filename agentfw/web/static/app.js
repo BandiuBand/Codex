@@ -268,10 +268,14 @@ async function renderCanvas() {
   const svg = $("bindingsLayer");
   const viewport = $("canvasViewport");
   const content = $("canvasContent");
+  const scaled = $("canvasScaled");
   if (container) container.innerHTML = "";
   if (svg) svg.innerHTML = "";
   if (!state.current || !container || !viewport) return;
-  if (content) content.style.setProperty("--canvas-scale", state.canvasScale);
+  if (scaled) {
+    scaled.style.width = "";
+    scaled.style.height = "";
+  }
   if (!viewport._scrollBindingAttached) {
     viewport.addEventListener("scroll", scheduleDrawBindings);
     viewport._scrollBindingAttached = true;
@@ -391,20 +395,22 @@ async function renderCanvas() {
 
     laneEl.appendChild(card);
   });
-  container.appendChild(laneEl);
-});
-
-  const scale = state.canvasScale || 1;
-  const baseWidth = container.scrollWidth + leftOffset + rightOffset + gap * 2;
-  const baseHeight = container.scrollHeight + topOffset + gap * 2;
-  const scaledWidth = Math.max(baseWidth * scale, viewport.clientWidth);
-  const scaledHeight = Math.max(baseHeight * scale, viewport.clientHeight);
-  canvasContent.style.transform = `scale(${scale})`;
-  canvasContent.style.width = `${scaledWidth}px`;
-  canvasContent.style.height = `${scaledHeight}px`;
-  svg?.setAttribute("width", `${scaledWidth}`);
-  svg?.setAttribute("height", `${scaledHeight}`);
+  applyCanvasScale();
   drawBindings();
+}
+
+function applyCanvasScale() {
+  const content = $("canvasContent");
+  const scaled = $("canvasScaled");
+  const viewport = $("canvasViewport");
+  if (!content || !scaled) return;
+  const scale = state.canvasScale || 1;
+  content.style.setProperty("--canvas-scale", 1);
+  const baseWidth = Math.max(content.scrollWidth, viewport?.clientWidth || 0);
+  const baseHeight = Math.max(content.scrollHeight, viewport?.clientHeight || 0);
+  content.style.setProperty("--canvas-scale", scale);
+  scaled.style.width = `${baseWidth * scale}px`;
+  scaled.style.height = `${baseHeight * scale}px`;
 }
 
 function makePort(itemId, varName, role, extraLabel = "") {
