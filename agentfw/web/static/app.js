@@ -265,7 +265,6 @@ async function renderCanvas() {
   const svg = $("bindingsLayer");
   const viewport = $("canvasViewport");
   const canvasContent = $("canvasContent");
-  const canvas = $("canvas");
   if (container) container.innerHTML = "";
   if (svg) svg.innerHTML = "";
   if (!state.current || !container || !viewport || !canvasContent) return;
@@ -275,10 +274,6 @@ async function renderCanvas() {
   if (!viewport._scrollBindingAttached) {
     viewport.addEventListener("scroll", scheduleDrawBindings);
     viewport._scrollBindingAttached = true;
-  }
-  if (canvas && !canvas._scrollBindingAttached) {
-    canvas.addEventListener("scroll", scheduleDrawBindings);
-    canvas._scrollBindingAttached = true;
   }
   ensureGraph(state.current);
 
@@ -399,13 +394,11 @@ async function renderCanvas() {
 });
 
   const scale = state.canvasScale || 1;
-  canvasContent.style.transform = `scale(${scale})`;
-  canvasContent.style.width = "";
-  canvasContent.style.height = "";
-  const baseWidth = canvasContent.scrollWidth;
-  const baseHeight = canvasContent.scrollHeight;
+  const baseWidth = container.scrollWidth + leftOffset + rightOffset + gap * 2;
+  const baseHeight = container.scrollHeight + topOffset + gap * 2;
   const scaledWidth = Math.max(baseWidth * scale, viewport.clientWidth);
   const scaledHeight = Math.max(baseHeight * scale, viewport.clientHeight);
+  canvasContent.style.transform = `scale(${scale})`;
   canvasContent.style.width = `${scaledWidth}px`;
   canvasContent.style.height = `${scaledHeight}px`;
   svg?.setAttribute("width", `${scaledWidth}`);
