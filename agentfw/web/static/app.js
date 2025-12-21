@@ -229,12 +229,22 @@ async function insertAgentItem(agentName) {
   renderCanvas();
 }
 
-function addLane() {
+function addLane(insertPosition = null) {
   if (!state.current) return;
   ensureGraph(state.current);
-  state.current.graph.lanes.push({ items: [] });
-  state.selectedLane = state.current.graph.lanes.length - 1;
+  const lanes = state.current.graph.lanes;
+  const position = Number.isInteger(insertPosition)
+    ? Math.min(Math.max(insertPosition, 0), lanes.length)
+    : lanes.length;
+  lanes.splice(position, 0, { items: [] });
+  state.selectedLane = position;
+  normalizeLaneOrders();
   renderCanvas();
+}
+
+function addLaneAfterActive() {
+  const insertAfter = (state.selectedLane ?? -1) + 1;
+  addLane(insertAfter);
 }
 
 function normalizeLaneOrders() {
@@ -712,7 +722,8 @@ function bindEvents() {
   $("btnNew")?.addEventListener("click", newAgent);
   $("btnSave")?.addEventListener("click", saveAgent);
   $("btnCreate")?.addEventListener("click", createAgent);
-  $("btnAddLane")?.addEventListener("click", addLane);
+  $("btnAddLane")?.addEventListener("click", () => addLane());
+  $("btnAddLaneAfter")?.addEventListener("click", addLaneAfterActive);
   document.addEventListener("mouseup", () => {
     state.drag = null;
   });
