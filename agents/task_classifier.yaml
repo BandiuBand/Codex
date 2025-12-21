@@ -29,6 +29,7 @@ graph:
           ui:
             lane_index: 0
             order: 0
+    - items:
         - id: extract_flag
           agent: json_extract
           bindings:
@@ -41,8 +42,8 @@ graph:
               to_agent_item_id: extract_flag
               to_var: ключ
           ui:
-            lane_index: 0
-            order: 1
+            lane_index: 1
+            order: 0
         - id: extract_reason
           agent: json_extract
           bindings:
@@ -55,8 +56,9 @@ graph:
               to_agent_item_id: extract_reason
               to_var: ключ
           ui:
-            lane_index: 0
-            order: 2
+            lane_index: 1
+            order: 1
+    - items:
         - id: consolidate
           agent: classification_consolidator
           bindings:
@@ -73,8 +75,8 @@ graph:
               to_agent_item_id: consolidate
               to_var: llm_reason
           ui:
-            lane_index: 0
-            order: 3
+            lane_index: 2
+            order: 0
   __ctx_bindings:
     - from_agent_item_id: llm_classify
       from_var: результат
