@@ -13,6 +13,15 @@ const state = {
 };
 
 const CTX_ID = "__CTX__";
+const DEFAULT_LANE_WIDTH = 340;
+const DEFAULT_ZONE_WIDTH = 200;
+const DEFAULT_GAP = 12;
+
+function cssNumber(varName, fallback) {
+  const raw = getComputedStyle(document.documentElement).getPropertyValue(varName);
+  const parsed = Number.parseFloat(raw);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
 
 let drawBindingsScheduled = false;
 
@@ -403,11 +412,19 @@ function applyCanvasScale() {
   const content = $("canvasContent");
   const scaled = $("canvasScaled");
   const viewport = $("canvasViewport");
-  if (!content || !scaled) return;
+  const lanesEl = $("lanesContainer");
+  if (!content || !scaled || !viewport) return;
   const scale = state.canvasScale || 1;
-  content.style.setProperty("--canvas-scale", 1);
-  const baseWidth = Math.max(content.scrollWidth, viewport?.clientWidth || 0);
-  const baseHeight = Math.max(content.scrollHeight, viewport?.clientHeight || 0);
+  const laneWidth = cssNumber("--lane-width", DEFAULT_LANE_WIDTH);
+  const zoneWidth = cssNumber("--zone-width", DEFAULT_ZONE_WIDTH);
+  const gap = cssNumber("--canvas-gap", DEFAULT_GAP);
+  const laneCount = Math.max(state.current?.graph?.lanes?.length || 0, 1);
+  const baseWidth = laneCount * laneWidth + zoneWidth * 2 + gap * 2;
+  const laneHeight = lanesEl ? lanesEl.scrollHeight : 0;
+  const baseHeight = Math.max(laneHeight, content.scrollHeight, viewport.clientHeight);
+
+  content.style.width = `${baseWidth}px`;
+  content.style.height = `${baseHeight}px`;
   content.style.setProperty("--canvas-scale", scale);
   scaled.style.width = `${baseWidth * scale}px`;
   scaled.style.height = `${baseHeight * scale}px`;

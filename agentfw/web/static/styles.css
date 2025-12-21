@@ -3,6 +3,12 @@
   font-family: "Inter", system-ui, -apple-system, sans-serif;
 }
 
+:root {
+  --lane-width: 340px;
+  --zone-width: 200px;
+  --canvas-gap: 12px;
+}
+
 body {
   margin: 0;
   background: #0d1117;
@@ -20,6 +26,9 @@ body {
   padding: 12px 16px;
   background: #161b22;
   border-bottom: 1px solid #30363d;
+  position: sticky;
+  top: 0;
+  z-index: 200;
 }
 
 .logo {
@@ -67,7 +76,7 @@ button:hover {
   border: 1px solid #30363d;
   border-radius: 6px;
   display: none;
-  z-index: 10;
+  z-index: 210;
 }
 
 .dropdown:hover .dropdown-menu {
@@ -110,7 +119,7 @@ button:hover {
   display: flex;
   flex-direction: column;
   min-height: 420px;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .canvas-top {
@@ -158,16 +167,15 @@ button:hover {
 .canvas-content {
   position: relative;
   min-height: 600px;
-  min-width: 100%;
   transform-origin: top left;
   transform: scale(var(--canvas-scale, 1));
   display: grid;
-  grid-template-columns: 200px 1fr 200px;
+  grid-template-columns: var(--zone-width) 1fr var(--zone-width);
   grid-template-rows: auto 1fr;
   grid-template-areas:
     "inputs top outputs"
     "inputs lanes outputs";
-  gap: 12px;
+  gap: var(--canvas-gap);
 }
 
 .var-zone {
@@ -230,7 +238,7 @@ button:hover {
 .lanes {
   display: grid;
   grid-auto-flow: column;
-  grid-auto-columns: 1fr;
+  grid-auto-columns: var(--lane-width);
   height: 100%;
   position: relative;
   flex: 1;
