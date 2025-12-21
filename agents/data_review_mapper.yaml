@@ -11,6 +11,7 @@ locals:
       needs = False
       clarifications = ''
       summary = ''
+      answer = ''
       source = аналіз_даних
       if isinstance(source, str):
           import json as json_lib
@@ -22,10 +23,13 @@ locals:
           needs = bool(source.get('needs_more_info'))
           clarifications = source.get('clarifications') or ''
           summary = source.get('context_summary') or ''
+          answer = source.get('user_answer') or ''
       потрібні_уточнення = needs
       уточнюючі_питання = str(clarifications)
       попередній_контекст = str(summary)
+      відповідь_користувача = str(answer)
 outputs:
   - name: потрібні_уточнення
   - name: уточнюючі_питання
   - name: попередній_контекст
+  - name: відповідь_користувача

@@ -1,0 +1,38 @@
+name: chat_agent
+title_ua: Місток із користувачем
+description_ua: Надсилає текст користувачу та повертає його відповідь
+kind: atomic
+executor: python
+inputs:
+  - name: message_to_user
+  - name: needs_response
+locals:
+  - name: user_message
+    value: ""
+  - name: code
+    value: |
+      # Чат-агент діє синхронно: ставить питання користувачу і чекає відповіді
+      # через глобальний chat_gateway без повернення статусу "blocked".
+      from agentfw.runtime.chat_agent import ChatAgentGateway
+
+      gateway = locals().get("chat_gateway")
+      if not isinstance(gateway, ChatAgentGateway):
+          raise RuntimeError("chat_gateway недоступний для чат-агента")
+
+      text = (message_to_user or "").strip()
+      wants_reply = True if needs_response is None else bool(needs_response)
+
+      if wants_reply:
+          if user_message:
+              # Уже маємо відповідь користувача — просто повертаємо її.
+              user_message = str(user_message)
+          else:
+              # Агент формулює питання і блокується, доки користувач не відповість.
+              gateway.ask_user("chat_agent", text or "Очікуємо завдання від користувача")
+              user_message = gateway.wait_user()
+      else:
+          if text:
+              gateway.post_agent("chat_agent", text)
+          user_message = user_message or ""
+outputs:
+  - name: user_message
