@@ -40,32 +40,30 @@
           </div>
         </div>
         <div id="canvasViewport" class="canvas-viewport">
-          <div class="canvas-layer">
-            <div class="canvas-content" id="canvasContent">
-              <div id="lanesContainer" class="lanes"></div>
-              <svg id="bindingsLayer" class="bindings" xmlns="http://www.w3.org/2000/svg"></svg>
+          <div class="canvas-content" id="canvasContent">
+            <div id="lanesContainer" class="lanes"></div>
+            <svg id="bindingsLayer" class="bindings" xmlns="http://www.w3.org/2000/svg"></svg>
+          </div>
+          <div class="var-zone var-zone-left">
+            <div class="zone-title">
+              Вхідні
+              <button class="zone-add" data-kind="inputs">+</button>
             </div>
-            <div class="var-zone var-zone-left">
-              <div class="zone-title">
-                Вхідні
-                <button class="zone-add" data-kind="inputs">+</button>
-              </div>
-              <div id="canvasInputs" class="zone-ports"></div>
+            <div id="canvasInputs" class="zone-ports"></div>
+          </div>
+          <div class="var-zone var-zone-top">
+            <div class="zone-title">
+              Локальні
+              <button class="zone-add" data-kind="locals">+</button>
             </div>
-            <div class="var-zone var-zone-top">
-              <div class="zone-title">
-                Локальні
-                <button class="zone-add" data-kind="locals">+</button>
-              </div>
-              <div id="canvasLocals" class="zone-ports"></div>
+            <div id="canvasLocals" class="zone-ports"></div>
+          </div>
+          <div class="var-zone var-zone-right">
+            <div class="zone-title">
+              Вихідні
+              <button class="zone-add" data-kind="outputs">+</button>
             </div>
-            <div class="var-zone var-zone-right">
-              <div class="zone-title">
-                Вихідні
-                <button class="zone-add" data-kind="outputs">+</button>
-              </div>
-              <div id="canvasOutputs" class="zone-ports"></div>
-            </div>
+            <div id="canvasOutputs" class="zone-ports"></div>
           </div>
         </div>
       </section>
