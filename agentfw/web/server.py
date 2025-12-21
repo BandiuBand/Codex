@@ -37,7 +37,11 @@ class AgentEditorHandler(SimpleHTTPRequestHandler):
                 repository=self.__class__._shared_repository,
                 llm_client=OllamaLLMClient(),
                 llm_client_factory=self._build_llm_factory(),
+                chat_gateway=self.__class__._shared_chat_agent,
             )
+        elif self.__class__._shared_engine.chat_gateway is not self.__class__._shared_chat_agent:
+            # Ensure the engine and chat endpoints reference the same in-memory broker.
+            self.__class__._shared_engine.chat_gateway = self.__class__._shared_chat_agent
 
         self.repository = self.__class__._shared_repository
         self.engine = self.__class__._shared_engine

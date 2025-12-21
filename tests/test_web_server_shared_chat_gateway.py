@@ -30,6 +30,7 @@ class NoopHandler(AgentEditorHandler):
 
 def test_chat_gateway_shared_between_requests() -> None:
     AgentEditorHandler._shared_chat_agent = ChatAgentGateway()
+    AgentEditorHandler._shared_engine = None
 
     first = NoopHandler(DummySocket(), ("127.0.0.1", 0), DummyServer())
     first.chat_agent.post_agent("AdaptiveAgent", "Привіт, дай задачу")
@@ -38,3 +39,12 @@ def test_chat_gateway_shared_between_requests() -> None:
 
     history = [msg.text for msg in second.chat_agent.history()]
     assert history[-1] == "Привіт, дай задачу"
+
+
+def test_engine_uses_shared_chat_gateway() -> None:
+    AgentEditorHandler._shared_chat_agent = ChatAgentGateway()
+    AgentEditorHandler._shared_engine = None
+
+    handler = NoopHandler(DummySocket(), ("127.0.0.1", 0), DummyServer())
+
+    assert handler.engine.chat_gateway is handler.chat_agent
