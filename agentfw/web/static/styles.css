@@ -431,6 +431,11 @@ button:hover {
   border-color: #f0883e;
 }
 
+.port-disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .port-ctx {
   border-color: #58a6ff;
 }
