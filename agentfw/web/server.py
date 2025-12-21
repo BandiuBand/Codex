@@ -18,16 +18,30 @@ from agentfw.runtime.engine import AgentRepository, ExecutionEngine
 class AgentEditorHandler(SimpleHTTPRequestHandler):
     server_version = "AgentEditor/agents"
 
+    # One shared in-memory chat and engine per server process so history and
+    # blocked prompts persist across requests instead of being recreated for
+    # every HTTP handler instance.
+    _shared_chat_agent = ChatAgentGateway()
+    _shared_repository: AgentRepository | None = None
+    _shared_engine: ExecutionEngine | None = None
+
     def __init__(self, *args, **kwargs):
         self.static_dir = Path(__file__).parent / "static"
         self.agents_dir = self._find_agents_dir()
-        self.repository = AgentRepository(self.agents_dir)
-        self.engine = ExecutionEngine(
-            repository=self.repository,
-            llm_client=OllamaLLMClient(),
-            llm_client_factory=self._build_llm_factory(),
-        )
-        self.chat_agent = ChatAgentGateway()
+
+        if self.__class__._shared_repository is None:
+            self.__class__._shared_repository = AgentRepository(self.agents_dir)
+
+        if self.__class__._shared_engine is None:
+            self.__class__._shared_engine = ExecutionEngine(
+                repository=self.__class__._shared_repository,
+                llm_client=OllamaLLMClient(),
+                llm_client_factory=self._build_llm_factory(),
+            )
+
+        self.repository = self.__class__._shared_repository
+        self.engine = self.__class__._shared_engine
+        self.chat_agent = self.__class__._shared_chat_agent
         super().__init__(*args, directory=str(self.static_dir), **kwargs)
 
     def end_headers(self) -> None:  # type: ignore[override]

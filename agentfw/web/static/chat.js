@@ -27,6 +27,7 @@ async function fetchJSON(url, options = {}) {
 
 let lastMessageId = null;
 let pollTimer = null;
+let historyCache = [];
 
 function renderMessage(message) {
   const wrapper = document.createElement("div");
@@ -56,11 +57,12 @@ function renderHistory(history) {
 async function loadHistory() {
   try {
     const data = await fetchJSON(`/chat/history?after=${encodeURIComponent(lastMessageId || "")}`);
-    const history = data.history || [];
-    if (history.length) {
-      lastMessageId = history[history.length - 1].id;
+    const newMessages = data.history || [];
+    if (newMessages.length) {
+      lastMessageId = newMessages[newMessages.length - 1].id;
+      historyCache = historyCache.concat(newMessages);
+      renderHistory(historyCache);
     }
-    renderHistory(history);
   } catch (err) {
     console.error(err);
     setStatus("Не вдалося завантажити історію", "error");
@@ -96,4 +98,5 @@ function bindEvents() {
   pollTimer = setInterval(() => loadHistory(), 2000);
 }
 bindEvents();
+loadHistory();
 setStatus("Почніть діалог");

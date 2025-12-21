@@ -113,6 +113,10 @@ graph:
               from_var: needs_response
               to_agent_item_id: final_chat
               to_var: needs_response
+            - from_agent_item_id: "__CTX__"
+              from_var: user_message
+              to_agent_item_id: final_chat
+              to_var: user_message
           ui:
             lane_index: 3
             order: 1
@@ -177,3 +181,7 @@ graph:
       from_var: final_message_to_user
       to_agent_item_id: "__CTX__"
       to_var: final_message_to_user
+    - from_agent_item_id: "__CTX__"
+      from_var: user_message
+      to_agent_item_id: final_chat
+      to_var: user_message

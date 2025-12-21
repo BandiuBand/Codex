@@ -11,23 +11,28 @@ locals:
     value: ""
   - name: code
     value: |
-      # Якщо потрібна відповідь користувача, але значення user_message відсутнє,
-      # піднімаємо BlockedExecution із missing_inputs/why_blocked, щоб зовнішній
-      # чат показав питання й зачекав на наступне реальне повідомлення.
-      from agentfw.runtime.engine import BlockedExecution
+      # Чат-агент діє синхронно: ставить питання користувачу і чекає відповіді
+      # через глобальний chat_gateway без повернення статусу "blocked".
+      from agentfw.runtime.chat_agent import ChatAgentGateway
 
-      text = message_to_user or ""
+      gateway = locals().get("chat_gateway")
+      if not isinstance(gateway, ChatAgentGateway):
+          raise RuntimeError("chat_gateway недоступний для чат-агента")
+
+      text = (message_to_user or "").strip()
       wants_reply = True if needs_response is None else bool(needs_response)
 
-      if wants_reply and not user_message:
-          # Блокуємо виконання лише з поясненням/питанням,
-          # не вимагаючи конкретних missing_inputs.
-          reason = text or "Очікуємо відповідь користувача"
-          raise BlockedExecution(
-              questions_to_user=[text] if text else None,
-              why_blocked=f"{reason}. Актуального повідомлення від користувача немає — чат чекає на новий текст.",
-          )
-
-      user_message = user_message or ""
+      if wants_reply:
+          if user_message:
+              # Уже маємо відповідь користувача — просто повертаємо її.
+              user_message = str(user_message)
+          else:
+              # Агент формулює питання і блокується, доки користувач не відповість.
+              gateway.ask_user("chat_agent", text or "Очікуємо завдання від користувача")
+              user_message = gateway.wait_user()
+      else:
+          if text:
+              gateway.post_agent("chat_agent", text)
+          user_message = user_message or ""
 outputs:
   - name: user_message

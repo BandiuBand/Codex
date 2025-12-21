@@ -12,6 +12,7 @@ from agentfw.core.agent_spec import AgentItemSpec, AgentSpec, BindingSpec, Graph
 from agentfw.io.agent_yaml import load_agent_spec, save_agent_spec
 from agentfw.llm.base import DummyLLMClient, LLMClient, OllamaLLMClient
 from agentfw.llm.json_extract import extract_first_json
+from agentfw.runtime.chat_agent import ChatAgentGateway
 
 
 def _find_agents_dir() -> Path:
@@ -270,6 +271,7 @@ class ExecutionEngine:
         runs_dir: Optional[Path] = None,
         max_total_steps: int = 10_000,
         max_depth: int = 50,
+        chat_gateway: Optional[ChatAgentGateway] = None,
     ) -> None:
         self.repository = repository or AgentRepository()
         llm_mode = (os.getenv("AGENTFW_DEFAULT_LLM") or "dummy").lower()
@@ -285,6 +287,7 @@ class ExecutionEngine:
         self.max_total_steps = max_total_steps
         self.max_depth = max_depth
         self._step_counter = 0
+        self.chat_gateway = chat_gateway or ChatAgentGateway()
 
     def run_to_completion(
         self,
@@ -308,28 +311,31 @@ class ExecutionEngine:
         if "user_message" not in normalized_input and "завдання" in normalized_input:
             normalized_input["user_message"] = normalized_input.get("завдання")
         ctx_vars: Dict[str, Any] = dict(normalized_input)
+        ctx_vars.setdefault("chat_gateway", self.chat_gateway)
         for local in spec.locals:
             ctx_vars.setdefault(local.name, local.value)
         ctx = ExecutionContext(ctx_vars)
         trace = ExecutionTrace()
         try:
             self._execute_agent(spec, ctx, trace, depth=0)
+            vars_clean = self._clean_vars(ctx.variables)
             state = ExecutionState(
                 agent_name=agent_name,
                 run_id=str(uuid.uuid4()),
                 status="ok",
                 ok=True,
-                vars=ctx.variables,
+                vars=vars_clean,
                 trace=trace.entries,
                 error=None,
             )
         except BlockedExecution as blocked:
+            vars_clean = self._clean_vars(ctx.variables)
             state = ExecutionState(
                 agent_name=agent_name,
                 run_id=str(uuid.uuid4()),
                 status="blocked",
                 ok=False,
-                vars=ctx.variables,
+                vars=vars_clean,
                 trace=trace.entries,
                 error=None,
                 missing_inputs=blocked.missing_inputs,
@@ -337,12 +343,13 @@ class ExecutionEngine:
                 why_blocked=blocked.why_blocked or str(blocked),
             )
         except Exception as exc:  # noqa: BLE001
+            vars_clean = self._clean_vars(ctx.variables)
             state = ExecutionState(
                 agent_name=agent_name,
                 run_id=str(uuid.uuid4()),
                 status="error",
                 ok=False,
-                vars=ctx.variables,
+                vars=vars_clean,
                 trace=trace.entries,
                 error=str(exc),
             )
@@ -390,20 +397,27 @@ class ExecutionEngine:
                 child_ctx = self._build_child_context(spec, ctx, item, all_bindings)
                 self._execute_agent(spec, child_ctx, trace, depth + 1)
                 for name, value in child_ctx.variables.items():
+                    if name == "chat_gateway":
+                        continue
                     ctx.set(f"{item.id}.{name}", value)
                     ctx.set(name, value)
                 for binding in ctx_bindings:
                     if binding.from_agent_item_id != item.id or binding.to_agent_item_id != "__CTX__":
                         continue
                     ctx.set(binding.to_var, child_ctx.get(binding.from_var))
+                filtered_child = {k: v for k, v in child_ctx.variables.items() if k != "chat_gateway"}
                 trace.add(
                     {
                         "item_id": item.id,
                         "agent": item.agent,
                         "lane": lane_index,
-                        "outputs": dict(child_ctx.variables),
+                        "outputs": filtered_child,
                     }
                 )
+
+    @staticmethod
+    def _clean_vars(values: Dict[str, Any]) -> Dict[str, Any]:
+        return {key: value for key, value in values.items() if key != "chat_gateway"}
 
     def _build_child_context(
         self,
@@ -413,6 +427,8 @@ class ExecutionEngine:
         bindings: List[BindingSpec],
     ) -> ExecutionContext:
         child_vars: Dict[str, Any] = {}
+        if "chat_gateway" in parent_ctx.variables:
+            child_vars["chat_gateway"] = parent_ctx.get("chat_gateway")
         for local in spec.locals:
             child_vars.setdefault(local.name, local.value)
         for binding in bindings:
