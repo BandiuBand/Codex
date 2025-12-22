@@ -2,21 +2,20 @@ name: workspace_write_file
 title_ua: Створення або оновлення файлу
 description_ua: Записує текст у файл у робочій папці agent_workspace
 kind: atomic
-executor: python
 inputs:
-  - name: шлях
-  - name: вміст
+- name: шлях
+- name: вміст
+- name: stop_agent_execution
+  type: bool
+  default: false
 locals:
-  - name: code
-    value: |
-      from pathlib import Path
-      base = (Path.cwd() / 'agent_workspace').resolve()
-      base.mkdir(parents=True, exist_ok=True)
-      target = (base / Path(шлях)).resolve()
-      if not str(target).startswith(str(base)):
-          raise ValueError('Доступ дозволено лише в межах agent_workspace')
-      target.parent.mkdir(parents=True, exist_ok=True)
-      Path(target).write_text(str(вміст), encoding='utf-8')
-      результат = f"Записано {target.relative_to(base)}"
+- name: code
+  value: "from pathlib import Path\nbase = (Path.cwd() / 'agent_workspace').resolve()\n\
+    base.mkdir(parents=True, exist_ok=True)\ntarget = (base / Path(шлях)).resolve()\n\
+    if not str(target).startswith(str(base)):\n    raise ValueError('Доступ дозволено\
+    \ лише в межах agent_workspace')\ntarget.parent.mkdir(parents=True, exist_ok=True)\n\
+    Path(target).write_text(str(вміст), encoding='utf-8')\nрезультат = f\"Записано\
+    \ {target.relative_to(base)}\"\n"
 outputs:
-  - name: результат
+- name: результат
+executor: python

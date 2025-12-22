@@ -2,45 +2,29 @@ name: plan_normalizer
 title_ua: Нормалізація плану
 description_ua: Перетворює JSON плану на окремі кроки та критерії
 kind: atomic
-executor: python
 inputs:
-  - name: план_json
+- name: план_json
+- name: stop_agent_execution
+  type: bool
+  default: false
 locals:
-  - name: code
-    value: |
-      steps = []
-      criteria = []
-      next_stage_hint = None
-      source = план_json
-      if isinstance(source, str):
-          import json as json_lib
-          try:
-              source = json_lib.loads(source)
-          except Exception:  # noqa: BLE001
-              source = {}
-      if isinstance(source, dict):
-          steps = source.get('steps') or []
-          criteria = source.get('criteria') or []
-          next_stage_hint = source.get('next_stage_hint')
-      if not isinstance(steps, list):
-          steps = [str(steps)] if steps else []
-      if not isinstance(criteria, list):
-          criteria = [str(criteria)] if criteria else []
-      min_len = min(len(steps), len(criteria)) if criteria else len(steps)
-      if criteria and len(criteria) < len(steps):
-          criteria.extend(["Прийняти, якщо крок виконано"] * (len(steps) - len(criteria)))
-      steps = list(map(str, steps[: min_len or len(steps)]))
-      criteria = list(map(str, criteria[: len(steps)]))
-      результат = {
-          'steps': steps,
-          'criteria': criteria,
-          'next_stage_hint': next_stage_hint,
-      }
-      кроки = steps
-      критерії = criteria
-      next_stage_hint = next_stage_hint
+- name: code
+  value: "steps = []\ncriteria = []\nnext_stage_hint = None\nsource = план_json\n\
+    if isinstance(source, str):\n    import json as json_lib\n    try:\n        source\
+    \ = json_lib.loads(source)\n    except Exception:  # noqa: BLE001\n        source\
+    \ = {}\nif isinstance(source, dict):\n    steps = source.get('steps') or []\n\
+    \    criteria = source.get('criteria') or []\n    next_stage_hint = source.get('next_stage_hint')\n\
+    if not isinstance(steps, list):\n    steps = [str(steps)] if steps else []\nif\
+    \ not isinstance(criteria, list):\n    criteria = [str(criteria)] if criteria\
+    \ else []\nmin_len = min(len(steps), len(criteria)) if criteria else len(steps)\n\
+    if criteria and len(criteria) < len(steps):\n    criteria.extend([\"Прийняти,\
+    \ якщо крок виконано\"] * (len(steps) - len(criteria)))\nsteps = list(map(str,\
+    \ steps[: min_len or len(steps)]))\ncriteria = list(map(str, criteria[: len(steps)]))\n\
+    результат = {\n    'steps': steps,\n    'criteria': criteria,\n    'next_stage_hint':\
+    \ next_stage_hint,\n}\nкроки = steps\nкритерії = criteria\nnext_stage_hint = next_stage_hint\n"
 outputs:
-  - name: результат
-  - name: кроки
-  - name: критерії
-  - name: next_stage_hint
+- name: результат
+- name: кроки
+- name: критерії
+- name: next_stage_hint
+executor: python

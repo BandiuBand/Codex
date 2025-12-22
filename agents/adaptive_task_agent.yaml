@@ -2,202 +2,205 @@ name: adaptive_task_agent
 title_ua: Адаптивний агент для завдань
 description_ua: Обирає простий або складний ланцюжок виконання залежно від задачі
 kind: composite
-inputs: []
+inputs:
+- name: stop_agent_execution
+  type: bool
+  default: false
 locals:
-  - name: початкове_повідомлення
-    value: "Опиши завдання, яке потрібно виконати"
-  - name: чекати_відповідь
-    value: true
-  - name: max_reviews
-    value: 1
+- name: початкове_повідомлення
+  value: Опиши завдання, яке потрібно виконати
+- name: чекати_відповідь
+  value: true
+- name: max_reviews
+  value: 1
 outputs:
-  - name: is_complex
-  - name: класифікація
-  - name: фінальна_відповідь
-  - name: швидка_відповідь
-  - name: план
-  - name: кроки
-  - name: критерії
-  - name: виконані_кроки
-  - name: пройшло_перевірку
-  - name: коментар_цербера
-  - name: потрібно_повторити
-  - name: final_message_to_user
+- name: is_complex
+- name: класифікація
+- name: фінальна_відповідь
+- name: швидка_відповідь
+- name: план
+- name: кроки
+- name: критерії
+- name: виконані_кроки
+- name: пройшло_перевірку
+- name: коментар_цербера
+- name: потрібно_повторити
+- name: final_message_to_user
 graph:
   lanes:
-    - items:
-        - id: get_task
-          agent: chat_agent
-          bindings:
-            - from_agent_item_id: "__CTX__"
-              from_var: початкове_повідомлення
-              to_agent_item_id: get_task
-              to_var: message_to_user
-            - from_agent_item_id: "__CTX__"
-              from_var: чекати_відповідь
-              to_agent_item_id: get_task
-              to_var: needs_response
-            - from_agent_item_id: "__CTX__"
-              from_var: user_message
-              to_agent_item_id: get_task
-              to_var: user_message
-          ui:
-            lane_index: 0
-            order: 0
-    - items:
-        - id: classify
-          agent: task_classifier
-          bindings:
-            - from_agent_item_id: "__CTX__"
-              from_var: завдання
-              to_agent_item_id: classify
-              to_var: task_text
-          ui:
-            lane_index: 0
-            order: 1
-    - items:
-        - id: simple
-          agent: llm_simple_answer
-          when:
-            var: is_complex
-            equals: false
-          bindings:
-            - from_agent_item_id: "__CTX__"
-              from_var: завдання
-              to_agent_item_id: simple
-              to_var: task_text
-          ui:
-            lane_index: 1
-            order: 0
-    - items:
-        - id: complex
-          agent: complex_task_handler
-          when:
-            var: is_complex
-            equals: true
-          bindings:
-            - from_agent_item_id: "__CTX__"
-              from_var: завдання
-              to_agent_item_id: complex
-              to_var: завдання
-            - from_agent_item_id: "__CTX__"
-              from_var: max_reviews
-              to_agent_item_id: complex
-              to_var: max_reviews
-          ui:
-            lane_index: 2
-            order: 0
-    - items:
-        - id: final_message
-          agent: guard_before_finalize
-          bindings:
-            - from_agent_item_id: "__CTX__"
-              from_var: фінальна_відповідь
-              to_agent_item_id: final_message
-              to_var: фінальна_відповідь
-            - from_agent_item_id: "__CTX__"
-              from_var: швидка_відповідь
-              to_agent_item_id: final_message
-              to_var: швидка_відповідь
-            - from_agent_item_id: "__CTX__"
-              from_var: виконані_кроки
-              to_agent_item_id: final_message
-              to_var: виконані_кроки
-            - from_agent_item_id: "__CTX__"
-              from_var: пройшло_перевірку
-              to_agent_item_id: final_message
-              to_var: пройшло_перевірку
-            - from_agent_item_id: "__CTX__"
-              from_var: коментар_цербера
-              to_agent_item_id: final_message
-              to_var: коментар_цербера
-            - from_agent_item_id: "__CTX__"
-              from_var: is_complex
-              to_agent_item_id: final_message
-              to_var: is_complex
-          ui:
-            lane_index: 3
-            order: 0
-        - id: final_chat
-          agent: chat_agent
-          bindings:
-            - from_agent_item_id: final_message
-              from_var: final_message_to_user
-              to_agent_item_id: final_chat
-              to_var: message_to_user
-            - from_agent_item_id: final_message
-              from_var: needs_response
-              to_agent_item_id: final_chat
-              to_var: needs_response
-            - from_agent_item_id: "__CTX__"
-              from_var: user_message
-              to_agent_item_id: final_chat
-              to_var: user_message
-          ui:
-            lane_index: 3
-            order: 1
+  - items:
+    - id: get_task
+      agent: chat_agent
+      bindings:
+      - from_agent_item_id: __CTX__
+        from_var: початкове_повідомлення
+        to_agent_item_id: get_task
+        to_var: message_to_user
+      - from_agent_item_id: __CTX__
+        from_var: чекати_відповідь
+        to_agent_item_id: get_task
+        to_var: needs_response
+      - from_agent_item_id: __CTX__
+        from_var: user_message
+        to_agent_item_id: get_task
+        to_var: user_message
+      ui:
+        lane_index: 0
+        order: 0
+  - items:
+    - id: classify
+      agent: task_classifier
+      bindings:
+      - from_agent_item_id: __CTX__
+        from_var: завдання
+        to_agent_item_id: classify
+        to_var: task_text
+      ui:
+        lane_index: 0
+        order: 1
+  - items:
+    - id: simple
+      agent: llm_simple_answer
+      bindings:
+      - from_agent_item_id: __CTX__
+        from_var: завдання
+        to_agent_item_id: simple
+        to_var: task_text
+      when:
+        var: is_complex
+        equals: false
+      ui:
+        lane_index: 1
+        order: 0
+  - items:
+    - id: complex
+      agent: complex_task_handler
+      bindings:
+      - from_agent_item_id: __CTX__
+        from_var: завдання
+        to_agent_item_id: complex
+        to_var: завдання
+      - from_agent_item_id: __CTX__
+        from_var: max_reviews
+        to_agent_item_id: complex
+        to_var: max_reviews
+      when:
+        var: is_complex
+        equals: true
+      ui:
+        lane_index: 2
+        order: 0
+  - items:
+    - id: final_message
+      agent: guard_before_finalize
+      bindings:
+      - from_agent_item_id: __CTX__
+        from_var: фінальна_відповідь
+        to_agent_item_id: final_message
+        to_var: фінальна_відповідь
+      - from_agent_item_id: __CTX__
+        from_var: швидка_відповідь
+        to_agent_item_id: final_message
+        to_var: швидка_відповідь
+      - from_agent_item_id: __CTX__
+        from_var: виконані_кроки
+        to_agent_item_id: final_message
+        to_var: виконані_кроки
+      - from_agent_item_id: __CTX__
+        from_var: пройшло_перевірку
+        to_agent_item_id: final_message
+        to_var: пройшло_перевірку
+      - from_agent_item_id: __CTX__
+        from_var: коментар_цербера
+        to_agent_item_id: final_message
+        to_var: коментар_цербера
+      - from_agent_item_id: __CTX__
+        from_var: is_complex
+        to_agent_item_id: final_message
+        to_var: is_complex
+      ui:
+        lane_index: 3
+        order: 0
+    - id: final_chat
+      agent: chat_agent
+      bindings:
+      - from_agent_item_id: final_message
+        from_var: final_message_to_user
+        to_agent_item_id: final_chat
+        to_var: message_to_user
+      - from_agent_item_id: final_message
+        from_var: needs_response
+        to_agent_item_id: final_chat
+        to_var: needs_response
+      - from_agent_item_id: __CTX__
+        from_var: user_message
+        to_agent_item_id: final_chat
+        to_var: user_message
+      ui:
+        lane_index: 3
+        order: 1
   __ctx_bindings:
-    - from_agent_item_id: get_task
-      from_var: user_message
-      to_agent_item_id: "__CTX__"
-      to_var: завдання
-    - from_agent_item_id: get_task
-      from_var: user_message
-      to_agent_item_id: "__CTX__"
-      to_var: user_message
-    - from_agent_item_id: classify
-      from_var: is_complex
-      to_agent_item_id: "__CTX__"
-      to_var: is_complex
-    - from_agent_item_id: classify
-      from_var: is_complex
-      to_agent_item_id: "__CTX__"
-      to_var: класифікація
-    - from_agent_item_id: simple
-      from_var: результат
-      to_agent_item_id: "__CTX__"
-      to_var: фінальна_відповідь
-    - from_agent_item_id: simple
-      from_var: результат
-      to_agent_item_id: "__CTX__"
-      to_var: швидка_відповідь
-    - from_agent_item_id: complex
-      from_var: фінальна_відповідь
-      to_agent_item_id: "__CTX__"
-      to_var: фінальна_відповідь
-    - from_agent_item_id: complex
-      from_var: план
-      to_agent_item_id: "__CTX__"
-      to_var: план
-    - from_agent_item_id: complex
-      from_var: кроки
-      to_agent_item_id: "__CTX__"
-      to_var: кроки
-    - from_agent_item_id: complex
-      from_var: критерії
-      to_agent_item_id: "__CTX__"
-      to_var: критерії
-    - from_agent_item_id: complex
-      from_var: виконані_кроки
-      to_agent_item_id: "__CTX__"
-      to_var: виконані_кроки
-    - from_agent_item_id: complex
-      from_var: пройшло_перевірку
-      to_agent_item_id: "__CTX__"
-      to_var: пройшло_перевірку
-    - from_agent_item_id: complex
-      from_var: коментар_цербера
-      to_agent_item_id: "__CTX__"
-      to_var: коментар_цербера
-    - from_agent_item_id: complex
-      from_var: потрібно_повторити
-      to_agent_item_id: "__CTX__"
-      to_var: потрібно_повторити
-    - from_agent_item_id: final_message
-      from_var: final_message_to_user
-      to_agent_item_id: "__CTX__"
-      to_var: final_message_to_user
-    - from_agent_item_id: "__CTX__"
-      from_var: user_message
-      to_agent_item_id: final_chat
-      to_var: user_message
+  - from_agent_item_id: get_task
+    from_var: user_message
+    to_agent_item_id: __CTX__
+    to_var: завдання
+  - from_agent_item_id: get_task
+    from_var: user_message
+    to_agent_item_id: __CTX__
+    to_var: user_message
+  - from_agent_item_id: classify
+    from_var: is_complex
+    to_agent_item_id: __CTX__
+    to_var: is_complex
+  - from_agent_item_id: classify
+    from_var: is_complex
+    to_agent_item_id: __CTX__
+    to_var: класифікація
+  - from_agent_item_id: simple
+    from_var: результат
+    to_agent_item_id: __CTX__
+    to_var: фінальна_відповідь
+  - from_agent_item_id: simple
+    from_var: результат
+    to_agent_item_id: __CTX__
+    to_var: швидка_відповідь
+  - from_agent_item_id: complex
+    from_var: фінальна_відповідь
+    to_agent_item_id: __CTX__
+    to_var: фінальна_відповідь
+  - from_agent_item_id: complex
+    from_var: план
+    to_agent_item_id: __CTX__
+    to_var: план
+  - from_agent_item_id: complex
+    from_var: кроки
+    to_agent_item_id: __CTX__
+    to_var: кроки
+  - from_agent_item_id: complex
+    from_var: критерії
+    to_agent_item_id: __CTX__
+    to_var: критерії
+  - from_agent_item_id: complex
+    from_var: виконані_кроки
+    to_agent_item_id: __CTX__
+    to_var: виконані_кроки
+  - from_agent_item_id: complex
+    from_var: пройшло_перевірку
+    to_agent_item_id: __CTX__
+    to_var: пройшло_перевірку
+  - from_agent_item_id: complex
+    from_var: коментар_цербера
+    to_agent_item_id: __CTX__
+    to_var: коментар_цербера
+  - from_agent_item_id: complex
+    from_var: потрібно_повторити
+    to_agent_item_id: __CTX__
+    to_var: потрібно_повторити
+  - from_agent_item_id: final_message
+    from_var: final_message_to_user
+    to_agent_item_id: __CTX__
+    to_var: final_message_to_user
+  - from_agent_item_id: __CTX__
+    from_var: user_message
+    to_agent_item_id: final_chat
+    to_var: user_message

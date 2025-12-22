@@ -3,106 +3,109 @@ title_ua: Класифікація задачі
 description_ua: LLM визначає складність задачі та формує причину
 kind: composite
 inputs:
-  - name: task_text
+- name: task_text
+- name: stop_agent_execution
+  type: bool
+  default: false
 locals:
-  - name: key_is_complex
-    value: is_complex
-  - name: key_reason
-    value: reason
+- name: key_is_complex
+  value: is_complex
+- name: key_reason
+  value: reason
 outputs:
-  - name: is_complex
-  - name: original_task
-  - name: класифікація
-  - name: результат
-  - name: output_json
-  - name: json_error
+- name: is_complex
+- name: original_task
+- name: класифікація
+- name: результат
+- name: output_json
+- name: json_error
 graph:
   lanes:
-    - items:
-        - id: llm_classify
-          agent: task_classifier_llm
-          bindings:
-            - from_agent_item_id: "__CTX__"
-              from_var: task_text
-              to_agent_item_id: llm_classify
-              to_var: task_text
-          ui:
-            lane_index: 0
-            order: 0
-    - items:
-        - id: extract_flag
-          agent: json_extract
-          bindings:
-            - from_agent_item_id: llm_classify
-              from_var: output_json
-              to_agent_item_id: extract_flag
-              to_var: json
-            - from_agent_item_id: "__CTX__"
-              from_var: key_is_complex
-              to_agent_item_id: extract_flag
-              to_var: ключ
-          ui:
-            lane_index: 1
-            order: 0
-        - id: extract_reason
-          agent: json_extract
-          bindings:
-            - from_agent_item_id: llm_classify
-              from_var: output_json
-              to_agent_item_id: extract_reason
-              to_var: json
-            - from_agent_item_id: "__CTX__"
-              from_var: key_reason
-              to_agent_item_id: extract_reason
-              to_var: ключ
-          ui:
-            lane_index: 1
-            order: 1
-    - items:
-        - id: consolidate
-          agent: classification_consolidator
-          bindings:
-            - from_agent_item_id: "__CTX__"
-              from_var: task_text
-              to_agent_item_id: consolidate
-              to_var: task_text
-            - from_agent_item_id: extract_flag
-              from_var: output
-              to_agent_item_id: consolidate
-              to_var: llm_flag
-            - from_agent_item_id: extract_reason
-              from_var: output
-              to_agent_item_id: consolidate
-              to_var: llm_reason
-          ui:
-            lane_index: 2
-            order: 0
+  - items:
+    - id: llm_classify
+      agent: task_classifier_llm
+      bindings:
+      - from_agent_item_id: __CTX__
+        from_var: task_text
+        to_agent_item_id: llm_classify
+        to_var: task_text
+      ui:
+        lane_index: 0
+        order: 0
+  - items:
+    - id: extract_flag
+      agent: json_extract
+      bindings:
+      - from_agent_item_id: llm_classify
+        from_var: output_json
+        to_agent_item_id: extract_flag
+        to_var: json
+      - from_agent_item_id: __CTX__
+        from_var: key_is_complex
+        to_agent_item_id: extract_flag
+        to_var: ключ
+      ui:
+        lane_index: 1
+        order: 0
+    - id: extract_reason
+      agent: json_extract
+      bindings:
+      - from_agent_item_id: llm_classify
+        from_var: output_json
+        to_agent_item_id: extract_reason
+        to_var: json
+      - from_agent_item_id: __CTX__
+        from_var: key_reason
+        to_agent_item_id: extract_reason
+        to_var: ключ
+      ui:
+        lane_index: 1
+        order: 1
+  - items:
+    - id: consolidate
+      agent: classification_consolidator
+      bindings:
+      - from_agent_item_id: __CTX__
+        from_var: task_text
+        to_agent_item_id: consolidate
+        to_var: task_text
+      - from_agent_item_id: extract_flag
+        from_var: output
+        to_agent_item_id: consolidate
+        to_var: llm_flag
+      - from_agent_item_id: extract_reason
+        from_var: output
+        to_agent_item_id: consolidate
+        to_var: llm_reason
+      ui:
+        lane_index: 2
+        order: 0
   __ctx_bindings:
-    - from_agent_item_id: llm_classify
-      from_var: результат
-      to_agent_item_id: "__CTX__"
-      to_var: результат
-    - from_agent_item_id: llm_classify
-      from_var: output_json
-      to_agent_item_id: "__CTX__"
-      to_var: output_json
-    - from_agent_item_id: llm_classify
-      from_var: json_error
-      to_agent_item_id: "__CTX__"
-      to_var: json_error
-    - from_agent_item_id: consolidate
-      from_var: is_complex
-      to_agent_item_id: "__CTX__"
-      to_var: is_complex
-    - from_agent_item_id: consolidate
-      from_var: класифікація
-      to_agent_item_id: "__CTX__"
-      to_var: класифікація
-    - from_agent_item_id: consolidate
-      from_var: original_task
-      to_agent_item_id: "__CTX__"
-      to_var: original_task
-    - from_agent_item_id: consolidate
-      from_var: обрати_план
-      to_agent_item_id: "__CTX__"
-      to_var: обрати_план
+  - from_agent_item_id: llm_classify
+    from_var: результат
+    to_agent_item_id: __CTX__
+    to_var: результат
+  - from_agent_item_id: llm_classify
+    from_var: output_json
+    to_agent_item_id: __CTX__
+    to_var: output_json
+  - from_agent_item_id: llm_classify
+    from_var: json_error
+    to_agent_item_id: __CTX__
+    to_var: json_error
+  - from_agent_item_id: consolidate
+    from_var: is_complex
+    to_agent_item_id: __CTX__
+    to_var: is_complex
+  - from_agent_item_id: consolidate
+    from_var: класифікація
+    to_agent_item_id: __CTX__
+    to_var: класифікація
+  - from_agent_item_id: consolidate
+    from_var: original_task
+    to_agent_item_id: __CTX__
+    to_var: original_task
+  - from_agent_item_id: consolidate
+    from_var: обрати_план
+    to_agent_item_id: __CTX__
+    to_var: обрати_план

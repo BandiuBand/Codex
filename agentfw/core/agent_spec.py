@@ -11,6 +11,8 @@ JsonValue = Union[JsonScalar, Dict[str, Any], List[Any]]
 @dataclass
 class VarSpec:
     name: str
+    type: Optional[str] = None
+    default: Optional[JsonValue] = None
 
 
 @dataclass
@@ -83,7 +85,16 @@ def _parse_var_spec(raw: Any) -> VarSpec:
     name = str(raw.get("name", "")).strip()
     if not name:
         raise ValueError("VarSpec missing required field 'name'")
-    return VarSpec(name=name)
+    var_type = raw.get("type")
+    if var_type is not None:
+        var_type = str(var_type)
+    default_raw = raw.get("default")
+    default: Optional[JsonValue]
+    if isinstance(default_raw, (str, bool, int, float, dict, list)) or default_raw is None:
+        default = default_raw
+    else:
+        default = str(default_raw)
+    return VarSpec(name=name, type=var_type, default=default)
 
 
 def _parse_local_var_spec(raw: Any) -> LocalVarSpec:
@@ -237,7 +248,12 @@ def _validate_unique_names(
 
 
 def _varspec_to_dict(var: VarSpec) -> Dict[str, Any]:
-    return {"name": var.name}
+    payload: Dict[str, Any] = {"name": var.name}
+    if var.type is not None:
+        payload["type"] = var.type
+    if var.default is not None:
+        payload["default"] = var.default
+    return payload
 
 
 def _localvar_to_dict(var: LocalVarSpec) -> Dict[str, Any]:

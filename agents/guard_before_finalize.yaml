@@ -1,50 +1,37 @@
 name: guard_before_finalize
 title_ua: Жорсткий gate перед фіналом
-description_ua: Блокує успішний фінал без виконання або перевірки, очищує службові теги
+description_ua: Блокує успішний фінал без виконання або перевірки, очищує службові
+  теги
 kind: atomic
-executor: python
 inputs:
-  - name: is_complex
-  - name: фінальна_відповідь
-  - name: швидка_відповідь
-  - name: виконані_кроки
-  - name: пройшло_перевірку
-  - name: коментар_цербера
+- name: is_complex
+- name: фінальна_відповідь
+- name: швидка_відповідь
+- name: виконані_кроки
+- name: пройшло_перевірку
+- name: коментар_цербера
+- name: stop_agent_execution
+  type: bool
+  default: false
 locals:
-  - name: code
-    value: |
-      import re
-
-      def strip_think(text: str) -> tuple[str, bool]:
-          pattern = re.compile(r"<think>.*?</think>", re.DOTALL)
-          found = bool(pattern.search(text))
-          return pattern.sub("", text), found
-
-      message = фінальна_відповідь or швидка_відповідь or ""
-      message, had_think = strip_think(str(message))
-      steps = виконані_кроки or []
-      passed = bool(пройшло_перевірку)
-      cerber_comment = коментар_цербера or ""
-      needs_response = False
-
-      if had_think:
-          needs_response = True
-          info = "Службові теги <think> видалено з відповіді."
-          cerber_comment = (cerber_comment + " " + info).strip()
-
-      if is_complex:
-          no_steps = not isinstance(steps, list) or len(steps) == 0
-          if no_steps or not passed:
-              needs_response = True
-              reason = "є лише план, виконання не запускалось" if no_steps else "перевірка не пройдена"
-              detail = cerber_comment or ""
-              message = f"Наразі {reason}. Потрібні вхідні дані або дозвіл на запуск.".strip()
-              if detail:
-                  message = f"{message}\nДодаткова інформація: {detail}"
-
-      final_message_to_user = message.strip()
-      needs_response = bool(needs_response)
+- name: code
+  value: "import re\n\ndef strip_think(text: str) -> tuple[str, bool]:\n    pattern\
+    \ = re.compile(r\"<think>.*?</think>\", re.DOTALL)\n    found = bool(pattern.search(text))\n\
+    \    return pattern.sub(\"\", text), found\n\nmessage = фінальна_відповідь or\
+    \ швидка_відповідь or \"\"\nmessage, had_think = strip_think(str(message))\nsteps\
+    \ = виконані_кроки or []\npassed = bool(пройшло_перевірку)\ncerber_comment = коментар_цербера\
+    \ or \"\"\nneeds_response = False\n\nif had_think:\n    needs_response = True\n\
+    \    info = \"Службові теги <think> видалено з відповіді.\"\n    cerber_comment\
+    \ = (cerber_comment + \" \" + info).strip()\n\nif is_complex:\n    no_steps =\
+    \ not isinstance(steps, list) or len(steps) == 0\n    if no_steps or not passed:\n\
+    \        needs_response = True\n        reason = \"є лише план, виконання не запускалось\"\
+    \ if no_steps else \"перевірка не пройдена\"\n        detail = cerber_comment\
+    \ or \"\"\n        message = f\"Наразі {reason}. Потрібні вхідні дані або дозвіл\
+    \ на запуск.\".strip()\n        if detail:\n            message = f\"{message}\\\
+    nДодаткова інформація: {detail}\"\n\nfinal_message_to_user = message.strip()\n\
+    needs_response = bool(needs_response)\n"
 outputs:
-  - name: final_message_to_user
-  - name: needs_response
-  - name: коментар_цербера
+- name: final_message_to_user
+- name: needs_response
+- name: коментар_цербера
+executor: python

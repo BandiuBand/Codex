@@ -1,28 +1,25 @@
 name: classification_consolidator
 title_ua: Узгодження класифікації задачі
-description_ua: Поєднує результат LLM та просту евристику, щоб гарантувати прапор складності
+description_ua: Поєднує результат LLM та просту евристику, щоб гарантувати прапор
+  складності
 kind: atomic
-executor: python
 inputs:
-  - name: task_text
-  - name: llm_flag
-  - name: llm_reason
+- name: task_text
+- name: llm_flag
+- name: llm_reason
+- name: stop_agent_execution
+  type: bool
+  default: false
 locals:
-  - name: code
-    value: |
-      text = str(task_text)
-      flag = llm_flag
-      if flag is None:
-          flag = len(text) > 30
-      try:
-          is_complex = bool(flag)
-      except Exception:  # noqa: BLE001
-          is_complex = False
-      класифікація = llm_reason if llm_reason is not None else ("heurstic fallback" if is_complex else "просте завдання")
-      обрати_план = is_complex
-      original_task = text
+- name: code
+  value: "text = str(task_text)\nflag = llm_flag\nif flag is None:\n    flag = len(text)\
+    \ > 30\ntry:\n    is_complex = bool(flag)\nexcept Exception:  # noqa: BLE001\n\
+    \    is_complex = False\nкласифікація = llm_reason if llm_reason is not None else\
+    \ (\"heurstic fallback\" if is_complex else \"просте завдання\")\nобрати_план\
+    \ = is_complex\noriginal_task = text\n"
 outputs:
-  - name: is_complex
-  - name: класифікація
-  - name: обрати_план
-  - name: original_task
+- name: is_complex
+- name: класифікація
+- name: обрати_план
+- name: original_task
+executor: python
