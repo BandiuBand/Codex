@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
-from agentfw.core.agent_spec import AgentItemSpec, AgentSpec, BindingSpec, GraphSpec, LaneSpec, WhenSpec
+from agentfw.core.agent_spec import AgentItemSpec, AgentSpec, BindingSpec, GraphSpec, LaneSpec, LocalVarSpec, WhenSpec
 from agentfw.io.agent_yaml import load_agent_spec, save_agent_spec
 from agentfw.llm.base import DummyLLMClient, LLMClient, OllamaLLMClient
 from agentfw.llm.json_extract import extract_first_json
@@ -43,14 +43,22 @@ class AgentRepository:
             path = self.base_dir / f"{name}{suffix}"
             if path.exists():
                 spec = load_agent_spec(path)
+                self._inject_stop_flag(spec)
                 self._cache[name] = spec
                 return spec
         raise KeyError(f"Agent '{name}' not found")
 
     def save(self, spec: AgentSpec) -> None:
+        self._inject_stop_flag(spec)
         path = self.base_dir / f"{spec.name}.yaml"
         save_agent_spec(path, spec)
         self._cache[spec.name] = spec
+
+    @staticmethod
+    def _inject_stop_flag(spec: AgentSpec) -> None:
+        if any(local.name == ExecutionEngine.STOP_FLAG_VAR for local in spec.locals):
+            return
+        spec.locals.append(LocalVarSpec(name=ExecutionEngine.STOP_FLAG_VAR, value=False))
 
 
 @dataclass
@@ -263,6 +271,8 @@ class AtomicExecutor:
 
 
 class ExecutionEngine:
+    STOP_FLAG_VAR = "stop_agent_execution"
+
     def __init__(
         self,
         repository: Optional[AgentRepository] = None,
@@ -312,6 +322,7 @@ class ExecutionEngine:
             normalized_input["user_message"] = normalized_input.get("завдання")
         ctx_vars: Dict[str, Any] = dict(normalized_input)
         ctx_vars.setdefault("chat_gateway", self.chat_gateway)
+        ctx_vars.setdefault(self.STOP_FLAG_VAR, False)
         for local in spec.locals:
             ctx_vars.setdefault(local.name, local.value)
         ctx = ExecutionContext(ctx_vars)
@@ -365,6 +376,9 @@ class ExecutionEngine:
         trace: ExecutionTrace,
         depth: int,
     ) -> None:
+        if ctx.get(self.STOP_FLAG_VAR):
+            trace.add({"agent": spec.name, "kind": "stopped", "reason": self.STOP_FLAG_VAR})
+            return
         self._require_inputs(spec, ctx, depth=depth)
         if self._step_counter >= self.max_total_steps:
             raise RuntimeError("max_total_steps exceeded")
@@ -388,8 +402,14 @@ class ExecutionEngine:
                 all_bindings.extend(item.bindings)
         ctx_bindings: List[BindingSpec] = list(getattr(graph, "ctx_bindings", []))
         for lane_index, lane in enumerate(graph.lanes):
+            if ctx.get(self.STOP_FLAG_VAR):
+                trace.add({"lane": lane_index, "kind": "stopped", "reason": self.STOP_FLAG_VAR})
+                return
             items = sorted(lane.items, key=lambda i: i.ui.order if i.ui else 0)
             for item in items:
+                if ctx.get(self.STOP_FLAG_VAR):
+                    trace.add({"item_id": item.id, "agent": item.agent, "kind": "stopped", "reason": self.STOP_FLAG_VAR})
+                    return
                 spec = self.repository.get(item.agent)
                 if not self._should_run(item.when, ctx):
                     trace.add({"item_id": item.id, "agent": item.agent, "skipped": True, "lane": lane_index})
@@ -414,6 +434,9 @@ class ExecutionEngine:
                         "outputs": filtered_child,
                     }
                 )
+                if ctx.get(self.STOP_FLAG_VAR):
+                    trace.add({"item_id": item.id, "agent": item.agent, "kind": "stopped", "reason": self.STOP_FLAG_VAR})
+                    return
 
     @staticmethod
     def _clean_vars(values: Dict[str, Any]) -> Dict[str, Any]:
@@ -429,6 +452,7 @@ class ExecutionEngine:
         child_vars: Dict[str, Any] = {}
         if "chat_gateway" in parent_ctx.variables:
             child_vars["chat_gateway"] = parent_ctx.get("chat_gateway")
+        child_vars.setdefault(self.STOP_FLAG_VAR, parent_ctx.get(self.STOP_FLAG_VAR, False))
         for local in spec.locals:
             child_vars.setdefault(local.name, local.value)
         for binding in bindings:
