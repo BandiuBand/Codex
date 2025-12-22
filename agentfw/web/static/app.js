@@ -10,12 +10,15 @@ const state = {
   canvasScale: 1,
   counter: 1,
   loadingChildren: false,
+  laneWidths: [],
 };
 
 const CTX_ID = "__CTX__";
 const DEFAULT_LANE_WIDTH = 340;
 const DEFAULT_ZONE_WIDTH = 200;
 const DEFAULT_GAP = 12;
+const CARD_COLUMN_GAP = 16;
+const CARD_HORIZONTAL_PADDING = 32;
 
 function cssNumber(varName, fallback) {
   const raw = getComputedStyle(document.documentElement).getPropertyValue(varName);
@@ -388,9 +391,7 @@ async function renderCanvas() {
             Array.from(col.children).reduce((max, el) => Math.max(max, el.getBoundingClientRect().width), 0);
           const widestInput = maxWidth(inputsCol);
           const widestOutput = maxWidth(outputsCol);
-          const gap = 16; // matches .card-grid column gap
-          const padding = 32; // horizontal padding inside grid/card
-          const minWidth = widestInput + widestOutput + gap + padding;
+          const minWidth = widestInput + widestOutput + CARD_COLUMN_GAP + CARD_HORIZONTAL_PADDING;
           if (minWidth > 0) {
             card.style.minWidth = `${minWidth}px`;
           }
@@ -402,14 +403,47 @@ async function renderCanvas() {
         grid.appendChild(placeholder);
       }
 
-    laneEl.appendChild(card);
-  });
+      laneEl.appendChild(card);
+    });
 
     container.appendChild(laneEl);
   });
 
-  applyCanvasScale();
-  drawBindings();
+  requestAnimationFrame(() => {
+    state.laneWidths = measureLaneWidths();
+    applyCanvasScale();
+    drawBindings();
+  });
+}
+
+function measureLaneWidths() {
+  const lanesContainer = $("lanesContainer");
+  if (!lanesContainer) return [];
+  const fallbackWidth = cssNumber("--lane-width", DEFAULT_LANE_WIDTH);
+  const laneWidths = [];
+
+  lanesContainer.querySelectorAll(".lane").forEach((laneEl) => {
+    const maxPortWidth = (selector) =>
+      Array.from(laneEl.querySelectorAll(selector)).reduce(
+        (max, el) => Math.max(max, el.getBoundingClientRect().width),
+        0,
+      );
+    const widestInput = maxPortWidth(".inputs-col .port");
+    const widestOutput = maxPortWidth(".outputs-col .port");
+    const measuredWidth = widestInput + widestOutput + CARD_COLUMN_GAP + CARD_HORIZONTAL_PADDING;
+    const laneWidth = measuredWidth > 0 ? measuredWidth : fallbackWidth;
+    laneEl.style.width = `${laneWidth}px`;
+    laneEl.style.minWidth = `${laneWidth}px`;
+    laneWidths.push(laneWidth);
+  });
+
+  if (laneWidths.length) {
+    lanesContainer.style.gridTemplateColumns = laneWidths.map((w) => `${w}px`).join(" ");
+  } else {
+    lanesContainer.style.gridTemplateColumns = "";
+  }
+
+  return laneWidths;
 }
 
 function applyCanvasScale() {
@@ -419,11 +453,14 @@ function applyCanvasScale() {
   const lanesEl = $("lanesContainer");
   if (!content || !scaled || !viewport) return;
   const scale = state.canvasScale || 1;
-  const laneWidth = cssNumber("--lane-width", DEFAULT_LANE_WIDTH);
   const zoneWidth = cssNumber("--zone-width", DEFAULT_ZONE_WIDTH);
   const gap = cssNumber("--canvas-gap", DEFAULT_GAP);
   const laneCount = Math.max(state.current?.graph?.lanes?.length || 0, 1);
-  const baseWidth = laneCount * laneWidth + zoneWidth * 2 + gap * 2;
+  const measuredLaneWidths = state.laneWidths || [];
+  const defaultLaneWidth = cssNumber("--lane-width", DEFAULT_LANE_WIDTH);
+  const laneWidths = Array.from({ length: laneCount }, (_, idx) => measuredLaneWidths[idx] ?? defaultLaneWidth);
+  const lanesWidth = laneWidths.reduce((sum, width) => sum + width, 0);
+  const baseWidth = lanesWidth + zoneWidth * 2 + gap * 2;
   const laneHeight = lanesEl ? lanesEl.scrollHeight : 0;
   const baseHeight = Math.max(laneHeight, content.scrollHeight, viewport.clientHeight);
 
