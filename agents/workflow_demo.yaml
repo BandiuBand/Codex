@@ -7,7 +7,9 @@ inputs:
 - name: stop_agent_execution
   type: bool
   default: false
-locals: []
+locals:
+- name: stop_branch_value
+  value: true
 outputs:
 - name: класифікація
 - name: відповідь
@@ -43,6 +45,20 @@ graph:
       ui:
         lane_index: 1
         order: 0
+    - id: branch_stop
+      agent: branch_condition
+      bindings:
+      - from_agent_item_id: __CTX__
+        from_var: класифікація
+        to_agent_item_id: branch_stop
+        to_var: умова
+      - from_agent_item_id: __CTX__
+        from_var: stop_branch_value
+        to_agent_item_id: branch_stop
+        to_var: значення
+      ui:
+        lane_index: 1
+        order: 1
     - id: echo_simple
       agent: echo_simple
       bindings:
@@ -50,12 +66,13 @@ graph:
         from_var: гілка_ні
         to_agent_item_id: echo_simple
         to_var: task_text
-      when:
-        var: обрати_план
-        equals: false
+      - from_agent_item_id: branch_stop
+        from_var: істина
+        to_agent_item_id: echo_simple
+        to_var: stop_agent_execution
       ui:
         lane_index: 1
-        order: 1
+        order: 2
     - id: echo_plan
       agent: echo_plan
       bindings:
@@ -63,12 +80,13 @@ graph:
         from_var: гілка_так
         to_agent_item_id: echo_plan
         to_var: task_text
-      when:
-        var: обрати_план
-        equals: true
+      - from_agent_item_id: branch_stop
+        from_var: хиба
+        to_agent_item_id: echo_plan
+        to_var: stop_agent_execution
       ui:
         lane_index: 1
-        order: 2
+        order: 3
   __ctx_bindings:
   - from_agent_item_id: classify
     from_var: is_complex
