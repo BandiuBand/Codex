@@ -19,6 +19,11 @@ const DEFAULT_ZONE_WIDTH = 200;
 const DEFAULT_GAP = 12;
 const CARD_COLUMN_GAP = 16;
 const CARD_HORIZONTAL_PADDING = 32;
+const STOP_AGENT_INPUT = "stop_agent_execution";
+
+function createStopAgentInput() {
+  return { name: STOP_AGENT_INPUT, type: "bool", default: false };
+}
 
 function cssNumber(varName, fallback) {
   const raw = getComputedStyle(document.documentElement).getPropertyValue(varName);
@@ -180,7 +185,7 @@ function newAgent() {
     title_ua: "Новий агент",
     description_ua: "",
     kind: "composite",
-    inputs: [],
+    inputs: [createStopAgentInput()],
     locals: [],
     outputs: [],
     graph: { lanes: [{ items: [] }, { items: [] }], ctx_bindings: [] },
@@ -214,7 +219,7 @@ function createAgent() {
     title_ua: name,
     description_ua: "",
     kind: "composite",
-    inputs: [],
+    inputs: [createStopAgentInput()],
     locals: [],
     outputs: [],
     graph: { lanes: [{ items: [] }, { items: [] }], ctx_bindings: [] },
@@ -730,6 +735,7 @@ function renderAgentVarZones() {
 
 function makeCtxPort(kind, variable) {
   const role = kind === "outputs" ? "ctx-output" : kind === "locals" ? "ctx-local" : "ctx-input";
+  const isProtectedStopInput = kind === "inputs" && variable.name === STOP_AGENT_INPUT;
   const port = document.createElement("div");
   port.className = `port port-ctx port-${role}`;
   port.dataset.itemId = CTX_ID;
@@ -751,26 +757,28 @@ function makeCtxPort(kind, variable) {
 
   const actions = document.createElement("div");
   actions.className = "port-actions";
-  const editBtn = document.createElement("button");
-  editBtn.type = "button";
-  editBtn.textContent = "✎";
-  editBtn.className = "ghost tiny";
-  editBtn.title = "Редагувати";
-  editBtn.addEventListener("click", (e) => {
-    e.stopPropagation();
-    editAgentVar(kind, variable.name);
-  });
-  const removeBtn = document.createElement("button");
-  removeBtn.type = "button";
-  removeBtn.textContent = "✕";
-  removeBtn.className = "ghost tiny";
-  removeBtn.title = "Видалити";
-  removeBtn.addEventListener("click", (e) => {
-    e.stopPropagation();
-    removeAgentVar(kind, variable.name);
-  });
-  actions.appendChild(editBtn);
-  actions.appendChild(removeBtn);
+  if (!isProtectedStopInput) {
+    const editBtn = document.createElement("button");
+    editBtn.type = "button";
+    editBtn.textContent = "✎";
+    editBtn.className = "ghost tiny";
+    editBtn.title = "Редагувати";
+    editBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      editAgentVar(kind, variable.name);
+    });
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.textContent = "✕";
+    removeBtn.className = "ghost tiny";
+    removeBtn.title = "Видалити";
+    removeBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      removeAgentVar(kind, variable.name);
+    });
+    actions.appendChild(editBtn);
+    actions.appendChild(removeBtn);
+  }
   port.appendChild(actions);
 
   port.addEventListener("mousedown", (e) => {
@@ -796,6 +804,10 @@ function parseValueInput(raw, fallback) {
 }
 
 function editAgentVar(kind, varName) {
+  if (kind === "inputs" && varName === STOP_AGENT_INPUT) {
+    setStatus("Системна змінна не може бути змінена", "warn");
+    return;
+  }
   if (!state.current) return;
   const list = state.current[kind];
   const idx = list.findIndex((v) => v.name === varName);
@@ -817,6 +829,10 @@ function editAgentVar(kind, varName) {
 }
 
 function removeAgentVar(kind, varName) {
+  if (kind === "inputs" && varName === STOP_AGENT_INPUT) {
+    setStatus("Системну змінну не можна видалити", "warn");
+    return;
+  }
   if (!state.current) return;
   const list = state.current[kind] || [];
   state.current[kind] = list.filter((v) => v.name !== varName);
@@ -865,6 +881,10 @@ function renameCtxVarInBindings(oldName, newName) {
 function addAgentVar(kind) {
   if (!state.current) return;
   const name = prompt(`Нова змінна для ${kind}`);
+  if (kind === "inputs" && name === STOP_AGENT_INPUT) {
+    setStatus("Ця змінна зарезервована та створена автоматично", "warn");
+    return;
+  }
   if (!name) return;
   if (kind === "inputs") state.current.inputs.push({ name });
   if (kind === "locals") {
