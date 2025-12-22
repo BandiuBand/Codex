@@ -107,7 +107,7 @@ button:hover {
   display: grid;
   grid-template-columns: 1fr;
   gap: 8px;
-  padding: 8px;
+  padding: 0 8px 8px;
   height: 70vh;
 }
 
@@ -116,16 +116,21 @@ button:hover {
   justify-content: center;
   align-items: center;
   text-align: center;
-  padding: 8px 12px;
+  padding: 10px 16px;
   background: #0b0f14;
   border: 1px solid #30363d;
-  border-radius: 8px;
+  border-left: none;
+  border-right: none;
+  border-radius: 0;
   position: sticky;
   top: 56px;
-  z-index: 150;
-  max-width: 960px;
-  margin: 0 auto;
-  width: 100%;
+  left: 0;
+  right: 0;
+  z-index: 180;
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+  margin-bottom: 8px;
 }
 
 .canvas {

@@ -25,14 +25,15 @@
       </div>
     </header>
 
+    <div class="canvas-toolbar">
+      <label class="zoom-control">
+        Масштаб
+        <input id="canvasScale" type="range" min="50" max="200" value="100" />
+        <span id="canvasScaleValue">100%</span>
+      </label>
+    </div>
+
     <main class="layout">
-      <div class="canvas-toolbar">
-        <label class="zoom-control">
-          Масштаб
-          <input id="canvasScale" type="range" min="50" max="200" value="100" />
-          <span id="canvasScaleValue">100%</span>
-        </label>
-      </div>
       <section class="canvas" id="canvas">
         <div class="canvas-top">
           <div class="canvas-title">Канва агента (lanes)</div>
