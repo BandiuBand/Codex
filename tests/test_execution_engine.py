@@ -5,7 +5,17 @@ from pathlib import Path
 
 import pytest
 
-from agentfw.core.agent_spec import AgentItemSpec, AgentSpec, BindingSpec, GraphSpec, LaneSpec, LocalVarSpec, VarSpec, WhenSpec
+from agentfw.core.agent_spec import (
+    AgentItemSpec,
+    AgentSpec,
+    BindingSpec,
+    GraphSpec,
+    LaneSpec,
+    LocalVarSpec,
+    UiPlacementSpec,
+    VarSpec,
+    WhenSpec,
+)
 from agentfw.io.agent_yaml import save_agent_spec
 from agentfw.llm.base import LLMClient
 from agentfw.runtime.engine import AgentRepository, ExecutionEngine
@@ -213,6 +223,96 @@ def test_bindings_ctx_to_input_and_output_to_ctx(tmp_path) -> None:
     assert state.vars["text"] == "hello"
     assert state.vars["echo1.text"] == "hello"
     assert state.vars["echo_output"] == "hello"
+
+
+def test_stop_flag_blocks_following_items(tmp_path) -> None:
+    stopper = AgentSpec(
+        name="stopper",
+        title_ua="stopper",
+        description_ua=None,
+        kind="atomic",
+        executor="python",
+        inputs=[],
+        locals=[LocalVarSpec(name="code", value=f"{ExecutionEngine.STOP_FLAG_VAR} = True")],
+        outputs=[VarSpec(name=ExecutionEngine.STOP_FLAG_VAR)],
+    )
+    runner = AgentSpec(
+        name="runner",
+        title_ua="runner",
+        description_ua=None,
+        kind="atomic",
+        executor="python",
+        inputs=[],
+        locals=[LocalVarSpec(name="code", value="ran = True")],
+        outputs=[VarSpec(name="ran")],
+    )
+    composite = AgentSpec(
+        name="stop_flow",
+        title_ua="stop_flow",
+        description_ua=None,
+        kind="composite",
+        inputs=[],
+        locals=[],
+        outputs=[],
+        graph=GraphSpec(
+            lanes=[
+                LaneSpec(
+                    items=[
+                        AgentItemSpec(
+                            id="stop",
+                            agent="stopper",
+                            bindings=[],
+                            ui=UiPlacementSpec(lane_index=0, order=0),
+                        ),
+                        AgentItemSpec(
+                            id="runner",
+                            agent="runner",
+                            bindings=[],
+                            ui=UiPlacementSpec(lane_index=0, order=1),
+                        ),
+                    ]
+                )
+            ]
+        ),
+    )
+
+    repo = AgentRepository(tmp_path)
+    save_agent_spec(tmp_path / "stopper.yaml", stopper)
+    save_agent_spec(tmp_path / "runner.yaml", runner)
+    save_agent_spec(tmp_path / "stop_flow.yaml", composite)
+
+    engine = ExecutionEngine(repository=repo, runs_dir=tmp_path / "runs")
+    state = engine.run_to_completion("stop_flow", input_json={})
+
+    assert state.vars[ExecutionEngine.STOP_FLAG_VAR] is True
+    assert "ran" not in state.vars
+    assert all(entry.get("agent") != "runner" for entry in state.trace)
+
+
+def test_stop_flag_injected_as_input(tmp_path) -> None:
+    basic = AgentSpec(
+        name="basic",
+        title_ua="basic",
+        description_ua=None,
+        kind="atomic",
+        executor="python",
+        inputs=[],
+        locals=[LocalVarSpec(name="code", value="pass")],
+        outputs=[],
+    )
+    save_agent_spec(tmp_path / "basic.yaml", basic)
+
+    repo = AgentRepository(tmp_path)
+    loaded = repo.get("basic")
+
+    assert any(inp.name == ExecutionEngine.STOP_FLAG_VAR for inp in loaded.inputs)
+    assert all(local.name != ExecutionEngine.STOP_FLAG_VAR for local in loaded.locals)
+
+    engine = ExecutionEngine(repository=repo, runs_dir=tmp_path / "runs")
+    state = engine.run_to_completion("basic", input_json={})
+
+    assert state.status == "ok"
+    assert state.vars[ExecutionEngine.STOP_FLAG_VAR] is False
 
 
 def test_llm_alias_result_output(tmp_path) -> None:
