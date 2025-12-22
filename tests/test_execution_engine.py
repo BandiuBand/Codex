@@ -17,6 +17,7 @@ from agentfw.core.agent_spec import (
     VarSpec,
     WhenSpec,
     STOP_FLAG_VAR,
+    ensure_stop_flag,
 )
 from agentfw.io.agent_yaml import save_agent_spec
 from agentfw.llm.base import LLMClient
@@ -58,6 +59,32 @@ def test_agent_spec_initializes_stop_flag(tmp_path) -> None:
     saved = yaml.safe_load((tmp_path / "auto_stop.yaml").read_text()) or {}
     stop_inputs = [v for v in saved.get("inputs", []) if v.get("name") == STOP_FLAG_VAR]
     assert stop_inputs and stop_inputs[0].get("default") is False
+
+
+def test_to_dict_restores_missing_stop_flag(tmp_path) -> None:
+    spec = AgentSpec(
+        name="missing_stop",
+        title_ua="missing_stop",
+        description_ua=None,
+        kind="atomic",
+        executor="python",
+        inputs=[VarSpec(name="message")],
+        locals=[LocalVarSpec(name="code", value="result = message")],
+        outputs=[VarSpec(name="result")],
+    )
+
+    spec.inputs = [v for v in spec.inputs if v.name != STOP_FLAG_VAR]
+    ensure_stop_flag(spec.inputs, spec.locals)
+    spec.inputs = [v for v in spec.inputs if v.name != STOP_FLAG_VAR]
+
+    path = tmp_path / "missing_stop.yaml"
+    save_agent_spec(path, spec)
+
+    saved = yaml.safe_load(path.read_text()) or {}
+    stop_inputs = [v for v in saved.get("inputs", []) if v.get("name") == STOP_FLAG_VAR]
+
+    assert stop_inputs, "stop flag should be reinserted during serialization"
+    assert stop_inputs[0].get("default") is False
 
 
 def test_repository_persists_stop_flag_with_metadata(tmp_path) -> None:

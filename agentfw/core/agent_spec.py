@@ -320,6 +320,7 @@ def _lane_to_dict(lane: LaneSpec) -> Dict[str, Any]:
 
 
 def agent_spec_to_dict(spec: AgentSpec) -> Dict[str, Any]:
+    ensure_stop_flag(spec.inputs, spec.locals)
     payload: Dict[str, Any] = {
         "name": spec.name,
         "title_ua": spec.title_ua,
