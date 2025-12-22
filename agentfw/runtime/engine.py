@@ -433,16 +433,23 @@ class ExecutionEngine:
                     trace.add({"item_id": item.id, "agent": item.agent, "skipped": True, "lane": lane_index})
                     continue
                 child_ctx = self._build_child_context(spec, ctx, item, all_bindings)
+                initial_stop_flag = bool(child_ctx.get(self.STOP_FLAG_VAR, False))
                 self._execute_agent(spec, child_ctx, trace, depth + 1)
                 for name, value in child_ctx.variables.items():
                     if name == "chat_gateway":
                         continue
                     ctx.set(f"{item.id}.{name}", value)
-                    ctx.set(name, value)
-                for binding in ctx_bindings:
-                    if binding.from_agent_item_id != item.id or binding.to_agent_item_id != "__CTX__":
+                    if name == self.STOP_FLAG_VAR:
                         continue
-                    ctx.set(binding.to_var, child_ctx.get(binding.from_var))
+                    ctx.set(name, value)
+                final_stop_flag = bool(child_ctx.get(self.STOP_FLAG_VAR, False))
+                if final_stop_flag and not initial_stop_flag:
+                    ctx.set(self.STOP_FLAG_VAR, final_stop_flag)
+                if not child_ctx.get(self.STOP_FLAG_VAR):
+                    for binding in ctx_bindings:
+                        if binding.from_agent_item_id != item.id or binding.to_agent_item_id != "__CTX__":
+                            continue
+                        ctx.set(binding.to_var, child_ctx.get(binding.from_var))
                 filtered_child = {k: v for k, v in child_ctx.variables.items() if k != "chat_gateway"}
                 trace.add(
                     {

@@ -5,7 +5,7 @@ import shutil
 from pathlib import Path
 
 from agentfw.llm.base import LLMClient
-from agentfw.runtime.engine import AgentRepository, ExecutionEngine
+from agentfw.runtime.engine import AgentRepository, ExecutionEngine, ExecutionState
 
 
 class ScriptedLLM(LLMClient):
@@ -87,6 +87,10 @@ def _engine(tmp_path: Path) -> ExecutionEngine:
     )
 
 
+def _has_stopped(state: ExecutionState, agent_name: str) -> bool:
+    return any(entry.get("agent") == agent_name and entry.get("kind") == "stopped" for entry in state.trace)
+
+
 def test_adaptive_agent_simple(tmp_path: Path) -> None:
     engine = _engine(tmp_path)
 
@@ -101,6 +105,8 @@ def test_adaptive_agent_simple(tmp_path: Path) -> None:
     assert state.vars["is_complex"] is False
     assert "LLM_SIMPLE" in state.vars["фінальна_відповідь"]
     assert "швидка_відповідь" in state.vars
+    assert _has_stopped(state, "complex_task_handler")
+    assert not _has_stopped(state, "llm_simple_answer")
 
 
 def test_adaptive_agent_complex(tmp_path: Path) -> None:
@@ -120,6 +126,29 @@ def test_adaptive_agent_complex(tmp_path: Path) -> None:
     assert state.vars["кроки"] == ["Крок 1: підготувати дані", "Крок 2: виконати дію"]
     assert state.vars["критерії"][0].startswith("Перевірити")
     assert "Підсумок" in state.vars["фінальна_відповідь"]
+    assert _has_stopped(state, "llm_simple_answer")
+    assert not _has_stopped(state, "complex_task_handler")
+
+
+def test_workflow_demo_simple_branch(tmp_path: Path) -> None:
+    engine = _engine(tmp_path)
+
+    state = engine.run_to_completion("workflow_demo", input_json={"task_text": "коротке завдання"})
+
+    assert state.vars["класифікація"] is False
+    assert not _has_stopped(state, "echo_simple")
+    assert _has_stopped(state, "echo_plan")
+
+
+def test_workflow_demo_complex_branch(tmp_path: Path) -> None:
+    engine = _engine(tmp_path)
+
+    long_task = "Це дуже довге формулювання задачі, яке однозначно складніше за короткий запит."
+    state = engine.run_to_completion("workflow_demo", input_json={"task_text": long_task})
+
+    assert state.vars["класифікація"] is True
+    assert _has_stopped(state, "echo_simple")
+    assert not _has_stopped(state, "echo_plan")
 
 
 def test_workspace_file_agents(tmp_path: Path) -> None:
