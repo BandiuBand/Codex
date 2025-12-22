@@ -16,6 +16,7 @@ from agentfw.core.agent_spec import (
     UiPlacementSpec,
     VarSpec,
     WhenSpec,
+    STOP_FLAG_VAR,
 )
 from agentfw.io.agent_yaml import save_agent_spec
 from agentfw.llm.base import LLMClient
@@ -34,6 +35,29 @@ def _save_atomic(tmp_path, name: str, code: str, output_name: str) -> None:
         outputs=[VarSpec(name=output_name)],
     )
     save_agent_spec(tmp_path / f"{name}.yaml", spec)
+
+
+def test_agent_spec_initializes_stop_flag(tmp_path) -> None:
+    spec = AgentSpec(
+        name="auto_stop",
+        title_ua="auto_stop",
+        description_ua=None,
+        kind="atomic",
+        executor="python",
+        inputs=[VarSpec(name="message")],
+        locals=[LocalVarSpec(name="code", value="result = message")],
+        outputs=[VarSpec(name="result")],
+    )
+
+    stop_var = next(v for v in spec.inputs if v.name == STOP_FLAG_VAR)
+    assert stop_var.type == "bool"
+    assert stop_var.default is False
+    assert all(local.name != STOP_FLAG_VAR for local in spec.locals)
+
+    save_agent_spec(tmp_path / "auto_stop.yaml", spec)
+    saved = yaml.safe_load((tmp_path / "auto_stop.yaml").read_text()) or {}
+    stop_inputs = [v for v in saved.get("inputs", []) if v.get("name") == STOP_FLAG_VAR]
+    assert stop_inputs and stop_inputs[0].get("default") is False
 
 
 def test_repository_persists_stop_flag_with_metadata(tmp_path) -> None:

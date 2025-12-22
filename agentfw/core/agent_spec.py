@@ -7,6 +7,8 @@ from typing import Any, Dict, List, Literal, Optional, Union
 JsonScalar = Union[str, bool, int, float, None]
 JsonValue = Union[JsonScalar, Dict[str, Any], List[Any]]
 
+STOP_FLAG_VAR = "stop_agent_execution"
+
 
 @dataclass
 class VarSpec:
@@ -75,6 +77,9 @@ class AgentSpec:
     outputs: List[VarSpec] = field(default_factory=list)
     graph: Optional[GraphSpec] = None
 
+    def __post_init__(self) -> None:
+        ensure_stop_flag(self.inputs, self.locals)
+
     def display_title(self) -> str:
         return self.title_ua or self.name
 
@@ -95,6 +100,20 @@ def _parse_var_spec(raw: Any) -> VarSpec:
     else:
         default = str(default_raw)
     return VarSpec(name=name, type=var_type, default=default)
+
+
+def ensure_stop_flag(inputs: List[VarSpec], locals_vars: List[LocalVarSpec]) -> None:
+    locals_vars[:] = [local for local in locals_vars if local.name != STOP_FLAG_VAR]
+
+    for var in inputs:
+        if var.name == STOP_FLAG_VAR:
+            if var.type is None:
+                var.type = "bool"
+            if var.default is None:
+                var.default = False
+            return
+
+    inputs.append(VarSpec(name=STOP_FLAG_VAR, type="bool", default=False))
 
 
 def _parse_local_var_spec(raw: Any) -> LocalVarSpec:
@@ -210,6 +229,7 @@ def agent_spec_from_dict(raw: Dict[str, Any]) -> AgentSpec:
     inputs = [_parse_var_spec(v) for v in raw.get("inputs", []) or []]
     locals_vars = [_parse_local_var_spec(v) for v in raw.get("locals", []) or []]
     outputs = [_parse_var_spec(v) for v in raw.get("outputs", []) or []]
+    ensure_stop_flag(inputs, locals_vars)
     _validate_unique_names(inputs, locals_vars, outputs)
     graph = _parse_graph_spec(raw["graph"]) if kind == "composite" else None
     if kind == "composite" and graph is None:
@@ -330,6 +350,8 @@ __all__ = [
     "UiPlacementSpec",
     "VarSpec",
     "WhenSpec",
+    "STOP_FLAG_VAR",
+    "ensure_stop_flag",
     "agent_spec_from_dict",
     "agent_spec_to_dict",
 ]
