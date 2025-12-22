@@ -2,14 +2,19 @@ name: tuple_append
 title_ua: Додати до кортежу
 description_ua: Додає значення до кінця кортежу для подальшого накопичення
 kind: atomic
-executor: python
 inputs:
-  - name: кортеж
-  - name: значення
+- name: кортеж
+- name: значення
+- name: stop_agent_execution
+  type: bool
+  default: false
 locals:
-  - name: code
-    value: |
-      base_tuple = tuple(кортеж) if кортеж is not None else tuple()
-      розширений_кортеж = base_tuple + (значення,)
+- name: code
+  value: 'base_tuple = tuple(кортеж) if кортеж is not None else tuple()
+
+    розширений_кортеж = base_tuple + (значення,)
+
+    '
 outputs:
-  - name: розширений_кортеж
+- name: розширений_кортеж
+executor: python

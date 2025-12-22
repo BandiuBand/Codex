@@ -1,45 +1,32 @@
 name: cerberus_validator
 title_ua: Перевірка результатів кроків
-description_ua: "Жорсткий gate для результатів виконання: вимагає evidence і успішної перевірки"
+description_ua: 'Жорсткий gate для результатів виконання: вимагає evidence і успішної
+  перевірки'
 kind: atomic
-executor: python
 inputs:
-  - name: виконані_кроки
-  - name: пройшло_перевірку
-  - name: коментар_цербера
-  - name: потрібно_повторити
+- name: виконані_кроки
+- name: пройшло_перевірку
+- name: коментар_цербера
+- name: потрібно_повторити
+- name: stop_agent_execution
+  type: bool
+  default: false
 locals:
-  - name: code
-    value: |
-      steps = виконані_кроки or []
-      passed = bool(пройшло_перевірку)
-      needs_retry = bool(потрібно_повторити)
-      comment = коментар_цербера or ""
-
-      if not isinstance(steps, list):
-          steps = [steps]
-
-      evidence_missing = False
-      for idx, step in enumerate(list(steps)):
-          if isinstance(step, dict):
-              evidence = step.get("evidence")
-              if not isinstance(evidence, list) or len(evidence) == 0:
-                  evidence_missing = True
-                  updated = {**step, "прийнято": False, "evidence": evidence or []}
-                  steps[idx] = updated
-
-      if evidence_missing or len(steps) == 0:
-          passed = False
-          needs_retry = True
-          message = "Докази виконання відсутні або кроки не виконані."
-          comment = (comment + " " + message).strip()
-
-      виконані_кроки = steps
-      пройшло_перевірку = passed
-      коментар_цербера = comment
-      потрібно_повторити = needs_retry
+- name: code
+  value: "steps = виконані_кроки or []\npassed = bool(пройшло_перевірку)\nneeds_retry\
+    \ = bool(потрібно_повторити)\ncomment = коментар_цербера or \"\"\n\nif not isinstance(steps,\
+    \ list):\n    steps = [steps]\n\nevidence_missing = False\nfor idx, step in enumerate(list(steps)):\n\
+    \    if isinstance(step, dict):\n        evidence = step.get(\"evidence\")\n \
+    \       if not isinstance(evidence, list) or len(evidence) == 0:\n           \
+    \ evidence_missing = True\n            updated = {**step, \"прийнято\": False,\
+    \ \"evidence\": evidence or []}\n            steps[idx] = updated\n\nif evidence_missing\
+    \ or len(steps) == 0:\n    passed = False\n    needs_retry = True\n    message\
+    \ = \"Докази виконання відсутні або кроки не виконані.\"\n    comment = (comment\
+    \ + \" \" + message).strip()\n\nвиконані_кроки = steps\nпройшло_перевірку = passed\n\
+    коментар_цербера = comment\nпотрібно_повторити = needs_retry\n"
 outputs:
-  - name: виконані_кроки
-  - name: пройшло_перевірку
-  - name: коментар_цербера
-  - name: потрібно_повторити
+- name: виконані_кроки
+- name: пройшло_перевірку
+- name: коментар_цербера
+- name: потрібно_повторити
+executor: python

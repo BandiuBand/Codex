@@ -2,15 +2,21 @@ name: json_pack
 title_ua: Запакувати у JSON
 description_ua: Створює JSON-рядок з ключем і значенням
 kind: atomic
-executor: python
 inputs:
-  - name: ключ
-  - name: значення
+- name: ключ
+- name: значення
+- name: stop_agent_execution
+  type: bool
+  default: false
 locals:
-  - name: code
-    value: |
-      import json as json_lib
-      payload = {ключ: значення}
-      output = json_lib.dumps(payload, ensure_ascii=False)
+- name: code
+  value: 'import json as json_lib
+
+    payload = {ключ: значення}
+
+    output = json_lib.dumps(payload, ensure_ascii=False)
+
+    '
 outputs:
-  - name: output
+- name: output
+executor: python

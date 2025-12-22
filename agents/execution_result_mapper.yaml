@@ -2,48 +2,35 @@ name: execution_result_mapper
 title_ua: Інтерпретація результатів виконання
 description_ua: Перетворює JSON-відповідь Цербера на окремі поля
 kind: atomic
-executor: python
 inputs:
-  - name: виконання_json
+- name: виконання_json
+- name: stop_agent_execution
+  type: bool
+  default: false
 locals:
-  - name: code
-    value: |
-      import json as json_lib
-
-      data = виконання_json
-      if isinstance(data, str):
-          try:
-              data = json_lib.loads(data)
-          except Exception:  # noqa: BLE001
-              data = {}
-      executed = data.get("executed_steps") if isinstance(data, dict) else None
-      if executed is None:
-          executed = []
-      if isinstance(executed, dict):
-          executed = [executed]
-      виконані_кроки = []
-      evidence_ok = True
-      for step in executed:
-          if isinstance(step, dict):
-              evidence = step.get("evidence")
-              has_evidence = isinstance(evidence, list) and len(evidence) > 0
-              if not has_evidence:
-                  step = {**step, "прийнято": False, "evidence": evidence or []}
-                  evidence_ok = False
-          виконані_кроки.append(step)
-
-      пройшло_перевірку = bool(data.get("passed")) if isinstance(data, dict) else False
-      пройшло_перевірку = пройшло_перевірку and evidence_ok
-      коментар_цербера = str(data.get("cerber_comment") or "") if isinstance(data, dict) else ""
-      if not evidence_ok:
-          suffix = " Evidence відсутні для деяких кроків." if коментар_цербера else "Evidence відсутні для деяких кроків."
-          коментар_цербера = (коментар_цербера + suffix).strip()
-      потрібно_повторити = bool(data.get("needs_retry")) if isinstance(data, dict) else False
-      потрібно_повторити = потрібно_повторити or not evidence_ok
-      результат_виконання = str(data.get("summary") or "") if isinstance(data, dict) else ""
+- name: code
+  value: "import json as json_lib\n\ndata = виконання_json\nif isinstance(data, str):\n\
+    \    try:\n        data = json_lib.loads(data)\n    except Exception:  # noqa:\
+    \ BLE001\n        data = {}\nexecuted = data.get(\"executed_steps\") if isinstance(data,\
+    \ dict) else None\nif executed is None:\n    executed = []\nif isinstance(executed,\
+    \ dict):\n    executed = [executed]\nвиконані_кроки = []\nevidence_ok = True\n\
+    for step in executed:\n    if isinstance(step, dict):\n        evidence = step.get(\"\
+    evidence\")\n        has_evidence = isinstance(evidence, list) and len(evidence)\
+    \ > 0\n        if not has_evidence:\n            step = {**step, \"прийнято\"\
+    : False, \"evidence\": evidence or []}\n            evidence_ok = False\n    виконані_кроки.append(step)\n\
+    \nпройшло_перевірку = bool(data.get(\"passed\")) if isinstance(data, dict) else\
+    \ False\nпройшло_перевірку = пройшло_перевірку and evidence_ok\nкоментар_цербера\
+    \ = str(data.get(\"cerber_comment\") or \"\") if isinstance(data, dict) else \"\
+    \"\nif not evidence_ok:\n    suffix = \" Evidence відсутні для деяких кроків.\"\
+    \ if коментар_цербера else \"Evidence відсутні для деяких кроків.\"\n    коментар_цербера\
+    \ = (коментар_цербера + suffix).strip()\nпотрібно_повторити = bool(data.get(\"\
+    needs_retry\")) if isinstance(data, dict) else False\nпотрібно_повторити = потрібно_повторити\
+    \ or not evidence_ok\nрезультат_виконання = str(data.get(\"summary\") or \"\"\
+    ) if isinstance(data, dict) else \"\"\n"
 outputs:
-  - name: виконані_кроки
-  - name: пройшло_перевірку
-  - name: коментар_цербера
-  - name: потрібно_повторити
-  - name: результат_виконання
+- name: виконані_кроки
+- name: пройшло_перевірку
+- name: коментар_цербера
+- name: потрібно_повторити
+- name: результат_виконання
+executor: python

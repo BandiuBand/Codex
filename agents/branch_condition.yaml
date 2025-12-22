@@ -5,12 +5,18 @@ kind: atomic
 inputs:
 - name: умова
 - name: значення
+- name: stop_agent_execution
+  type: bool
+  default: false
 locals:
 - name: code
-  value: |
-    cond = bool(умова)
+  value: 'cond = bool(умова)
+
     істина = значення if cond else None
+
     хиба = значення if not cond else None
+
+    '
 outputs:
 - name: істина
 - name: хиба

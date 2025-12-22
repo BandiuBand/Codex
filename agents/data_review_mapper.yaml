@@ -2,34 +2,24 @@ name: data_review_mapper
 title_ua: Інтерпретація перевірки даних
 description_ua: Витягує з JSON прапори готовності та уточнюючі питання
 kind: atomic
-executor: python
 inputs:
-  - name: аналіз_даних
+- name: аналіз_даних
+- name: stop_agent_execution
+  type: bool
+  default: false
 locals:
-  - name: code
-    value: |
-      needs = False
-      clarifications = ''
-      summary = ''
-      answer = ''
-      source = аналіз_даних
-      if isinstance(source, str):
-          import json as json_lib
-          try:
-              source = json_lib.loads(source)
-          except Exception:  # noqa: BLE001
-              source = {}
-      if isinstance(source, dict):
-          needs = bool(source.get('needs_more_info'))
-          clarifications = source.get('clarifications') or ''
-          summary = source.get('context_summary') or ''
-          answer = source.get('user_answer') or ''
-      потрібні_уточнення = needs
-      уточнюючі_питання = str(clarifications)
-      попередній_контекст = str(summary)
-      відповідь_користувача = str(answer)
+- name: code
+  value: "needs = False\nclarifications = ''\nsummary = ''\nanswer = ''\nsource =\
+    \ аналіз_даних\nif isinstance(source, str):\n    import json as json_lib\n   \
+    \ try:\n        source = json_lib.loads(source)\n    except Exception:  # noqa:\
+    \ BLE001\n        source = {}\nif isinstance(source, dict):\n    needs = bool(source.get('needs_more_info'))\n\
+    \    clarifications = source.get('clarifications') or ''\n    summary = source.get('context_summary')\
+    \ or ''\n    answer = source.get('user_answer') or ''\nпотрібні_уточнення = needs\n\
+    уточнюючі_питання = str(clarifications)\nпопередній_контекст = str(summary)\n\
+    відповідь_користувача = str(answer)\n"
 outputs:
-  - name: потрібні_уточнення
-  - name: уточнюючі_питання
-  - name: попередній_контекст
-  - name: відповідь_користувача
+- name: потрібні_уточнення
+- name: уточнюючі_питання
+- name: попередній_контекст
+- name: відповідь_користувача
+executor: python

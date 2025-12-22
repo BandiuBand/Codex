@@ -66,9 +66,14 @@ class AgentRepository:
     @staticmethod
     def _inject_stop_flag(spec: AgentSpec) -> None:
         spec.locals = [local for local in spec.locals if local.name != ExecutionEngine.STOP_FLAG_VAR]
-        if any(inp.name == ExecutionEngine.STOP_FLAG_VAR for inp in spec.inputs):
-            return
-        spec.inputs.append(VarSpec(name=ExecutionEngine.STOP_FLAG_VAR))
+        for inp in spec.inputs:
+            if inp.name == ExecutionEngine.STOP_FLAG_VAR:
+                if inp.type is None:
+                    inp.type = "bool"
+                if inp.default is None:
+                    inp.default = False
+                return
+        spec.inputs.append(VarSpec(name=ExecutionEngine.STOP_FLAG_VAR, type="bool", default=False))
 
 
 @dataclass
@@ -331,6 +336,9 @@ class ExecutionEngine:
         if "user_message" not in normalized_input and "завдання" in normalized_input:
             normalized_input["user_message"] = normalized_input.get("завдання")
         ctx_vars: Dict[str, Any] = dict(normalized_input)
+        for var in spec.inputs:
+            if var.default is not None:
+                ctx_vars.setdefault(var.name, var.default)
         ctx_vars.setdefault("chat_gateway", self.chat_gateway)
         ctx_vars.setdefault(self.STOP_FLAG_VAR, False)
         for local in spec.locals:

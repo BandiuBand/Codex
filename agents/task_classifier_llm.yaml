@@ -2,27 +2,44 @@ name: task_classifier_llm
 title_ua: LLM класифікація задачі
 description_ua: Визначає складність задачі через LLM-оцінку
 kind: atomic
-executor: llm
 inputs:
-  - name: task_text
+- name: task_text
+- name: stop_agent_execution
+  type: bool
+  default: false
 locals:
-  - name: parse_json
-    value: true
-  - name: prompt
-    value: |
-      Визначи, чи завдання є простим чи вимагає інструментів/файлів/додаткових даних.
-      Завдання: {task_text}
+- name: parse_json
+  value: true
+- name: prompt
+  value: 'Визначи, чи завдання є простим чи вимагає інструментів/файлів/додаткових
+    даних.
 
-      Правила класифікації:
-      - Якщо потрібні будь-які файли, огляд коду, структура проекту або запуск команд — is_complex=true.
-      - Якщо бракує даних для відповіді без інструментів — is_complex=true і вкажи, що потрібні уточнення/дані.
-      - Тільки короткі запитання, на які можна відповісти без фактів з файлів чи середовища, можуть бути is_complex=false.
+    Завдання: {task_text}
 
-      Відповідай JSON-ом з полями:
-      - is_complex: true/false
-      - reason: коротке пояснення, чому вибрано цей клас
-      Поверни лише JSON без пояснень.
+
+    Правила класифікації:
+
+    - Якщо потрібні будь-які файли, огляд коду, структура проекту або запуск команд
+    — is_complex=true.
+
+    - Якщо бракує даних для відповіді без інструментів — is_complex=true і вкажи,
+    що потрібні уточнення/дані.
+
+    - Тільки короткі запитання, на які можна відповісти без фактів з файлів чи середовища,
+    можуть бути is_complex=false.
+
+
+    Відповідай JSON-ом з полями:
+
+    - is_complex: true/false
+
+    - reason: коротке пояснення, чому вибрано цей клас
+
+    Поверни лише JSON без пояснень.
+
+    '
 outputs:
-  - name: результат
-  - name: output_json
-  - name: json_error
+- name: результат
+- name: output_json
+- name: json_error
+executor: llm

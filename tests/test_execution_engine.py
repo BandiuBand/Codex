@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 import pytest
+import yaml
 
 from agentfw.core.agent_spec import (
     AgentItemSpec,
@@ -33,6 +34,35 @@ def _save_atomic(tmp_path, name: str, code: str, output_name: str) -> None:
         outputs=[VarSpec(name=output_name)],
     )
     save_agent_spec(tmp_path / f"{name}.yaml", spec)
+
+
+def test_repository_persists_stop_flag_with_metadata(tmp_path) -> None:
+    spec = AgentSpec(
+        name="example",
+        title_ua="example",
+        description_ua=None,
+        kind="atomic",
+        executor="python",
+        inputs=[VarSpec(name="message")],
+        locals=[LocalVarSpec(name="code", value="result = message")],
+        outputs=[VarSpec(name="result")],
+    )
+    repo = AgentRepository(tmp_path)
+    repo.save(spec)
+
+    saved = yaml.safe_load((tmp_path / "example.yaml").read_text()) or {}
+    stop_inputs = [v for v in saved.get("inputs", []) if v.get("name") == ExecutionEngine.STOP_FLAG_VAR]
+
+    assert stop_inputs
+    stop_entry = stop_inputs[0]
+    assert stop_entry.get("type") == "bool"
+    assert stop_entry.get("default") is False
+
+    fresh_repo = AgentRepository(tmp_path)
+    loaded = fresh_repo.get("example")
+    stop_var = next(v for v in loaded.inputs if v.name == ExecutionEngine.STOP_FLAG_VAR)
+    assert stop_var.default is False
+    assert stop_var.type == "bool"
 
 
 def test_execution_state_status_and_error_persistence(tmp_path) -> None:

@@ -2,17 +2,15 @@ name: workspace_list_files
 title_ua: Перелік робочих файлів
 description_ua: Повертає список текстових файлів у робочій папці
 kind: atomic
-executor: python
-inputs: []
+inputs:
+- name: stop_agent_execution
+  type: bool
+  default: false
 locals:
-  - name: code
-    value: |
-      from pathlib import Path
-      base = (Path.cwd() / 'agent_workspace').resolve()
-      base.mkdir(parents=True, exist_ok=True)
-      файли = []
-      for path in base.rglob('*'):
-          if path.is_file():
-              файли.append(str(path.relative_to(base)))
+- name: code
+  value: "from pathlib import Path\nbase = (Path.cwd() / 'agent_workspace').resolve()\n\
+    base.mkdir(parents=True, exist_ok=True)\nфайли = []\nfor path in base.rglob('*'):\n\
+    \    if path.is_file():\n        файли.append(str(path.relative_to(base)))\n"
 outputs:
-  - name: файли
+- name: файли
+executor: python

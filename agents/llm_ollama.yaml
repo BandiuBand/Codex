@@ -2,15 +2,16 @@ name: llm_ollama
 title_ua: LLM (Ollama)
 description_ua: Генерує текст через клієнт LLM з параметрами Ollama
 kind: atomic
-executor: llm
 inputs:
-  - name: prompt
-  - name: ollama_host
-    required: true
-  - name: options
-    required: true
-  - name: parse_json
-    required: true
+- name: prompt
+- name: ollama_host
+- name: options
+- name: parse_json
+- name: stop_agent_execution
+  type: bool
+  default: false
+locals: []
 outputs:
-  - name: результат
-  - name: output_text
+- name: результат
+- name: output_text
+executor: llm

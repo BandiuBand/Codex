@@ -3,45 +3,48 @@ title_ua: Швидка відповідь простого рівня
 description_ua: Перевіряє потребу у файлах і формує відповідь або блокування
 kind: composite
 inputs:
-  - name: task_text
+- name: task_text
+- name: stop_agent_execution
+  type: bool
+  default: false
 locals: []
 outputs:
-  - name: результат
-  - name: output_json
-  - name: json_error
+- name: результат
+- name: output_json
+- name: json_error
 graph:
   lanes:
-    - items:
-        - id: guard
-          agent: simple_answer_guard
-          bindings:
-            - from_agent_item_id: "__CTX__"
-              from_var: task_text
-              to_agent_item_id: guard
-              to_var: task_text
-          ui:
-            lane_index: 0
-            order: 0
-        - id: llm
-          agent: llm_simple_answer_llm
-          bindings:
-            - from_agent_item_id: "__CTX__"
-              from_var: task_text
-              to_agent_item_id: llm
-              to_var: task_text
-          ui:
-            lane_index: 0
-            order: 1
+  - items:
+    - id: guard
+      agent: simple_answer_guard
+      bindings:
+      - from_agent_item_id: __CTX__
+        from_var: task_text
+        to_agent_item_id: guard
+        to_var: task_text
+      ui:
+        lane_index: 0
+        order: 0
+    - id: llm
+      agent: llm_simple_answer_llm
+      bindings:
+      - from_agent_item_id: __CTX__
+        from_var: task_text
+        to_agent_item_id: llm
+        to_var: task_text
+      ui:
+        lane_index: 0
+        order: 1
   __ctx_bindings:
-    - from_agent_item_id: llm
-      from_var: результат
-      to_agent_item_id: "__CTX__"
-      to_var: результат
-    - from_agent_item_id: llm
-      from_var: output_json
-      to_agent_item_id: "__CTX__"
-      to_var: output_json
-    - from_agent_item_id: llm
-      from_var: json_error
-      to_agent_item_id: "__CTX__"
-      to_var: json_error
+  - from_agent_item_id: llm
+    from_var: результат
+    to_agent_item_id: __CTX__
+    to_var: результат
+  - from_agent_item_id: llm
+    from_var: output_json
+    to_agent_item_id: __CTX__
+    to_var: output_json
+  - from_agent_item_id: llm
+    from_var: json_error
+    to_agent_item_id: __CTX__
+    to_var: json_error
