@@ -54,6 +54,58 @@ function setStatus(message, tone = "info") {
   el.hidden = !message;
 }
 
+function getNameInput() {
+  return $("agentNameInput");
+}
+
+function syncNameInput() {
+  const input = getNameInput();
+  if (!input) return;
+  const value = state.current?.name || "";
+  input.value = value;
+  const isValid = Boolean(value.trim());
+  input.classList.toggle("input-error", !isValid);
+  input.setCustomValidity(isValid ? "" : "Назва не може бути порожньою");
+}
+
+function applyNameFromInput(showErrors = false) {
+  const input = getNameInput();
+  if (!input || !state.current) return false;
+  const trimmed = input.value.trim();
+  if (!trimmed) {
+    input.classList.add("input-error");
+    input.setCustomValidity("Назва не може бути порожньою");
+    if (showErrors) {
+      input.reportValidity?.();
+      setStatus("Назва агента не може бути порожньою", "error");
+    }
+    return false;
+  }
+
+  const prevName = state.current.name;
+  state.current.name = trimmed;
+  if (!state.current.title_ua || state.current.title_ua === prevName) {
+    state.current.title_ua = trimmed;
+  }
+
+  if (prevName && prevName !== trimmed) {
+    if (state.specs[prevName]) {
+      state.specs[trimmed] = state.specs[prevName];
+      delete state.specs[prevName];
+    }
+    const idx = state.agents.findIndex((agent) => agent.name === prevName);
+    if (idx !== -1) {
+      state.agents[idx] = { ...state.agents[idx], name: trimmed, title_ua: state.current.title_ua || trimmed };
+      renderMenus();
+    }
+  }
+
+  input.value = trimmed;
+  input.classList.remove("input-error");
+  input.setCustomValidity("");
+  return true;
+}
+
 function openRunModal() {
   const modal = $("runModal");
   if (!modal) return;
@@ -171,6 +223,7 @@ async function openAgent(name) {
     state.current = spec;
     state.selectedItemId = null;
     state.counter = 1;
+    syncNameInput();
     renderCanvas();
     setStatus(`Відкрито агента ${spec.title_ua || spec.name}`);
   } catch (err) {
@@ -192,11 +245,13 @@ function newAgent() {
   };
   state.selectedItemId = null;
   state.selectedLane = 0;
+  syncNameInput();
   renderCanvas();
 }
 
 async function saveAgent() {
   if (!state.current) return;
+  if (!applyNameFromInput(true)) return;
   try {
     await fetchJSON(`/api/agent/${encodeURIComponent(state.current.name)}`, {
       method: "POST",
@@ -226,6 +281,7 @@ function createAgent() {
   };
   state.selectedItemId = null;
   state.selectedLane = 0;
+  syncNameInput();
   renderCanvas();
 }
 
@@ -289,6 +345,7 @@ async function renderCanvas() {
   if (container) container.innerHTML = "";
   if (svg) svg.innerHTML = "";
   if (!state.current || !container || !viewport) return;
+  syncNameInput();
   if (scaled) {
     scaled.style.width = "";
     scaled.style.height = "";
@@ -917,6 +974,18 @@ function setupZoomControls() {
   update(Number(slider.value || 100));
 }
 
+function setupNameInput() {
+  const input = getNameInput();
+  if (!input) return;
+  input.addEventListener("input", () => {
+    applyNameFromInput(false);
+  });
+  input.addEventListener("blur", () => {
+    applyNameFromInput(true);
+  });
+  syncNameInput();
+}
+
 function bindEvents() {
   $("btnNew")?.addEventListener("click", newAgent);
   $("btnSave")?.addEventListener("click", saveAgent);
@@ -928,6 +997,7 @@ function bindEvents() {
   });
   setupZoneButtons();
   setupZoomControls();
+  setupNameInput();
 }
 
 window.addEventListener("resize", scheduleDrawBindings);
