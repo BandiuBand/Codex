@@ -8,7 +8,16 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
-from agentfw.core.agent_spec import AgentItemSpec, AgentSpec, BindingSpec, GraphSpec, LaneSpec, LocalVarSpec, WhenSpec
+from agentfw.core.agent_spec import (
+    AgentItemSpec,
+    AgentSpec,
+    BindingSpec,
+    GraphSpec,
+    LaneSpec,
+    LocalVarSpec,
+    VarSpec,
+    WhenSpec,
+)
 from agentfw.io.agent_yaml import load_agent_spec, save_agent_spec
 from agentfw.llm.base import DummyLLMClient, LLMClient, OllamaLLMClient
 from agentfw.llm.json_extract import extract_first_json
@@ -56,9 +65,10 @@ class AgentRepository:
 
     @staticmethod
     def _inject_stop_flag(spec: AgentSpec) -> None:
-        if any(local.name == ExecutionEngine.STOP_FLAG_VAR for local in spec.locals):
+        spec.locals = [local for local in spec.locals if local.name != ExecutionEngine.STOP_FLAG_VAR]
+        if any(inp.name == ExecutionEngine.STOP_FLAG_VAR for inp in spec.inputs):
             return
-        spec.locals.append(LocalVarSpec(name=ExecutionEngine.STOP_FLAG_VAR, value=False))
+        spec.inputs.append(VarSpec(name=ExecutionEngine.STOP_FLAG_VAR))
 
 
 @dataclass

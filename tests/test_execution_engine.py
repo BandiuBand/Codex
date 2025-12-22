@@ -289,6 +289,32 @@ def test_stop_flag_blocks_following_items(tmp_path) -> None:
     assert all(entry.get("agent") != "runner" for entry in state.trace)
 
 
+def test_stop_flag_injected_as_input(tmp_path) -> None:
+    basic = AgentSpec(
+        name="basic",
+        title_ua="basic",
+        description_ua=None,
+        kind="atomic",
+        executor="python",
+        inputs=[],
+        locals=[LocalVarSpec(name="code", value="pass")],
+        outputs=[],
+    )
+    save_agent_spec(tmp_path / "basic.yaml", basic)
+
+    repo = AgentRepository(tmp_path)
+    loaded = repo.get("basic")
+
+    assert any(inp.name == ExecutionEngine.STOP_FLAG_VAR for inp in loaded.inputs)
+    assert all(local.name != ExecutionEngine.STOP_FLAG_VAR for local in loaded.locals)
+
+    engine = ExecutionEngine(repository=repo, runs_dir=tmp_path / "runs")
+    state = engine.run_to_completion("basic", input_json={})
+
+    assert state.status == "ok"
+    assert state.vars[ExecutionEngine.STOP_FLAG_VAR] is False
+
+
 def test_llm_alias_result_output(tmp_path) -> None:
     llm_agent = AgentSpec(
         name="llm_alias",
