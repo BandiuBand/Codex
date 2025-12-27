@@ -181,6 +181,45 @@ button:hover {
   background: radial-gradient(circle at 20% 20%, #f2f6ff, #ffffff 60%);
 }
 
+.canvas-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.step-delete-btn {
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  border: 1px solid #d5dce4;
+  background: #fff;
+  color: #c0392b;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  box-shadow: 0 4px 10px rgba(12, 31, 53, 0.08);
+  cursor: pointer;
+  pointer-events: auto;
+  transition: all 0.12s ease;
+}
+
+.step-delete-btn:hover {
+  background: #ffeceb;
+  border-color: #e74c3c;
+  color: #992020;
+}
+
+.step-delete-btn:focus-visible {
+  outline: 2px solid #1d5dff;
+  outline-offset: 2px;
+}
+
 .step-chip {
   display: inline-flex;
   align-items: center;

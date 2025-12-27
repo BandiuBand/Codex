@@ -804,6 +804,35 @@ function addStep(step) {
   render();
 }
 
+function deleteStep(stepId) {
+  if (!state.steps[stepId]) return;
+
+  delete state.steps[stepId];
+  state.endStepIds.delete(stepId);
+
+  Object.values(state.steps).forEach((step) => {
+    (step.inputs || []).forEach((inp) => {
+      if (inp.fromStepId === stepId) {
+        inp.fromStepId = '';
+      }
+    });
+    step.transitions = (step.transitions || []).filter((tr) => tr.targetStepId !== stepId);
+  });
+
+  if (state.entryStepId === stepId) {
+    state.entryStepId = Object.keys(state.steps)[0] || '';
+  }
+
+  if (state.selectedStepId === stepId) {
+    state.selectedStepId = null;
+    const panel = document.getElementById('inspectorContent');
+    if (panel) panel.textContent = t.selectStep;
+  }
+
+  refreshSelectors();
+  renderAll();
+}
+
 function refreshSelectors() {
   const ids = Object.keys(state.steps);
   const entrySelect = document.getElementById('entryStep');
@@ -1601,6 +1630,40 @@ function drawArrow(start, end, options = {}) {
   ctx.restore();
 }
 
+function renderStepOverlays() {
+  const overlay = document.getElementById('canvasOverlay');
+  if (!overlay || !canvas) return;
+
+  overlay.style.left = `${canvas.offsetLeft}px`;
+  overlay.style.top = `${canvas.offsetTop}px`;
+  overlay.style.width = `${canvas.clientWidth}px`;
+  overlay.style.height = `${canvas.clientHeight}px`;
+  overlay.innerHTML = '';
+
+  Object.values(state.steps).forEach((step) => {
+    const { width } = getStepSize(step);
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'step-delete-btn';
+    btn.title = 'Видалити крок';
+    btn.setAttribute('aria-label', `Видалити крок ${step.name || step.id}`);
+    btn.style.left = `${step.x + width - 18}px`;
+    btn.style.top = `${step.y + 6}px`;
+    btn.textContent = '✕';
+    btn.addEventListener('click', (event) => {
+      event.stopPropagation();
+      deleteStep(step.id);
+    });
+    btn.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        deleteStep(step.id);
+      }
+    });
+    overlay.appendChild(btn);
+  });
+}
+
 function render() {
   if (!canvas || !ctx) return;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -1797,6 +1860,8 @@ function render() {
     });
     ctx.restore();
   });
+
+  renderStepOverlays();
 }
 
 function startDrag(event) {
