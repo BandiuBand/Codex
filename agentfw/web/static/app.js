@@ -28,7 +28,8 @@ const state = {
 const canvas = document.getElementById('graphCanvas');
 const ctx = canvas ? canvas.getContext('2d') : null;
 
-const STEP_WIDTH = 170;
+const STEP_MIN_WIDTH = 170;
+const STEP_LABEL_PADDING = 56;
 const STEP_BASE_HEIGHT = 70;
 const PORT_GAP = 18;
 const PORT_RADIUS = 6;
@@ -340,8 +341,27 @@ function createStep(kind, overrides = {}) {
 
 function getStepSize(step) {
   const portCount = Math.max(step.inputs?.length || 0, step.saveMapping?.length || 0);
+  const measureText = (text, font = '11px Inter') => {
+    if (!text) return 0;
+    if (!ctx) return text.length * 7;
+    ctx.save();
+    ctx.font = font;
+    const width = ctx.measureText(text).width;
+    ctx.restore();
+    return width;
+  };
+
+  const maxInputLabelWidth = (step.inputs || []).reduce(
+    (max, _, idx) => Math.max(max, measureText(getPortLabel(step, 'input', idx))),
+    0,
+  );
+  const maxOutputLabelWidth = (step.saveMapping || []).reduce(
+    (max, _, idx) => Math.max(max, measureText(getPortLabel(step, 'output', idx))),
+    0,
+  );
+  const dynamicWidth = Math.ceil(maxInputLabelWidth + maxOutputLabelWidth + STEP_LABEL_PADDING);
   return {
-    width: STEP_WIDTH,
+    width: Math.max(STEP_MIN_WIDTH, dynamicWidth),
     height: STEP_BASE_HEIGHT + Math.max(0, portCount) * PORT_GAP,
   };
 }
@@ -367,10 +387,10 @@ function getStepAnchor(step, side) {
 function getPortPosition(step, portType, index) {
   const count = portType === 'input' ? step.inputs?.length || 0 : step.saveMapping?.length || 0;
   if (index >= count) return null;
-  const { height } = getStepSize(step);
+  const { width, height } = getStepSize(step);
   const availableHeight = height - 20;
   const y = step.y + 10 + ((index + 1) * availableHeight) / (count + 1);
-  const x = portType === 'input' ? step.x : step.x + STEP_WIDTH;
+  const x = portType === 'input' ? step.x : step.x + width;
   return { x, y };
 }
 
@@ -2094,7 +2114,8 @@ function handleCanvasDrop(evt) {
   const payload = evt.dataTransfer.getData('text/plain');
   if (!payload) return;
   const rect = canvas.getBoundingClientRect();
-  const x = evt.clientX - rect.left - STEP_WIDTH / 2;
+  const { width } = getStepSize({ inputs: [], saveMapping: [] });
+  const x = evt.clientX - rect.left - width / 2;
   const y = evt.clientY - rect.top - STEP_BASE_HEIGHT / 2;
   const agentMatch = payload.startsWith('agent:') ? payload.slice('agent:'.length) : null;
   if (agentMatch) {
