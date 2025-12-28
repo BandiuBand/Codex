@@ -370,6 +370,18 @@ async function renderCanvas() {
   const viewport = $("canvasViewport");
   const content = $("canvasContent");
   const scaled = $("canvasScaled");
+  const laneScrollOffsets = new Map();
+  if (container) {
+    container.querySelectorAll(".lane").forEach((laneEl) => {
+      const idx = Number.parseInt(laneEl.dataset.laneIndex, 10);
+      if (!Number.isNaN(idx)) {
+        laneScrollOffsets.set(idx, laneEl.scrollTop);
+      }
+    });
+  }
+  const viewportScroll = viewport
+    ? { top: viewport.scrollTop, left: viewport.scrollLeft }
+    : null;
   if (container) container.innerHTML = "";
   if (svg) svg.innerHTML = "";
   if (!state.current || !container || !viewport) return;
@@ -517,6 +529,14 @@ async function renderCanvas() {
   });
 
   requestAnimationFrame(() => {
+    laneScrollOffsets.forEach((scrollTop, laneIndex) => {
+      const laneEl = container.querySelector(`.lane[data-lane-index="${laneIndex}"]`);
+      if (laneEl) laneEl.scrollTop = scrollTop;
+    });
+    if (viewportScroll) {
+      viewport.scrollTop = viewportScroll.top;
+      viewport.scrollLeft = viewportScroll.left;
+    }
     state.laneWidths = measureLaneWidths();
     applyCanvasScale();
     drawBindings();
