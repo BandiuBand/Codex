@@ -552,19 +552,22 @@ function measureLaneWidths() {
   const laneWidths = [];
 
   lanesContainer.querySelectorAll(".lane").forEach((laneEl) => {
-    const getWidestIcon = (icons) => {
-      const widths = icons
-        .map((icon) => icon.getBoundingClientRect().width)
+    const getWidestPort = (ports) => {
+      const widths = ports
+        .map((port) => port.getBoundingClientRect().width)
         .sort((a, b) => b - a);
       return widths[0] || 0;
     };
 
     const measureCardWidth = (cardEl) => {
-      const inputIcons = Array.from(cardEl.querySelectorAll(".inputs-col .port-icon"));
-      const outputIcons = Array.from(cardEl.querySelectorAll(".outputs-col .port-icon"));
-      const widestInput = getWidestIcon(inputIcons);
-      const widestOutput = getWidestIcon(outputIcons);
-      const width = widestInput + widestOutput + 4;
+      const inputPorts = Array.from(cardEl.querySelectorAll(".inputs-col .port"));
+      const outputPorts = Array.from(cardEl.querySelectorAll(".outputs-col .port"));
+      const widestInput = getWidestPort(inputPorts);
+      const widestOutput = getWidestPort(outputPorts);
+      const cardPadding = 16; // padding-left + padding-right on .agent-card
+      const gridPadding = 32; // padding-left + padding-right on .card-grid
+      const columnGap = 16; // horizontal gap between grid columns
+      const width = widestInput + widestOutput + columnGap + cardPadding + gridPadding + 4;
 
       if (width > 0) {
         cardEl.style.minWidth = `${width}px`;
