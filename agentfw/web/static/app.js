@@ -146,6 +146,20 @@ function ensureGraph(spec) {
   }
 }
 
+function getAgentDisplayName(agentName) {
+  const spec = state.specs?.[agentName];
+  if (spec?.title_ua || spec?.name) {
+    return spec.title_ua || spec.name;
+  }
+
+  const listAgent = state.agents?.find((agent) => agent.name === agentName);
+  if (listAgent?.title_ua || listAgent?.name) {
+    return listAgent.title_ua || listAgent.name;
+  }
+
+  return agentName;
+}
+
 function getItemLaneIndex(itemId) {
   if (!state.current?.graph) return null;
   if (itemId === CTX_ID) return null;
@@ -488,7 +502,7 @@ async function renderCanvas() {
 
       const title = document.createElement("div");
       title.className = "agent-title";
-      title.textContent = item.agent;
+      title.textContent = getAgentDisplayName(item.agent);
       card.appendChild(title);
 
       const grid = document.createElement("div");
