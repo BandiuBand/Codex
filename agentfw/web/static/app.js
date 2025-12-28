@@ -2119,8 +2119,9 @@ function handleCanvasDrop(evt) {
   const y = evt.clientY - rect.top - STEP_BASE_HEIGHT / 2;
   const agentMatch = payload.startsWith('agent:') ? payload.slice('agent:'.length) : null;
   if (agentMatch) {
+    const agent = state.agents.find((a) => a.id === agentMatch);
     createStep('action', {
-      name: 'Виклик агента',
+      name: agent?.name || agentMatch,
       toolName: 'agent_call',
       toolParams: { agent_name: agentMatch },
       x,
