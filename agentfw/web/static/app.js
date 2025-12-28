@@ -17,8 +17,6 @@ const CTX_ID = "__CTX__";
 const DEFAULT_LANE_WIDTH = 340;
 const DEFAULT_ZONE_WIDTH = 200;
 const DEFAULT_GAP = 12;
-const CARD_COLUMN_GAP = 16;
-const CARD_HORIZONTAL_PADDING = 32;
 const STOP_AGENT_INPUT = "stop_agent_execution";
 
 function createStopAgentInput() {
@@ -519,19 +517,6 @@ async function renderCanvas() {
       if (spec) {
         spec.inputs.forEach((v) => inputsCol.appendChild(makePort(item.id, v.name, "input")));
         spec.outputs.forEach((v) => outputsCol.appendChild(makePort(item.id, v.name, "output")));
-        requestAnimationFrame(() => {
-          const maxIconWidth = (col) =>
-            Array.from(col.querySelectorAll(".port-icon")).reduce(
-              (max, el) => Math.max(max, el.getBoundingClientRect().width),
-              0,
-            );
-          const widestInputIcon = maxIconWidth(inputsCol);
-          const widestOutputIcon = maxIconWidth(outputsCol);
-          const minWidth = widestInputIcon + widestOutputIcon;
-          if (minWidth > 0) {
-            card.style.minWidth = `${minWidth}px`;
-          }
-        });
       } else {
         const placeholder = document.createElement("div");
         placeholder.className = "port port-missing";
@@ -567,15 +552,39 @@ function measureLaneWidths() {
   const laneWidths = [];
 
   lanesContainer.querySelectorAll(".lane").forEach((laneEl) => {
-    const maxPortWidth = (selector) =>
-      Array.from(laneEl.querySelectorAll(selector)).reduce(
-        (max, el) => Math.max(max, el.getBoundingClientRect().width),
-        0,
-      );
-    const widestInput = maxPortWidth(".inputs-col .port-icon");
-    const widestOutput = maxPortWidth(".outputs-col .port-icon");
-    const measuredWidth = widestInput + widestOutput + CARD_COLUMN_GAP + CARD_HORIZONTAL_PADDING;
-    const laneWidth = measuredWidth > 0 ? measuredWidth : fallbackWidth;
+    const getWidestIcon = (icons) => {
+      const widths = icons
+        .map((icon) => icon.getBoundingClientRect().width)
+        .sort((a, b) => b - a);
+      return widths[0] || 0;
+    };
+
+    const measureCardWidth = (cardEl) => {
+      const inputIcons = Array.from(cardEl.querySelectorAll(".inputs-col .port-icon"));
+      const outputIcons = Array.from(cardEl.querySelectorAll(".outputs-col .port-icon"));
+      const widestInput = getWidestIcon(inputIcons);
+      const widestOutput = getWidestIcon(outputIcons);
+      const width = widestInput + widestOutput + 4;
+
+      if (width > 0) {
+        cardEl.style.minWidth = `${width}px`;
+        cardEl.style.width = `${width}px`;
+        cardEl.dataset.cardWidth = width;
+      } else {
+        cardEl.style.minWidth = "";
+        cardEl.style.width = "";
+        delete cardEl.dataset.cardWidth;
+      }
+
+      return width;
+    };
+
+    const cards = Array.from(laneEl.querySelectorAll(".agent-card"));
+    const widestCard = cards.reduce((max, card) => Math.max(max, measureCardWidth(card)), 0);
+    const laneStyle = getComputedStyle(laneEl);
+    const horizontalPadding =
+      (Number.parseFloat(laneStyle.paddingLeft) || 0) + (Number.parseFloat(laneStyle.paddingRight) || 0);
+    const laneWidth = widestCard > 0 ? widestCard + horizontalPadding : fallbackWidth;
     laneEl.style.width = `${laneWidth}px`;
     laneEl.style.minWidth = `${laneWidth}px`;
     laneWidths.push(laneWidth);
