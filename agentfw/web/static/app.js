@@ -506,11 +506,14 @@ async function renderCanvas() {
         spec.inputs.forEach((v) => inputsCol.appendChild(makePort(item.id, v.name, "input")));
         spec.outputs.forEach((v) => outputsCol.appendChild(makePort(item.id, v.name, "output")));
         requestAnimationFrame(() => {
-          const maxWidth = (col) =>
-            Array.from(col.children).reduce((max, el) => Math.max(max, el.getBoundingClientRect().width), 0);
-          const widestInput = maxWidth(inputsCol);
-          const widestOutput = maxWidth(outputsCol);
-          const minWidth = widestInput + widestOutput + CARD_COLUMN_GAP + CARD_HORIZONTAL_PADDING;
+          const maxIconWidth = (col) =>
+            Array.from(col.querySelectorAll(".port-icon")).reduce(
+              (max, el) => Math.max(max, el.getBoundingClientRect().width),
+              0,
+            );
+          const widestInputIcon = maxIconWidth(inputsCol);
+          const widestOutputIcon = maxIconWidth(outputsCol);
+          const minWidth = widestInputIcon + widestOutputIcon;
           if (minWidth > 0) {
             card.style.minWidth = `${minWidth}px`;
           }
@@ -555,8 +558,8 @@ function measureLaneWidths() {
         (max, el) => Math.max(max, el.getBoundingClientRect().width),
         0,
       );
-    const widestInput = maxPortWidth(".inputs-col .port");
-    const widestOutput = maxPortWidth(".outputs-col .port");
+    const widestInput = maxPortWidth(".inputs-col .port-icon");
+    const widestOutput = maxPortWidth(".outputs-col .port-icon");
     const measuredWidth = widestInput + widestOutput + CARD_COLUMN_GAP + CARD_HORIZONTAL_PADDING;
     const laneWidth = measuredWidth > 0 ? measuredWidth : fallbackWidth;
     laneEl.style.width = `${laneWidth}px`;
@@ -601,6 +604,9 @@ function applyCanvasScale() {
 function makePort(itemId, varName, role, extraLabel = "") {
   const port = document.createElement("div");
   port.className = `port port-${role}`;
+  const icon = document.createElement("span");
+  icon.className = "port-icon";
+  port.appendChild(icon);
   const label = document.createElement("span");
   label.textContent = varName;
   port.appendChild(label);
@@ -866,6 +872,9 @@ function makeCtxPort(kind, variable) {
 
   const main = document.createElement("div");
   main.className = "port-main";
+  const icon = document.createElement("span");
+  icon.className = "port-icon";
+  main.appendChild(icon);
   const label = document.createElement("span");
   label.textContent = variable.name;
   main.appendChild(label);
