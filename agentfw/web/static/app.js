@@ -78,6 +78,14 @@ function appendRunAgentLog(message, level = 'info', extra) {
   logEl.scrollTop = logEl.scrollHeight;
 }
 
+function withPreservedScroll(container, renderContent) {
+  if (!container) return;
+  const { scrollTop } = container;
+  renderContent();
+  const maxScrollTop = Math.max(0, container.scrollHeight - container.clientHeight);
+  container.scrollTop = Math.min(scrollTop, maxScrollTop);
+}
+
 function clearRunAgentLog() {
   const logEl = document.getElementById('runAgentLog');
   if (logEl) logEl.innerHTML = '';
@@ -652,24 +660,26 @@ function renderToolPalette() {
     console.warn('toolPalette не знайдено');
     return;
   }
-  palette.innerHTML = '';
-  state.tools.forEach((tool) => {
-    const pill = document.createElement('div');
-    pill.className = 'tool-pill';
-    pill.draggable = true;
-    const title = document.createElement('strong');
-    title.textContent = toolLabel(tool);
-    const desc = document.createElement('span');
-    desc.textContent = toolDescription(tool);
-    desc.className = 'muted';
-    pill.appendChild(title);
-    if (desc.textContent) pill.appendChild(desc);
-    pill.title = toolDescription(tool);
-    pill.dataset.tool = tool.name || tool;
-    pill.addEventListener('dragstart', (e) => {
-      e.dataTransfer.setData('text/plain', pill.dataset.tool);
+  withPreservedScroll(palette, () => {
+    palette.innerHTML = '';
+    state.tools.forEach((tool) => {
+      const pill = document.createElement('div');
+      pill.className = 'tool-pill';
+      pill.draggable = true;
+      const title = document.createElement('strong');
+      title.textContent = toolLabel(tool);
+      const desc = document.createElement('span');
+      desc.textContent = toolDescription(tool);
+      desc.className = 'muted';
+      pill.appendChild(title);
+      if (desc.textContent) pill.appendChild(desc);
+      pill.title = toolDescription(tool);
+      pill.dataset.tool = tool.name || tool;
+      pill.addEventListener('dragstart', (e) => {
+        e.dataTransfer.setData('text/plain', pill.dataset.tool);
+      });
+      palette.appendChild(pill);
     });
-    palette.appendChild(pill);
   });
 }
 
@@ -685,70 +695,72 @@ function renderAgentPalette() {
   if (!palette) return;
 
   const agents = filterAgents(state.agentPaletteFilter);
-  palette.innerHTML = '';
+  withPreservedScroll(palette, () => {
+    palette.innerHTML = '';
 
-  if (!agents.length && !NODE_TEMPLATES.length) {
-    const empty = document.createElement('p');
-    empty.className = 'muted';
-    empty.textContent = 'Агентів не знайдено.';
-    palette.appendChild(empty);
-    return;
-  }
+    if (!agents.length && !NODE_TEMPLATES.length) {
+      const empty = document.createElement('p');
+      empty.className = 'muted';
+      empty.textContent = 'Агентів не знайдено.';
+      palette.appendChild(empty);
+      return;
+    }
 
-  agents.forEach((agent) => {
-    const pill = document.createElement('div');
-    pill.className = 'tool-pill agent-pill';
-    pill.draggable = true;
-    pill.dataset.agent = agent.id;
-    pill.addEventListener('dragstart', (e) => {
-      e.dataTransfer.setData('text/plain', `agent:${agent.id}`);
+    agents.forEach((agent) => {
+      const pill = document.createElement('div');
+      pill.className = 'tool-pill agent-pill';
+      pill.draggable = true;
+      pill.dataset.agent = agent.id;
+      pill.addEventListener('dragstart', (e) => {
+        e.dataTransfer.setData('text/plain', `agent:${agent.id}`);
+      });
+
+      const title = document.createElement('strong');
+      title.textContent = agent.name || agent.id;
+      pill.appendChild(title);
+
+      const desc = document.createElement('span');
+      desc.className = 'muted';
+      desc.textContent = agent.id;
+      pill.appendChild(desc);
+
+      palette.appendChild(pill);
     });
 
-    const title = document.createElement('strong');
-    title.textContent = agent.name || agent.id;
-    pill.appendChild(title);
+    const matchingNodes = NODE_TEMPLATES.filter(
+      (tpl) =>
+        !state.agentPaletteFilter ||
+        tpl.label.toLowerCase().includes(state.agentPaletteFilter.toLowerCase()) ||
+        tpl.kind.includes(state.agentPaletteFilter.toLowerCase()),
+    );
 
-    const desc = document.createElement('span');
-    desc.className = 'muted';
-    desc.textContent = agent.id;
-    pill.appendChild(desc);
+    if (matchingNodes.length) {
+      const header = document.createElement('div');
+      header.className = 'muted palette-subheader';
+      header.textContent = 'Спеціальні кроки';
+      palette.appendChild(header);
+    }
 
-    palette.appendChild(pill);
-  });
+    matchingNodes.forEach((tpl) => {
+      const pill = document.createElement('div');
+      pill.className = 'tool-pill agent-pill';
+      pill.draggable = true;
+      pill.dataset.nodeKind = tpl.kind;
+      pill.addEventListener('dragstart', (e) => {
+        e.dataTransfer.setData('text/plain', `node:${tpl.kind}`);
+      });
 
-  const matchingNodes = NODE_TEMPLATES.filter(
-    (tpl) =>
-      !state.agentPaletteFilter ||
-      tpl.label.toLowerCase().includes(state.agentPaletteFilter.toLowerCase()) ||
-      tpl.kind.includes(state.agentPaletteFilter.toLowerCase()),
-  );
+      const title = document.createElement('strong');
+      title.textContent = tpl.label;
+      pill.appendChild(title);
 
-  if (matchingNodes.length) {
-    const header = document.createElement('div');
-    header.className = 'muted palette-subheader';
-    header.textContent = 'Спеціальні кроки';
-    palette.appendChild(header);
-  }
+      const desc = document.createElement('span');
+      desc.className = 'muted';
+      desc.textContent = tpl.description;
+      pill.appendChild(desc);
 
-  matchingNodes.forEach((tpl) => {
-    const pill = document.createElement('div');
-    pill.className = 'tool-pill agent-pill';
-    pill.draggable = true;
-    pill.dataset.nodeKind = tpl.kind;
-    pill.addEventListener('dragstart', (e) => {
-      e.dataTransfer.setData('text/plain', `node:${tpl.kind}`);
+      palette.appendChild(pill);
     });
-
-    const title = document.createElement('strong');
-    title.textContent = tpl.label;
-    pill.appendChild(title);
-
-    const desc = document.createElement('span');
-    desc.className = 'muted';
-    desc.textContent = tpl.description;
-    pill.appendChild(desc);
-
-    palette.appendChild(pill);
   });
 
   if (filterInput) {
