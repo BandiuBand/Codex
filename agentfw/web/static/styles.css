@@ -457,12 +457,18 @@ button:hover {
   position: relative;
 }
 
-.card-drag-handle {
+.card-controls {
   position: absolute;
   top: 6px;
   right: 6px;
-  width: 12px;
-  height: 12px;
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.card-drag-handle {
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
   border: 1px solid #6e7681;
   background: #0d1117;
@@ -473,6 +479,10 @@ button:hover {
   cursor: grabbing;
   background: #1f6feb;
   border-color: #1f6feb;
+}
+
+.card-remove {
+  line-height: 1;
 }
 
 .agent-card.selected {

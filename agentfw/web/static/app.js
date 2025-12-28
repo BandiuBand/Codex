@@ -306,6 +306,34 @@ async function insertAgentItem(agentName) {
   renderCanvas();
 }
 
+function hasBindingsForItem(itemId) {
+  return allBindings().some((b) => b.from_agent_item_id === itemId || b.to_agent_item_id === itemId);
+}
+
+function removeAgentItem(itemId, laneIndex = null) {
+  if (!state.current?.graph) return;
+  const resolvedLaneIndex =
+    Number.isInteger(laneIndex) && laneIndex >= 0 ? laneIndex : getItemLaneIndex(itemId);
+  if (resolvedLaneIndex === null || resolvedLaneIndex === undefined) return;
+  const lane = state.current.graph.lanes[resolvedLaneIndex];
+  if (!lane) return;
+  const idx = lane.items.findIndex((i) => i.id === itemId);
+  if (idx === -1) return;
+
+  const item = lane.items[idx];
+  const label = item?.agent ? `агента ${item.agent}` : "цей елемент";
+  const needsConfirm = hasBindingsForItem(itemId);
+  if (needsConfirm && !confirm(`Видалити ${label}?`)) return;
+
+  lane.items.splice(idx, 1);
+  dropBindingsForItem(itemId);
+  if (state.selectedItemId === itemId) {
+    state.selectedItemId = null;
+  }
+  normalizeLaneOrders();
+  renderCanvas();
+}
+
 function addLane(insertPosition = null) {
   if (!state.current) return;
   ensureGraph(state.current);
@@ -409,6 +437,9 @@ async function renderCanvas() {
         renderCanvas();
       });
 
+      const controls = document.createElement("div");
+      controls.className = "card-controls";
+
       const dragHandle = document.createElement("div");
       dragHandle.className = "card-drag-handle";
       dragHandle.title = "Перетягнути агента";
@@ -427,7 +458,21 @@ async function renderCanvas() {
         state.cardDrag = null;
         card.draggable = true;
       });
-      card.appendChild(dragHandle);
+      controls.appendChild(dragHandle);
+
+      const removeBtn = document.createElement("button");
+      removeBtn.type = "button";
+      removeBtn.textContent = "✕";
+      removeBtn.className = "ghost tiny card-remove";
+      removeBtn.title = "Видалити агента";
+      removeBtn.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        removeAgentItem(item.id, laneIndex);
+      });
+      controls.appendChild(removeBtn);
+
+      card.appendChild(controls);
 
       const title = document.createElement("div");
       title.className = "agent-title";
@@ -912,6 +957,20 @@ function dropBindingsForCtxVar(varName) {
   });
   state.current.graph.ctx_bindings = (state.current.graph.ctx_bindings || []).filter(
     (b) => b.to_var !== varName && !(b.from_agent_item_id === CTX_ID && b.from_var === varName),
+  );
+}
+
+function dropBindingsForItem(itemId) {
+  if (!state.current?.graph) return;
+  state.current.graph.lanes.forEach((lane) => {
+    lane.items.forEach((item) => {
+      item.bindings = (item.bindings || []).filter(
+        (b) => b.from_agent_item_id !== itemId && b.to_agent_item_id !== itemId,
+      );
+    });
+  });
+  state.current.graph.ctx_bindings = (state.current.graph.ctx_bindings || []).filter(
+    (b) => b.from_agent_item_id !== itemId && b.to_agent_item_id !== itemId,
   );
 }
 
