@@ -31,6 +31,13 @@ function cssNumber(varName, fallback) {
 
 let drawBindingsScheduled = false;
 
+function syncTopbarHeight() {
+  const topbar = document.querySelector(".topbar");
+  if (!topbar) return;
+  const height = topbar.getBoundingClientRect().height;
+  document.documentElement.style.setProperty("--topbar-height", `${height}px`);
+}
+
 function scheduleDrawBindings() {
   if (drawBindingsScheduled) return;
   drawBindingsScheduled = true;
@@ -547,14 +554,19 @@ async function renderCanvas() {
 
 function measureLaneWidths() {
   const lanesContainer = $("lanesContainer");
+  const canvasContent = $("canvasContent");
   if (!lanesContainer) return [];
+  const previousScale = canvasContent?.style.getPropertyValue("--canvas-scale");
+  if (canvasContent) {
+    canvasContent.style.setProperty("--canvas-scale", 1);
+  }
   const fallbackWidth = cssNumber("--lane-width", DEFAULT_LANE_WIDTH);
   const laneWidths = [];
 
   lanesContainer.querySelectorAll(".lane").forEach((laneEl) => {
     const getWidestPort = (ports) => {
       const widths = ports
-        .map((port) => port.getBoundingClientRect().width)
+        .map((port) => port.offsetWidth || port.clientWidth || 0)
         .sort((a, b) => b - a);
       return widths[0] || 0;
     };
@@ -597,6 +609,10 @@ function measureLaneWidths() {
     lanesContainer.style.gridTemplateColumns = laneWidths.map((w) => `${w}px`).join(" ");
   } else {
     lanesContainer.style.gridTemplateColumns = "";
+  }
+
+  if (canvasContent && previousScale) {
+    canvasContent.style.setProperty("--canvas-scale", previousScale);
   }
 
   return laneWidths;
@@ -1114,8 +1130,12 @@ function bindEvents() {
   setupNameInput();
 }
 
-window.addEventListener("resize", scheduleDrawBindings);
+window.addEventListener("resize", () => {
+  syncTopbarHeight();
+  scheduleDrawBindings();
+});
 
+syncTopbarHeight();
 bindEvents();
 loadAgentsList();
 newAgent();
