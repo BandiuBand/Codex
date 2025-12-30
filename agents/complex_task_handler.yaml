@@ -29,11 +29,17 @@ outputs:
 - name: попередній_контекст
 - name: зведення
 - name: резюме
+- name: ok
+- name: needs_more_info
+- name: clarifications
+- name: context_summary
+- name: user_answer
+- name: json_error
 graph:
   lanes:
   - items:
     - id: review
-      agent: llm_data_review
+      agent: data_review
       bindings:
       - from_agent_item_id: __CTX__
         from_var: завдання
@@ -202,6 +208,30 @@ graph:
     to_var: аналіз_даних
   - from_agent_item_id: review
     from_var: json_error
+    to_agent_item_id: __CTX__
+    to_var: json_error
+  - from_agent_item_id: review
+    from_var: ok
+    to_agent_item_id: __CTX__
+    to_var: ok
+  - from_agent_item_id: review
+    from_var: needs_more_info
+    to_agent_item_id: __CTX__
+    to_var: needs_more_info
+  - from_agent_item_id: review
+    from_var: clarifications
+    to_agent_item_id: __CTX__
+    to_var: clarifications
+  - from_agent_item_id: review
+    from_var: context_summary
+    to_agent_item_id: __CTX__
+    to_var: context_summary
+  - from_agent_item_id: review
+    from_var: user_answer
+    to_agent_item_id: __CTX__
+    to_var: user_answer
+  - from_agent_item_id: review
+    from_var: clarifications
     to_agent_item_id: __CTX__
     to_var: уточнення
   - from_agent_item_id: planner

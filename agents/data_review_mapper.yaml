@@ -9,17 +9,15 @@ inputs:
   default: false
 locals:
 - name: code
-  value: "needs = False\nclarifications = ''\nsummary = ''\nanswer = ''\nsource =\
-    \ аналіз_даних\nif isinstance(source, str):\n    import json as json_lib\n   \
-    \ try:\n        source = json_lib.loads(source)\n    except Exception:  # noqa:\
-    \ BLE001\n        source = {}\nif isinstance(source, dict):\n    needs = bool(source.get('needs_more_info'))\n\
-    \    clarifications = source.get('clarifications') or ''\n    summary = source.get('context_summary')\
-    \ or ''\n    answer = source.get('user_answer') or ''\nпотрібні_уточнення = needs\n\
-    уточнюючі_питання = str(clarifications)\nпопередній_контекст = str(summary)\n\
-    відповідь_користувача = str(answer)\n"
+  value: "needs = False\nok_flag = False\nclarifications = ''\nsummary = ''\nanswer = ''\nsource = аналіз_даних\nif isinstance(source, str):\n    import json as json_lib\n    try:\n        source = json_lib.loads(source)\n    except Exception:  # noqa: BLE001\n        source = {}\nif isinstance(source, dict):\n    needs = bool(source.get('needs_more_info'))\n    ok_flag = bool(source.get('ok')) if 'ok' in source else not needs\n    clarifications = source.get('clarifications') or ''\n    summary = source.get('context_summary') or ''\n    answer = source.get('user_answer') or ''\nпотрібні_уточнення = needs\nуточнюючі_питання = str(clarifications)\nпопередній_контекст = str(summary)\nвідповідь_користувача = str(answer)\nok = ok_flag\nneeds_more_info = needs\nclarifications = str(clarifications)\ncontext_summary = str(summary)\nuser_answer = str(answer)\n"
 outputs:
 - name: потрібні_уточнення
 - name: уточнюючі_питання
 - name: попередній_контекст
 - name: відповідь_користувача
+- name: ok
+- name: needs_more_info
+- name: clarifications
+- name: context_summary
+- name: user_answer
 executor: python
