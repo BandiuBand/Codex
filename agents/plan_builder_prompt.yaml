@@ -1,0 +1,29 @@
+name: plan_builder_prompt
+title_ua: Побудова промпта для планувальника
+description_ua: Формує інструкцію для LLM щодо побудови плану з кроками та критеріями
+kind: atomic
+inputs:
+- name: завдання
+- name: попередній_контекст
+- name: stop_agent_execution
+  type: bool
+  default: false
+locals:
+- name: code
+  value: |
+    task_text = str(завдання)
+    context_text = str(попередній_контекст or "")
+
+    prompt = f"Ти планувальник. Для задачі: {task_text}\n\n" \
+        f"Додатковий контекст: {context_text}\n\n" \
+        "Побудуй стислий JSON з ключем \"plan\": {\\n" \
+        "  \"steps\": список 2-5 коротких кроків,\\n" \
+        "  \"criteria\": список тієї самої довжини з критеріями перевірки,\\n" \
+        "  \"next_stage_hint\": необов'язковий рядок, якщо потрібне продовження після цих кроків\\n" \
+        "}\\n\\n" \
+        "Виведи тільки JSON без пояснень українською мовою.\n"
+
+    prompt = prompt.replace('{', '{{').replace('}', '}}')
+outputs:
+- name: prompt
+executor: python

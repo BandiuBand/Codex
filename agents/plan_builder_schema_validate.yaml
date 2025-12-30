@@ -1,0 +1,72 @@
+name: plan_builder_schema_validate
+title_ua: Перевірка структури плану
+description_ua: Валідує наявність кроків, критеріїв та підказки наступного етапу
+kind: atomic
+inputs:
+- name: plan_json
+- name: json_error_in
+  default: ""
+- name: stop_agent_execution
+  type: bool
+  default: false
+locals:
+- name: code
+  value: |
+    import json as json_lib
+
+    error = str(json_error_in or "").strip()
+    source = plan_json
+
+    if isinstance(source, str):
+        try:
+            source = json_lib.loads(source)
+        except Exception as exc:  # noqa: BLE001
+            error = error or f"Invalid JSON: {exc}"
+            source = {}
+
+    if not isinstance(source, dict):
+        error = error or "Expected object for plan payload"
+        source = {}
+
+    steps_raw = source.get("steps") if isinstance(source, dict) else []
+    criteria_raw = source.get("criteria") if isinstance(source, dict) else []
+    next_hint_raw = source.get("next_stage_hint") if isinstance(source, dict) else None
+
+    steps_list = steps_raw if isinstance(steps_raw, list) else []
+    criteria_list = criteria_raw if isinstance(criteria_raw, list) else []
+
+    steps = [str(item).strip() for item in steps_list if str(item).strip()]
+    criteria = [str(item).strip() for item in criteria_list[: len(steps)] if str(item).strip()]
+
+    if len(steps) < 2 or len(steps) > 5:
+        error = error or "steps must contain between 2 and 5 entries"
+
+    if len(criteria_list) < len(steps):
+        criteria.extend(["Прийняти, якщо крок виконано"] * (len(steps) - len(criteria)))
+
+    if len(criteria) > len(steps):
+        criteria = criteria[: len(steps)]
+
+    next_stage_hint = None
+    if next_hint_raw is not None:
+        next_stage_hint = str(next_hint_raw)
+
+    if not steps and not error:
+        error = "steps are required"
+
+    validated_json = {
+        "steps": steps,
+        "criteria": criteria,
+        "next_stage_hint": next_stage_hint,
+    }
+
+    json_error = error
+    validated_steps = steps
+    validated_criteria = criteria
+outputs:
+- name: validated_json
+- name: validated_steps
+- name: validated_criteria
+- name: next_stage_hint
+- name: json_error
+executor: python
