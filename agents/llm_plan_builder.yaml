@@ -1,35 +1,155 @@
 name: llm_plan_builder
 title_ua: Планувальник складних задач
-description_ua: LLM формує покроковий план із критеріями приймання
-kind: atomic
+description_ua: Генерує план із кроками та критеріями через промпт, LLM, валідацію та нормалізацію
+kind: composite
 inputs:
 - name: завдання
 - name: попередній_контекст
+- name: ollama_host
+  default: http://127.0.0.1:11434
+- name: model
+  default: qwen3:32b
+- name: temperature
+  default: 0.2
 - name: stop_agent_execution
   type: bool
   default: false
 locals:
+- name: options
+  value:
+    model: "{model}"
+    temperature: "{temperature}"
 - name: parse_json
   value: true
-- name: prompt
-  value: 'Ти планувальник. Для задачі: {завдання}
-
-    Додатковий контекст: {попередній_контекст}
-
-    Побудуй стислий JSON з ключами:
-
-    - steps: список 2-5 коротких кроків
-
-    - criteria: список тих самих розмірів з критеріями перевірки виконання
-
-    - next_stage_hint: необов''язковий рядок, якщо потрібне продовження після цих
-    кроків
-
-    Виведи тільки JSON без пояснень.
-
-    '
+- name: plan_key
+  value: plan
 outputs:
 - name: результат
 - name: output_json
-- name: json_error
-executor: llm
+- name: plan_json_error
+- name: plan_ok
+- name: кроки
+- name: критерії
+- name: next_stage_hint
+graph:
+  lanes:
+  - items:
+    - id: prompt
+      agent: plan_builder_prompt
+      bindings:
+      - from_agent_item_id: __CTX__
+        from_var: завдання
+        to_agent_item_id: prompt
+        to_var: завдання
+      - from_agent_item_id: __CTX__
+        from_var: попередній_контекст
+        to_agent_item_id: prompt
+        to_var: попередній_контекст
+      ui:
+        lane_index: 0
+        order: 0
+  - items:
+    - id: llm
+      agent: llm_ollama
+      bindings:
+      - from_agent_item_id: prompt
+        from_var: prompt
+        to_agent_item_id: llm
+        to_var: prompt
+      - from_agent_item_id: __CTX__
+        from_var: ollama_host
+        to_agent_item_id: llm
+        to_var: ollama_host
+      - from_agent_item_id: __CTX__
+        from_var: options
+        to_agent_item_id: llm
+        to_var: options
+      - from_agent_item_id: __CTX__
+        from_var: parse_json
+        to_agent_item_id: llm
+        to_var: parse_json
+      ui:
+        lane_index: 1
+        order: 0
+  - items:
+    - id: extract
+      agent: json_extract
+      bindings:
+      - from_agent_item_id: llm
+        from_var: output_json
+        to_agent_item_id: extract
+        to_var: json
+      - from_agent_item_id: __CTX__
+        from_var: plan_key
+        to_agent_item_id: extract
+        to_var: ключ
+      ui:
+        lane_index: 2
+        order: 0
+  - items:
+    - id: validate
+      agent: plan_builder_schema_validate
+      bindings:
+      - from_agent_item_id: extract
+        from_var: output
+        to_agent_item_id: validate
+        to_var: plan_json
+      - from_agent_item_id: llm
+        from_var: json_error
+        to_agent_item_id: validate
+        to_var: json_error_in
+      ui:
+        lane_index: 3
+        order: 0
+  - items:
+    - id: mapper
+      agent: plan_builder_mapper
+      bindings:
+      - from_agent_item_id: validate
+        from_var: validated_json
+        to_agent_item_id: mapper
+        to_var: plan_json
+      - from_agent_item_id: validate
+        from_var: json_error
+        to_agent_item_id: mapper
+        to_var: json_error_in
+      ui:
+        lane_index: 4
+        order: 0
+  __ctx_bindings:
+  - from_agent_item_id: llm
+    from_var: результат
+    to_agent_item_id: __CTX__
+    to_var: результат
+  - from_agent_item_id: mapper
+    from_var: output_json
+    to_agent_item_id: __CTX__
+    to_var: output_json
+  - from_agent_item_id: mapper
+    from_var: output_json
+    to_agent_item_id: __CTX__
+    to_var: план_json
+  - from_agent_item_id: mapper
+    from_var: json_error
+    to_agent_item_id: __CTX__
+    to_var: plan_json_error
+  - from_agent_item_id: mapper
+    from_var: json_error
+    to_agent_item_id: __CTX__
+    to_var: plan_builder_json_error
+  - from_agent_item_id: mapper
+    from_var: ok
+    to_agent_item_id: __CTX__
+    to_var: plan_ok
+  - from_agent_item_id: mapper
+    from_var: кроки
+    to_agent_item_id: __CTX__
+    to_var: кроки
+  - from_agent_item_id: mapper
+    from_var: критерії
+    to_agent_item_id: __CTX__
+    to_var: критерії
+  - from_agent_item_id: mapper
+    from_var: next_stage_hint
+    to_agent_item_id: __CTX__
+    to_var: next_stage_hint
