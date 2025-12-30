@@ -1,28 +1,48 @@
 name: qwen3_32B
 title_ua: Qwen3 32B (локальний Ollama)
-description_ua: Обгортка над llm_ollama з фіксованими локальними параметрами моделі
-  qwen3:32b
+description_ua: Обгортка над llm_ollama з параметрами моделі, що можуть
+  бути задані у воркфлоу
 kind: composite
 inputs:
 - name: prompt
+- name: ollama_host
+  default: ""
+- name: model
+  default: qwen3:32b
+- name: temperature
+  default: 0.2
+- name: options
+  default: {}
+- name: parse_json
+  default: false
 - name: stop_agent_execution
   type: bool
   default: false
-locals:
-- name: ollama_host
-  value: http://127.0.0.1:11434
-- name: options
-  value:
-    model: qwen3:32b
-    temperature: 0.2
-- name: parse_json
-  value: false
+locals: []
 outputs:
 - name: результат
 - name: output_text
 graph:
   lanes:
   - items:
+    - id: options_builder
+      agent: ollama_options_builder
+      bindings:
+      - from_agent_item_id: __CTX__
+        from_var: model
+        to_agent_item_id: options_builder
+        to_var: model
+      - from_agent_item_id: __CTX__
+        from_var: temperature
+        to_agent_item_id: options_builder
+        to_var: temperature
+      - from_agent_item_id: __CTX__
+        from_var: options
+        to_agent_item_id: options_builder
+        to_var: options
+      ui:
+        lane_index: 0
+        order: 0
     - id: llm
       agent: llm_ollama
       bindings:
@@ -34,7 +54,7 @@ graph:
         from_var: ollama_host
         to_agent_item_id: llm
         to_var: ollama_host
-      - from_agent_item_id: __CTX__
+      - from_agent_item_id: options_builder
         from_var: options
         to_agent_item_id: llm
         to_var: options
@@ -43,7 +63,7 @@ graph:
         to_agent_item_id: llm
         to_var: parse_json
       ui:
-        lane_index: 0
+        lane_index: 1
         order: 0
   __ctx_bindings:
   - from_agent_item_id: llm
