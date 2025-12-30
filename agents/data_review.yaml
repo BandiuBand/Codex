@@ -126,23 +126,23 @@ graph:
     from_var: json_error
     to_agent_item_id: __CTX__
     to_var: json_error
-  - from_agent_item_id: schema_validate
+  - from_agent_item_id: mapper
     from_var: ok
     to_agent_item_id: __CTX__
     to_var: ok
-  - from_agent_item_id: schema_validate
+  - from_agent_item_id: mapper
     from_var: needs_more_info
     to_agent_item_id: __CTX__
     to_var: needs_more_info
-  - from_agent_item_id: schema_validate
+  - from_agent_item_id: mapper
     from_var: clarifications
     to_agent_item_id: __CTX__
     to_var: clarifications
-  - from_agent_item_id: schema_validate
+  - from_agent_item_id: mapper
     from_var: context_summary
     to_agent_item_id: __CTX__
     to_var: context_summary
-  - from_agent_item_id: schema_validate
+  - from_agent_item_id: mapper
     from_var: user_answer
     to_agent_item_id: __CTX__
     to_var: user_answer

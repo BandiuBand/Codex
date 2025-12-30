@@ -8,7 +8,13 @@ inputs:
 - name: stop_agent_execution
   type: bool
   default: false
-locals: []
+locals:
+- name: ollama_host
+  value: http://127.0.0.1:11434
+- name: model
+  value: qwen3:32b
+- name: temperature
+  value: 0.2
 outputs:
 - name: уточнення
 - name: план
@@ -45,6 +51,18 @@ graph:
         from_var: завдання
         to_agent_item_id: review
         to_var: завдання
+      - from_agent_item_id: __CTX__
+        from_var: ollama_host
+        to_agent_item_id: review
+        to_var: ollama_host
+      - from_agent_item_id: __CTX__
+        from_var: model
+        to_agent_item_id: review
+        to_var: model
+      - from_agent_item_id: __CTX__
+        from_var: temperature
+        to_agent_item_id: review
+        to_var: temperature
       ui:
         lane_index: 0
         order: 0
