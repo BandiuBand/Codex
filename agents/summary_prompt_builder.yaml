@@ -1,0 +1,64 @@
+name: summary_prompt_builder
+title_ua: Побудова промпта підсумку
+description_ua: Формує промпт для підсумку виконання з опційною JSON-структурою
+kind: atomic
+inputs:
+- name: завдання
+- name: виконані_кроки
+- name: пройшло_перевірку
+- name: коментар_цербера
+- name: next_stage_hint
+- name: require_schema
+  type: bool
+  default: false
+- name: stop_agent_execution
+  type: bool
+  default: false
+locals:
+- name: code
+  value: |
+    import json as json_lib
+
+    task_text = str(завдання or "")
+    steps = виконані_кроки if isinstance(виконані_кроки, list) else []
+    steps_text = "\n".join(f"- {idx + 1}. {step}" for idx, step in enumerate(steps))
+    if not steps_text:
+        steps_text = "- немає даних про виконані кроки"
+
+    passed = "Так" if пройшло_перевірку else "Ні"
+    cerber_comment = str(коментар_цербера or "")
+    hint = str(next_stage_hint or "")
+    structured = bool(require_schema)
+
+    prompt_parts = [
+        "Підсумуй виконання задачі українською мовою, не вигадуй фактів.",
+        "Підсумуй виконання." if "Підсумуй виконання." not in task_text else "",
+        f"Завдання: {task_text}",
+        "Виконані кроки:",
+        steps_text,
+        f"Перевірка пройшла: {passed}",
+        f"Коментар Цербера: {cerber_comment}",
+    ]
+    if hint:
+        prompt_parts.append(f"Підказка наступного етапу: {hint}")
+
+    prompt_parts.append("Залиши підсумок стислим. Якщо даних недостатньо, зазнач це явно.")
+
+    if structured:
+        schema = {
+            "summary": "текст короткого підсумку",
+            "needs_more_info": False,
+            "flags": ["зауваження або ключові маркери"],
+        }
+        prompt_parts.append(
+            "Поверни лише валідний JSON без пояснень у такій структурі:"\
+            + "\n" + json_lib.dumps(schema, ensure_ascii=False, indent=2)
+        )
+        prompt_parts.append(
+            "needs_more_info має бути true, якщо висновок потребує уточнень або бракує даних."
+        )
+    prompt = "\n\n".join(part for part in prompt_parts if part)
+    prompt = prompt.replace('{', '{{').replace('}', '}}')
+outputs:
+- name: prompt
+executor: python

@@ -1,37 +1,172 @@
 name: llm_summary
 title_ua: Підсумовуюча відповідь
-description_ua: LLM формує фінальну відповідь за результатами виконання плану
-kind: atomic
+description_ua: Композитний підсумок з побудовою промпта, викликом LLM та мапінгом прапорів
+description: Composite summary with prompt builder, Ollama LLM call, optional schema validation, and mapper
+kind: composite
 inputs:
 - name: завдання
 - name: виконані_кроки
 - name: пройшло_перевірку
 - name: коментар_цербера
 - name: next_stage_hint
+- name: require_schema
+  type: bool
+  default: true
+- name: ollama_host
+  default: http://127.0.0.1:11434
+- name: model
+  default: qwen3:32b
+- name: temperature
+  default: 0.2
 - name: stop_agent_execution
   type: bool
   default: false
 locals:
-- name: prompt
-  value: 'Підсумок: сформуй лаконічну відповідь українською, використовуючи ТІЛЬКИ
-    надані факти.
-
-    Завдання: {завдання}
-
-    Виконані кроки: {виконані_кроки}
-
-    Перевірка пройшла: {пройшло_перевірку}
-
-    Коментар Цербера: {коментар_цербера}
-
-    Підказка наступного етапу: {next_stage_hint}
-
-
-    Заборонено вигадувати деталі чи посилання на результати, яких немає в цих даних.
-
-    Якщо бракує даних для висновку, скажи про це явно і попроси уточнення.
-
-    '
+- name: options
+  value:
+    model: "{model}"
+    temperature: "{temperature}"
 outputs:
 - name: результат
-executor: llm
+- name: output_json
+- name: json_error
+- name: needs_more_info
+- name: summary_flags
+graph:
+  lanes:
+  - items:
+    - id: prompt_builder
+      agent: summary_prompt_builder
+      bindings:
+      - from_agent_item_id: __CTX__
+        from_var: завдання
+        to_agent_item_id: prompt_builder
+        to_var: завдання
+      - from_agent_item_id: __CTX__
+        from_var: виконані_кроки
+        to_agent_item_id: prompt_builder
+        to_var: виконані_кроки
+      - from_agent_item_id: __CTX__
+        from_var: пройшло_перевірку
+        to_agent_item_id: prompt_builder
+        to_var: пройшло_перевірку
+      - from_agent_item_id: __CTX__
+        from_var: коментар_цербера
+        to_agent_item_id: prompt_builder
+        to_var: коментар_цербера
+      - from_agent_item_id: __CTX__
+        from_var: next_stage_hint
+        to_agent_item_id: prompt_builder
+        to_var: next_stage_hint
+      - from_agent_item_id: __CTX__
+        from_var: require_schema
+        to_agent_item_id: prompt_builder
+        to_var: require_schema
+      ui:
+        lane_index: 0
+        order: 0
+  - items:
+    - id: llm
+      agent: llm_ollama
+      bindings:
+      - from_agent_item_id: prompt_builder
+        from_var: prompt
+        to_agent_item_id: llm
+        to_var: prompt
+      - from_agent_item_id: __CTX__
+        from_var: ollama_host
+        to_agent_item_id: llm
+        to_var: ollama_host
+      - from_agent_item_id: __CTX__
+        from_var: options
+        to_agent_item_id: llm
+        to_var: options
+      - from_agent_item_id: __CTX__
+        from_var: require_schema
+        to_agent_item_id: llm
+        to_var: parse_json
+      ui:
+        lane_index: 1
+        order: 0
+  - items:
+    - id: schema_validate
+      agent: summary_schema_validate
+      bindings:
+      - from_agent_item_id: llm
+        from_var: output_json
+        to_agent_item_id: schema_validate
+        to_var: summary_json
+      - from_agent_item_id: llm
+        from_var: json_error
+        to_agent_item_id: schema_validate
+        to_var: json_error_in
+      when:
+        var: require_schema
+        equals: true
+      ui:
+        lane_index: 2
+        order: 0
+  - items:
+    - id: mapper
+      agent: summary_mapper
+      bindings:
+      - from_agent_item_id: __CTX__
+        from_var: summary_json
+        to_agent_item_id: mapper
+        to_var: summary_json
+      - from_agent_item_id: __CTX__
+        from_var: summary_text_raw
+        to_agent_item_id: mapper
+        to_var: text_in
+      - from_agent_item_id: __CTX__
+        from_var: summary_json_error
+        to_agent_item_id: mapper
+        to_var: json_error_in
+      ui:
+        lane_index: 3
+        order: 0
+  __ctx_bindings:
+  - from_agent_item_id: llm
+    from_var: output_text
+    to_agent_item_id: __CTX__
+    to_var: summary_text_raw
+  - from_agent_item_id: llm
+    from_var: output_json
+    to_agent_item_id: __CTX__
+    to_var: summary_json
+  - from_agent_item_id: llm
+    from_var: output_json
+    to_agent_item_id: __CTX__
+    to_var: output_json
+  - from_agent_item_id: llm
+    from_var: json_error
+    to_agent_item_id: __CTX__
+    to_var: summary_json_error
+  - from_agent_item_id: schema_validate
+    from_var: validated_json
+    to_agent_item_id: __CTX__
+    to_var: summary_json
+  - from_agent_item_id: schema_validate
+    from_var: validated_json
+    to_agent_item_id: __CTX__
+    to_var: output_json
+  - from_agent_item_id: schema_validate
+    from_var: json_error
+    to_agent_item_id: __CTX__
+    to_var: summary_json_error
+  - from_agent_item_id: mapper
+    from_var: результат
+    to_agent_item_id: __CTX__
+    to_var: результат
+  - from_agent_item_id: mapper
+    from_var: needs_more_info
+    to_agent_item_id: __CTX__
+    to_var: needs_more_info
+  - from_agent_item_id: mapper
+    from_var: summary_flags
+    to_agent_item_id: __CTX__
+    to_var: summary_flags
+  - from_agent_item_id: mapper
+    from_var: json_error
+    to_agent_item_id: __CTX__
+    to_var: json_error

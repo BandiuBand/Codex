@@ -113,6 +113,10 @@ graph:
         from_var: json_error
         to_agent_item_id: schema
         to_var: json_error_in
+      - from_agent_item_id: llm
+        from_var: output_text
+        to_agent_item_id: schema
+        to_var: text_fallback
       ui:
         lane_index: 4
         order: 0

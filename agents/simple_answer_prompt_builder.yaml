@@ -12,7 +12,7 @@ locals:
   value: |
     task = str(task_text or "").strip()
     prompt = f"""
-    Маркер: LLM_SIMPLE_ANSWER
+    Маркер: LLM_SIMPLE_ANSWER. Надай швидка відповідь.
 
     Ти стислий помічник. Завдання: {task}
 

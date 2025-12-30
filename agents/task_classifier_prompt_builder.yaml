@@ -12,7 +12,7 @@ locals:
   value: |
     task = str(task_text or "").strip()
     prompt = f"""
-    Маркер: TASK_CLASSIFIER
+    Маркер: TASK_CLASSIFIER. Визначи чи завдання є складним.
 
     Ти оцінюєш, чи потребує задача інструментів, файлів або додаткових даних.
 
