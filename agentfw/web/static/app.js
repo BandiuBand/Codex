@@ -926,6 +926,11 @@ function makeCtxPort(kind, variable) {
     valInput.className = "var-value-input";
     valInput.value = variable.value !== undefined ? JSON.stringify(variable.value) : "";
     valInput.title = "Значення локальної змінної (JSON дозволено)";
+    ["mousedown", "click", "dblclick"].forEach((evt) => {
+      valInput.addEventListener(evt, (e) => {
+        e.stopPropagation();
+      });
+    });
     valInput.addEventListener("change", (e) => {
       updateLocalVarValue(variable.name, e.target.value);
     });
@@ -966,11 +971,11 @@ function makeCtxPort(kind, variable) {
   port.appendChild(actions);
 
   port.addEventListener("mousedown", (e) => {
-    if (e.target.closest(".port-actions")) return;
+    if (e.target.closest(".port-actions") || e.target.closest(".var-value-input")) return;
     startDrag(e, CTX_ID, variable.name, role);
   });
   port.addEventListener("mouseup", (e) => {
-    if (e.target.closest(".port-actions")) return;
+    if (e.target.closest(".port-actions") || e.target.closest(".var-value-input")) return;
     finishDrag(e, CTX_ID, variable.name, role);
   });
   return port;
