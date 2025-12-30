@@ -1,0 +1,66 @@
+name: task_classifier_schema_validate
+title_ua: Валідація JSON класифікації задачі
+description_ua: Нормалізує відповідь task_classifier та виставляє прапор ok
+kind: atomic
+inputs:
+- name: classification_json
+- name: fallback_json
+  default: ""
+- name: json_error_in
+  default: ""
+- name: stop_agent_execution
+  type: bool
+  default: false
+locals:
+- name: code
+  value: |
+    import json as json_lib
+
+    error = str(json_error_in or "").strip()
+    source = classification_json if classification_json not in (None, "") else fallback_json
+
+    if isinstance(source, str):
+        try:
+            source = json_lib.loads(source)
+        except Exception as exc:  # noqa: BLE001
+            error = error or f"Invalid JSON: {exc}"
+            source = {}
+
+    if not isinstance(source, dict):
+        error = error or "Expected object for task_classifier payload"
+        source = {}
+
+    is_complex_raw = source.get("is_complex") if isinstance(source, dict) else None
+    reason = str(source.get("reason") or "").strip()
+
+    if isinstance(is_complex_raw, bool):
+        is_complex = is_complex_raw
+    elif isinstance(is_complex_raw, str):
+        lowered = is_complex_raw.strip().lower()
+        is_complex = lowered in {"true", "1", "yes", "y", "complex"}
+    elif is_complex_raw is None:
+        is_complex = None
+    else:
+        is_complex = bool(is_complex_raw)
+
+    if is_complex is None:
+        error = error or "Field 'is_complex' is required"
+        is_complex = False
+
+    if not reason:
+        error = error or "Field 'reason' is required"
+
+    validated_json = {
+        "is_complex": bool(is_complex),
+        "reason": reason,
+    }
+
+    ok = bool(not error and reason)
+    json_error = error
+outputs:
+- name: validated_json
+- name: is_complex
+- name: reason
+- name: ok
+- name: json_error
+executor: python

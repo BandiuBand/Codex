@@ -1,45 +1,204 @@
 name: task_classifier_llm
 title_ua: LLM класифікація задачі
-description_ua: Визначає складність задачі через LLM-оцінку
-kind: atomic
+description_ua: Визначає складність задачі через LLM-оцінку з валідацією JSON
+kind: composite
 inputs:
 - name: task_text
+- name: ollama_host
+  default: ""
+- name: model
+  default: qwen3:32b
+- name: temperature
+  default: 0.2
+- name: options
+  default: {}
 - name: stop_agent_execution
   type: bool
   default: false
 locals:
 - name: parse_json
   value: true
-- name: prompt
-  value: 'Визначи, чи завдання є простим чи вимагає інструментів/файлів/додаткових
-    даних.
-
-    Завдання: {task_text}
-
-
-    Правила класифікації:
-
-    - Якщо потрібні будь-які файли, огляд коду, структура проекту або запуск команд
-    — is_complex=true.
-
-    - Якщо бракує даних для відповіді без інструментів — is_complex=true і вкажи,
-    що потрібні уточнення/дані.
-
-    - Тільки короткі запитання, на які можна відповісти без фактів з файлів чи середовища,
-    можуть бути is_complex=false.
-
-
-    Відповідай JSON-ом з полями:
-
-    - is_complex: true/false
-
-    - reason: коротке пояснення, чому вибрано цей клас
-
-    Поверни лише JSON без пояснень.
-
-    '
+- name: response_key
+  value: task_classifier
 outputs:
 - name: результат
 - name: output_json
 - name: json_error
-executor: llm
+- name: is_complex
+- name: reason
+- name: ok
+- name: route_complex
+- name: route_simple
+- name: класифікація
+- name: обрати_план
+- name: original_task
+- name: parsing_error
+graph:
+  lanes:
+  - items:
+    - id: prompt
+      agent: task_classifier_prompt_builder
+      bindings:
+      - from_agent_item_id: __CTX__
+        from_var: task_text
+        to_agent_item_id: prompt
+        to_var: task_text
+      ui:
+        lane_index: 0
+        order: 0
+  - items:
+    - id: options_builder
+      agent: ollama_options_builder
+      bindings:
+      - from_agent_item_id: __CTX__
+        from_var: model
+        to_agent_item_id: options_builder
+        to_var: model
+      - from_agent_item_id: __CTX__
+        from_var: temperature
+        to_agent_item_id: options_builder
+        to_var: temperature
+      - from_agent_item_id: __CTX__
+        from_var: options
+        to_agent_item_id: options_builder
+        to_var: options
+      ui:
+        lane_index: 1
+        order: 0
+  - items:
+    - id: llm
+      agent: llm_ollama
+      bindings:
+      - from_agent_item_id: prompt
+        from_var: prompt
+        to_agent_item_id: llm
+        to_var: prompt
+      - from_agent_item_id: __CTX__
+        from_var: ollama_host
+        to_agent_item_id: llm
+        to_var: ollama_host
+      - from_agent_item_id: options_builder
+        from_var: options
+        to_agent_item_id: llm
+        to_var: options
+      - from_agent_item_id: __CTX__
+        from_var: parse_json
+        to_agent_item_id: llm
+        to_var: parse_json
+      ui:
+        lane_index: 2
+        order: 0
+  - items:
+    - id: extract
+      agent: json_extract
+      bindings:
+      - from_agent_item_id: llm
+        from_var: output_json
+        to_agent_item_id: extract
+        to_var: json
+      - from_agent_item_id: __CTX__
+        from_var: response_key
+        to_agent_item_id: extract
+        to_var: ключ
+      ui:
+        lane_index: 3
+        order: 0
+  - items:
+    - id: schema
+      agent: task_classifier_schema_validate
+      bindings:
+      - from_agent_item_id: extract
+        from_var: output
+        to_agent_item_id: schema
+        to_var: classification_json
+      - from_agent_item_id: llm
+        from_var: output_json
+        to_agent_item_id: schema
+        to_var: fallback_json
+      - from_agent_item_id: llm
+        from_var: json_error
+        to_agent_item_id: schema
+        to_var: json_error_in
+      ui:
+        lane_index: 4
+        order: 0
+  - items:
+    - id: mapper
+      agent: task_classifier_mapper
+      bindings:
+      - from_agent_item_id: schema
+        from_var: validated_json
+        to_agent_item_id: mapper
+        to_var: validated_json
+      - from_agent_item_id: schema
+        from_var: is_complex
+        to_agent_item_id: mapper
+        to_var: is_complex
+      - from_agent_item_id: schema
+        from_var: reason
+        to_agent_item_id: mapper
+        to_var: reason
+      - from_agent_item_id: schema
+        from_var: ok
+        to_agent_item_id: mapper
+        to_var: ok
+      - from_agent_item_id: schema
+        from_var: json_error
+        to_agent_item_id: mapper
+        to_var: json_error
+      - from_agent_item_id: __CTX__
+        from_var: task_text
+        to_agent_item_id: mapper
+        to_var: task_text
+      ui:
+        lane_index: 5
+        order: 0
+  __ctx_bindings:
+  - from_agent_item_id: llm
+    from_var: результат
+    to_agent_item_id: __CTX__
+    to_var: результат
+  - from_agent_item_id: mapper
+    from_var: output_json
+    to_agent_item_id: __CTX__
+    to_var: output_json
+  - from_agent_item_id: mapper
+    from_var: json_error
+    to_agent_item_id: __CTX__
+    to_var: json_error
+  - from_agent_item_id: mapper
+    from_var: parsing_error
+    to_agent_item_id: __CTX__
+    to_var: parsing_error
+  - from_agent_item_id: mapper
+    from_var: is_complex
+    to_agent_item_id: __CTX__
+    to_var: is_complex
+  - from_agent_item_id: mapper
+    from_var: reason
+    to_agent_item_id: __CTX__
+    to_var: reason
+  - from_agent_item_id: mapper
+    from_var: класифікація
+    to_agent_item_id: __CTX__
+    to_var: класифікація
+  - from_agent_item_id: mapper
+    from_var: обрати_план
+    to_agent_item_id: __CTX__
+    to_var: обрати_план
+  - from_agent_item_id: mapper
+    from_var: original_task
+    to_agent_item_id: __CTX__
+    to_var: original_task
+  - from_agent_item_id: mapper
+    from_var: ok
+    to_agent_item_id: __CTX__
+    to_var: ok
+  - from_agent_item_id: mapper
+    from_var: route_complex
+    to_agent_item_id: __CTX__
+    to_var: route_complex
+  - from_agent_item_id: mapper
+    from_var: route_simple
+    to_agent_item_id: __CTX__
+    to_var: route_simple
