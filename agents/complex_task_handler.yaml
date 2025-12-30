@@ -67,16 +67,6 @@ graph:
         lane_index: 0
         order: 0
   - items:
-    - id: review_map
-      agent: data_review_mapper
-      bindings:
-      - from_agent_item_id: __CTX__
-        from_var: аналіз_даних
-        to_agent_item_id: review_map
-        to_var: аналіз_даних
-      ui:
-        lane_index: 1
-        order: 0
     - id: clarify
       agent: chat_agent
       bindings:
@@ -93,12 +83,12 @@ graph:
         equals: true
       ui:
         lane_index: 1
-        order: 1
+        order: 0
   - items:
     - id: merge_context
       agent: clarification_context
       bindings:
-      - from_agent_item_id: review_map
+      - from_agent_item_id: __CTX__
         from_var: попередній_контекст
         to_agent_item_id: merge_context
         to_var: базовий_контекст
@@ -260,22 +250,6 @@ graph:
     from_var: результат
     to_agent_item_id: __CTX__
     to_var: план_як_рядок
-  - from_agent_item_id: review_map
-    from_var: потрібні_уточнення
-    to_agent_item_id: __CTX__
-    to_var: потрібні_уточнення
-  - from_agent_item_id: review_map
-    from_var: уточнюючі_питання
-    to_agent_item_id: __CTX__
-    to_var: уточнюючі_питання
-  - from_agent_item_id: review_map
-    from_var: попередній_контекст
-    to_agent_item_id: __CTX__
-    to_var: попередній_контекст
-  - from_agent_item_id: review_map
-    from_var: відповідь_користувача
-    to_agent_item_id: __CTX__
-    to_var: відповідь_користувача
   - from_agent_item_id: clarify
     from_var: user_message
     to_agent_item_id: __CTX__
