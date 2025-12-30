@@ -1,0 +1,454 @@
+{
+  "summary": {
+    "generated_at": "2025-12-30T20:24:08+00:00",
+    "total_agents": 36,
+    "severity_counts": {
+      "HIGH": 1,
+      "MED": 21,
+      "LOW": 0,
+      "INFO": 14
+    }
+  },
+  "agents": [
+    {
+      "name": "adaptive_task_agent",
+      "path": "Codex/agents/adaptive_task_agent.yaml",
+      "severity": "INFO",
+      "findings": []
+    },
+    {
+      "name": "branch_condition",
+      "path": "Codex/agents/branch_condition.yaml",
+      "severity": "MED",
+      "findings": [
+        {
+          "id": "implicit_control_flow",
+          "description": "Implicit branching or side-effect driven control flow cues.",
+          "severity": "MED",
+          "matches": [
+            "match:else",
+            "match:if"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "cerberus_validator",
+      "path": "Codex/agents/cerberus_validator.yaml",
+      "severity": "MED",
+      "findings": [
+        {
+          "id": "implicit_control_flow",
+          "description": "Implicit branching or side-effect driven control flow cues.",
+          "severity": "MED",
+          "matches": [
+            "match:if"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "chat_agent",
+      "path": "Codex/agents/chat_agent.yaml",
+      "severity": "MED",
+      "findings": [
+        {
+          "id": "implicit_control_flow",
+          "description": "Implicit branching or side-effect driven control flow cues.",
+          "severity": "MED",
+          "matches": [
+            "match:else",
+            "match:if"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "clarification_context",
+      "path": "Codex/agents/clarification_context.yaml",
+      "severity": "INFO",
+      "findings": []
+    },
+    {
+      "name": "classification_consolidator",
+      "path": "Codex/agents/classification_consolidator.yaml",
+      "severity": "MED",
+      "findings": [
+        {
+          "id": "implicit_control_flow",
+          "description": "Implicit branching or side-effect driven control flow cues.",
+          "severity": "MED",
+          "matches": [
+            "match:else",
+            "match:fallback",
+            "match:if"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "complex_task_handler",
+      "path": "Codex/agents/complex_task_handler.yaml",
+      "severity": "MED",
+      "findings": [
+        {
+          "id": "implicit_control_flow",
+          "description": "Implicit branching or side-effect driven control flow cues.",
+          "severity": "MED",
+          "matches": [
+            "match:when"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "data_review_mapper",
+      "path": "Codex/agents/data_review_mapper.yaml",
+      "severity": "INFO",
+      "findings": []
+    },
+    {
+      "name": "echo_plan",
+      "path": "Codex/agents/echo_plan.yaml",
+      "severity": "INFO",
+      "findings": []
+    },
+    {
+      "name": "echo_simple",
+      "path": "Codex/agents/echo_simple.yaml",
+      "severity": "INFO",
+      "findings": []
+    },
+    {
+      "name": "execution_result_mapper",
+      "path": "Codex/agents/execution_result_mapper.yaml",
+      "severity": "MED",
+      "findings": [
+        {
+          "id": "implicit_control_flow",
+          "description": "Implicit branching or side-effect driven control flow cues.",
+          "severity": "MED",
+          "matches": [
+            "match:else",
+            "match:if"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "final_message_selector",
+      "path": "Codex/agents/final_message_selector.yaml",
+      "severity": "INFO",
+      "findings": []
+    },
+    {
+      "name": "guard_before_finalize",
+      "path": "Codex/agents/guard_before_finalize.yaml",
+      "severity": "MED",
+      "findings": [
+        {
+          "id": "implicit_control_flow",
+          "description": "Implicit branching or side-effect driven control flow cues.",
+          "severity": "MED",
+          "matches": [
+            "match:else",
+            "match:if"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "json_extract",
+      "path": "Codex/agents/json_extract.yaml",
+      "severity": "MED",
+      "findings": [
+        {
+          "id": "implicit_control_flow",
+          "description": "Implicit branching or side-effect driven control flow cues.",
+          "severity": "MED",
+          "matches": [
+            "match:else",
+            "match:if"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "json_pack",
+      "path": "Codex/agents/json_pack.yaml",
+      "severity": "INFO",
+      "findings": []
+    },
+    {
+      "name": "llm_data_review",
+      "path": "Codex/agents/llm_data_review.yaml",
+      "severity": "MED",
+      "findings": [
+        {
+          "id": "global_llm_config",
+          "description": "Global or shared LLM configuration that may bypass per-call controls.",
+          "severity": "MED",
+          "matches": [
+            "keyword:executor: llm",
+            "match:executor: llm"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "llm_ollama",
+      "path": "Codex/agents/llm_ollama.yaml",
+      "severity": "MED",
+      "findings": [
+        {
+          "id": "global_llm_config",
+          "description": "Global or shared LLM configuration that may bypass per-call controls.",
+          "severity": "MED",
+          "matches": [
+            "keyword:executor: llm",
+            "match:executor: llm"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "llm_plan_builder",
+      "path": "Codex/agents/llm_plan_builder.yaml",
+      "severity": "MED",
+      "findings": [
+        {
+          "id": "global_llm_config",
+          "description": "Global or shared LLM configuration that may bypass per-call controls.",
+          "severity": "MED",
+          "matches": [
+            "keyword:executor: llm",
+            "match:executor: llm"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "llm_prompt_chain",
+      "path": "Codex/agents/llm_prompt_chain.yaml",
+      "severity": "INFO",
+      "findings": []
+    },
+    {
+      "name": "llm_simple_answer",
+      "path": "Codex/agents/llm_simple_answer.yaml",
+      "severity": "INFO",
+      "findings": []
+    },
+    {
+      "name": "llm_simple_answer_llm",
+      "path": "Codex/agents/llm_simple_answer_llm.yaml",
+      "severity": "MED",
+      "findings": [
+        {
+          "id": "global_llm_config",
+          "description": "Global or shared LLM configuration that may bypass per-call controls.",
+          "severity": "MED",
+          "matches": [
+            "keyword:executor: llm",
+            "match:executor: llm"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "llm_summary",
+      "path": "Codex/agents/llm_summary.yaml",
+      "severity": "MED",
+      "findings": [
+        {
+          "id": "global_llm_config",
+          "description": "Global or shared LLM configuration that may bypass per-call controls.",
+          "severity": "MED",
+          "matches": [
+            "keyword:executor: llm",
+            "match:executor: llm"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "output_collector",
+      "path": "Codex/agents/output_collector.yaml",
+      "severity": "INFO",
+      "findings": []
+    },
+    {
+      "name": "plan_executor",
+      "path": "Codex/agents/plan_executor.yaml",
+      "severity": "MED",
+      "findings": [
+        {
+          "id": "global_llm_config",
+          "description": "Global or shared LLM configuration that may bypass per-call controls.",
+          "severity": "MED",
+          "matches": [
+            "keyword:executor: llm",
+            "match:executor: llm"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "plan_normalizer",
+      "path": "Codex/agents/plan_normalizer.yaml",
+      "severity": "MED",
+      "findings": [
+        {
+          "id": "implicit_control_flow",
+          "description": "Implicit branching or side-effect driven control flow cues.",
+          "severity": "MED",
+          "matches": [
+            "match:else",
+            "match:if"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "prompt_builder",
+      "path": "Codex/agents/prompt_builder.yaml",
+      "severity": "INFO",
+      "findings": []
+    },
+    {
+      "name": "python_eval_input",
+      "path": "Codex/agents/python_eval_input.yaml",
+      "severity": "INFO",
+      "findings": []
+    },
+    {
+      "name": "qwen3_32B",
+      "path": "Codex/agents/qwen3_32B.yaml",
+      "severity": "HIGH",
+      "findings": [
+        {
+          "id": "hardcoded_infrastructure",
+          "description": "Embedded URLs, IPs, or hostnames that may indicate hardcoded infrastructure.",
+          "severity": "HIGH",
+          "matches": [
+            "match:127.0.0.1:11434",
+            "match:http://127.0.0.1:11434"
+          ]
+        },
+        {
+          "id": "global_llm_config",
+          "description": "Global or shared LLM configuration that may bypass per-call controls.",
+          "severity": "MED",
+          "matches": [
+            "match:model",
+            "match:temperature"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "simple_answer_guard",
+      "path": "Codex/agents/simple_answer_guard.yaml",
+      "severity": "INFO",
+      "findings": []
+    },
+    {
+      "name": "task_classifier",
+      "path": "Codex/agents/task_classifier.yaml",
+      "severity": "INFO",
+      "findings": []
+    },
+    {
+      "name": "task_classifier_llm",
+      "path": "Codex/agents/task_classifier_llm.yaml",
+      "severity": "MED",
+      "findings": [
+        {
+          "id": "global_llm_config",
+          "description": "Global or shared LLM configuration that may bypass per-call controls.",
+          "severity": "MED",
+          "matches": [
+            "keyword:executor: llm",
+            "match:executor: llm"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "tuple_append",
+      "path": "Codex/agents/tuple_append.yaml",
+      "severity": "MED",
+      "findings": [
+        {
+          "id": "implicit_control_flow",
+          "description": "Implicit branching or side-effect driven control flow cues.",
+          "severity": "MED",
+          "matches": [
+            "match:else",
+            "match:if"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "workflow_demo",
+      "path": "Codex/agents/workflow_demo.yaml",
+      "severity": "MED",
+      "findings": [
+        {
+          "id": "implicit_control_flow",
+          "description": "Implicit branching or side-effect driven control flow cues.",
+          "severity": "MED",
+          "matches": [
+            "match:branch"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "workspace_list_files",
+      "path": "Codex/agents/workspace_list_files.yaml",
+      "severity": "MED",
+      "findings": [
+        {
+          "id": "implicit_control_flow",
+          "description": "Implicit branching or side-effect driven control flow cues.",
+          "severity": "MED",
+          "matches": [
+            "match:if"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "workspace_read_file",
+      "path": "Codex/agents/workspace_read_file.yaml",
+      "severity": "MED",
+      "findings": [
+        {
+          "id": "implicit_control_flow",
+          "description": "Implicit branching or side-effect driven control flow cues.",
+          "severity": "MED",
+          "matches": [
+            "match:if"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "workspace_write_file",
+      "path": "Codex/agents/workspace_write_file.yaml",
+      "severity": "MED",
+      "findings": [
+        {
+          "id": "implicit_control_flow",
+          "description": "Implicit branching or side-effect driven control flow cues.",
+          "severity": "MED",
+          "matches": [
+            "match:if"
+          ]
+        }
+      ]
+    }
+  ]
+}
