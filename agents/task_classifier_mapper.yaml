@@ -1,0 +1,48 @@
+name: task_classifier_mapper
+title_ua: Маппер результату класифікації задачі
+description_ua: Формує фінальні прапори маршрутизації та зберігає пояснення
+kind: atomic
+inputs:
+- name: validated_json
+- name: is_complex
+- name: reason
+- name: ok
+- name: json_error
+  default: ""
+- name: task_text
+  default: ""
+- name: stop_agent_execution
+  type: bool
+  default: false
+locals:
+- name: code
+  value: |
+    error = str(json_error or "").strip()
+    reason_text = str(reason or "").strip()
+    is_complex_flag = bool(is_complex)
+    ok_flag = bool(ok) and not bool(error)
+
+    if not reason_text and error:
+        reason_text = "Не вдалося розпарсити відповідь LLM"
+
+    route_complex = is_complex_flag and ok_flag
+    route_simple = (not is_complex_flag) and ok_flag
+
+    класифікація = reason_text or ("складне завдання" if route_complex else "просте завдання")
+    обрати_план = route_complex
+    original_task = str(task_text or "")
+    output_json = validated_json if isinstance(validated_json, dict) else {}
+    parsing_error = bool(error)
+    json_error_out = error
+outputs:
+- name: output_json
+- name: is_complex
+- name: класифікація
+- name: обрати_план
+- name: original_task
+- name: ok
+- name: route_complex
+- name: route_simple
+- name: parsing_error
+- name: json_error
+executor: python

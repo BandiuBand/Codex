@@ -1,0 +1,37 @@
+name: task_classifier_prompt_builder
+title_ua: Побудова промпта для класифікації задачі
+description_ua: Формує інструкцію LLM для визначення складності задачі з чітким JSON-виходом
+kind: atomic
+inputs:
+- name: task_text
+- name: stop_agent_execution
+  type: bool
+  default: false
+locals:
+- name: code
+  value: |
+    task = str(task_text or "").strip()
+    prompt = f"""
+    Маркер: TASK_CLASSIFIER
+
+    Ти оцінюєш, чи потребує задача інструментів, файлів або додаткових даних.
+
+    Завдання: {task}
+
+    Правила класифікації:
+    - Якщо потрібні будь-які файли, огляд коду, структура проєкту чи виконання команд — is_complex=true.
+    - Якщо бракує даних для відповіді без інструментів — is_complex=true і поясни, що саме потрібно.
+    - Лише короткі питання, які не вимагають фактів із файлової системи чи зовнішніх джерел, можуть бути is_complex=false.
+
+    Відповідай ЛИШЕ валідним JSON без додаткових коментарів у форматі:
+    {{
+      "task_classifier": {{
+        "is_complex": true | false,
+        "reason": "стисле пояснення українською"
+      }}
+    }}
+    """
+    prompt = prompt.replace("{", "{{").replace("}", "}}")
+outputs:
+- name: prompt
+executor: python
