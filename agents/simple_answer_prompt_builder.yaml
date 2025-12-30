@@ -1,0 +1,37 @@
+name: simple_answer_prompt_builder
+title_ua: Побудова промпта для швидкої відповіді
+description_ua: Готує інструкцію LLM з вимогою структурованого JSON для простої відповіді
+kind: atomic
+inputs:
+- name: task_text
+- name: stop_agent_execution
+  type: bool
+  default: false
+locals:
+- name: code
+  value: |
+    task = str(task_text or "").strip()
+    prompt = f"""
+    Маркер: LLM_SIMPLE_ANSWER
+
+    Ти стислий помічник. Завдання: {task}
+
+    Дай коротку і точну відповідь тільки якщо впевнений у фактах. Якщо не вистачає даних або потрібно опрацювати файли/інструменти — поверни статус 'blocked'.
+
+    Відповідай лише валідним JSON без додаткових пояснень у форматі:
+    {{
+      "llm_simple_answer": {{
+        "status": "ok" або "blocked",
+        "answer": "<стисла відповідь, якщо status=ok>",
+        "missing_inputs": ["<чого бракує>"],
+        "questions_to_user": ["<1-3 конкретних питання для уточнення>"],
+        "why_blocked": "<чому відповідь неможлива зараз>"
+      }}
+    }}
+
+    Якщо достатньо інформації, став status=ok і заповни answer. Якщо потрібні дані — став status=blocked, детально заповни missing_inputs, questions_to_user і why_blocked.
+    """
+    prompt = prompt.replace("{", "{{").replace("}", "}}")
+outputs:
+- name: prompt
+executor: python

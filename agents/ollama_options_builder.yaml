@@ -1,0 +1,20 @@
+name: ollama_options_builder
+title_ua: Формування параметрів Ollama
+description_ua: Об'єднує модель, температуру та додаткові опції для llm_ollama
+kind: atomic
+inputs:
+- name: model
+  default: ""
+- name: temperature
+  default: 0
+- name: options
+  default: {}
+- name: stop_agent_execution
+  type: bool
+  default: false
+locals:
+- name: code
+  value: "opts = {}\nif isinstance(options, dict):\n    opts.update(options)\nif model:\n    opts['model'] = model\ntry:\n    temp_val = float(temperature)\n    opts['temperature'] = temp_val\nexcept Exception:  # noqa: BLE001\n    if temperature not in (None, ''):\n        opts['temperature'] = temperature\noptions = opts\n"
+outputs:
+- name: options
+executor: python

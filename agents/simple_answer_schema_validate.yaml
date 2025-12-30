@@ -1,0 +1,83 @@
+name: simple_answer_schema_validate
+title_ua: Валідація JSON швидкої відповіді
+description_ua: Нормалізує структуру llm_simple_answer та виставляє прапори ok/blocked
+kind: atomic
+inputs:
+- name: answer_json
+- name: json_error_in
+  default: ""
+- name: stop_agent_execution
+  type: bool
+  default: false
+locals:
+- name: code
+  value: |
+    import json as json_lib
+
+    error = str(json_error_in or "").strip()
+    source = answer_json
+    if isinstance(source, str):
+        try:
+            source = json_lib.loads(source)
+        except Exception as exc:  # noqa: BLE001
+            error = error or f"Invalid JSON: {exc}"
+            source = {}
+    if not isinstance(source, dict):
+        error = error or "Expected object for llm_simple_answer payload"
+        source = {}
+
+    status_raw = str(source.get("status") or "").strip().lower()
+    answer = str(source.get("answer") or "").strip()
+    missing_inputs_val = source.get("missing_inputs")
+    questions_val = source.get("questions_to_user")
+    why_blocked_val = (source.get("why_blocked") or source.get("reason") or "").strip()
+
+    missing_inputs = []
+    if isinstance(missing_inputs_val, list):
+        missing_inputs = [str(item) for item in missing_inputs_val if str(item).strip()]
+
+    questions_to_user = []
+    if isinstance(questions_val, list):
+        questions_to_user = [str(item) for item in questions_val if str(item).strip()]
+
+    blocked = status_raw == "blocked" or bool(why_blocked_val) or bool(missing_inputs) or bool(questions_to_user)
+    ok_flag = bool(status_raw == "ok" or (answer and not blocked and not status_raw))
+
+    if blocked and not why_blocked_val:
+        error = error or "Blocked status requires 'why_blocked'"
+    if ok_flag and not answer:
+        error = error or "Answer is required when status is ok"
+
+    status = status_raw or ("blocked" if blocked else "ok" if answer else "")
+    if error:
+        ok_flag = False
+        blocked = False
+        status = status or "error"
+
+    validated_json = {
+        "status": status,
+        "answer": answer,
+        "missing_inputs": missing_inputs,
+        "questions_to_user": questions_to_user,
+        "why_blocked": why_blocked_val,
+    }
+
+    json_error = error
+    результат = answer
+    questions = questions_to_user
+    why_blocked = why_blocked_val
+    ok = bool(ok_flag)
+    blocked = bool(blocked)
+outputs:
+- name: validated_json
+- name: status
+- name: answer
+- name: missing_inputs
+- name: questions_to_user
+- name: why_blocked
+- name: ok
+- name: blocked
+- name: questions
+- name: json_error
+- name: результат
+executor: python
