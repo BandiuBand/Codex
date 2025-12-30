@@ -37,10 +37,12 @@ def test_simple_answer_blocks_file_requests():
 def test_llm_simple_answer_llm_propagates_blocked_status():
     blocked_json = json.dumps(
         {
-            "status": "blocked",
-            "missing_inputs": ["додатковий контекст"],
-            "questions_to_user": ["Що саме треба з'ясувати?"],
-            "why_blocked": "Немає фактів для відповіді",
+            "llm_simple_answer": {
+                "status": "blocked",
+                "missing_inputs": ["додатковий контекст"],
+                "questions_to_user": ["Що саме треба з'ясувати?"],
+                "why_blocked": "Немає фактів для відповіді",
+            }
         }
     )
     engine = ExecutionEngine(llm_client=JsonLLM(blocked_json))

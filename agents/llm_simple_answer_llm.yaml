@@ -1,44 +1,186 @@
 name: llm_simple_answer_llm
 title_ua: Швидка LLM-відповідь
 description_ua: Формує коротку відповідь або сигналізує про блокування у форматі JSON
-kind: atomic
+kind: composite
 inputs:
 - name: task_text
+- name: ollama_host
+  default: ""
+- name: model
+  default: qwen3:32b
+- name: temperature
+  default: 0.0
+- name: options
+  default: {}
 - name: stop_agent_execution
   type: bool
   default: false
 locals:
 - name: parse_json
   value: true
-- name: prompt
-  value: 'Маркер: LLM_SIMPLE
-
-    Ти стислий помічник. Завдання: {task_text}
-
-
-    Якщо можна дати коротку та точну відповідь без додаткових фактів — зроби це.
-
-    Якщо даних не вистачає або потрібні файли/інструменти, поверни статус "blocked"
-    і сформуй:
-
-    - missing_inputs: перелік конкретних фактів чи файлів, яких бракує
-
-    - questions_to_user: 1-3 конкретні питання, щоб отримати ці дані
-
-    - why_blocked: стислий опис, чому відповідь неможлива зараз
-
-
-    Відповідай лише валідним JSON-ом з полями:
-
-    - status: "ok" або "blocked"
-
-    - answer: текст відповіді, якщо status=ok
-
-    - missing_inputs, questions_to_user, why_blocked — якщо status=blocked
-
-    '
+- name: response_key
+  value: llm_simple_answer
 outputs:
 - name: результат
 - name: output_json
 - name: json_error
-executor: llm
+- name: status
+- name: ok
+- name: blocked
+- name: missing_inputs
+- name: questions_to_user
+- name: why_blocked
+- name: questions
+graph:
+  lanes:
+  - items:
+    - id: prompt
+      agent: simple_answer_prompt_builder
+      bindings:
+      - from_agent_item_id: __CTX__
+        from_var: task_text
+        to_agent_item_id: prompt
+        to_var: task_text
+      ui:
+        lane_index: 0
+        order: 0
+  - items:
+    - id: options_builder
+      agent: ollama_options_builder
+      bindings:
+      - from_agent_item_id: __CTX__
+        from_var: model
+        to_agent_item_id: options_builder
+        to_var: model
+      - from_agent_item_id: __CTX__
+        from_var: temperature
+        to_agent_item_id: options_builder
+        to_var: temperature
+      - from_agent_item_id: __CTX__
+        from_var: options
+        to_agent_item_id: options_builder
+        to_var: options
+      ui:
+        lane_index: 1
+        order: 0
+  - items:
+    - id: llm
+      agent: llm_ollama
+      bindings:
+      - from_agent_item_id: prompt
+        from_var: prompt
+        to_agent_item_id: llm
+        to_var: prompt
+      - from_agent_item_id: __CTX__
+        from_var: ollama_host
+        to_agent_item_id: llm
+        to_var: ollama_host
+      - from_agent_item_id: options_builder
+        from_var: options
+        to_agent_item_id: llm
+        to_var: options
+      - from_agent_item_id: __CTX__
+        from_var: parse_json
+        to_agent_item_id: llm
+        to_var: parse_json
+      ui:
+        lane_index: 2
+        order: 0
+  - items:
+    - id: extract
+      agent: json_extract
+      bindings:
+      - from_agent_item_id: llm
+        from_var: output_json
+        to_agent_item_id: extract
+        to_var: json
+      - from_agent_item_id: __CTX__
+        from_var: response_key
+        to_agent_item_id: extract
+        to_var: ключ
+      ui:
+        lane_index: 3
+        order: 0
+  - items:
+    - id: schema
+      agent: simple_answer_schema_validate
+      bindings:
+      - from_agent_item_id: extract
+        from_var: output
+        to_agent_item_id: schema
+        to_var: answer_json
+      - from_agent_item_id: llm
+        from_var: json_error
+        to_agent_item_id: schema
+        to_var: json_error_in
+      ui:
+        lane_index: 4
+        order: 0
+  - items:
+    - id: blocker
+      agent: simple_answer_block_handler
+      bindings:
+      - from_agent_item_id: schema
+        from_var: blocked
+        to_agent_item_id: blocker
+        to_var: blocked
+      - from_agent_item_id: schema
+        from_var: missing_inputs
+        to_agent_item_id: blocker
+        to_var: missing_inputs
+      - from_agent_item_id: schema
+        from_var: questions_to_user
+        to_agent_item_id: blocker
+        to_var: questions_to_user
+      - from_agent_item_id: schema
+        from_var: why_blocked
+        to_agent_item_id: blocker
+        to_var: why_blocked
+      - from_agent_item_id: schema
+        from_var: json_error
+        to_agent_item_id: blocker
+        to_var: json_error
+      ui:
+        lane_index: 5
+        order: 0
+  __ctx_bindings:
+  - from_agent_item_id: schema
+    from_var: validated_json
+    to_agent_item_id: __CTX__
+    to_var: output_json
+  - from_agent_item_id: schema
+    from_var: json_error
+    to_agent_item_id: __CTX__
+    to_var: json_error
+  - from_agent_item_id: schema
+    from_var: результат
+    to_agent_item_id: __CTX__
+    to_var: результат
+  - from_agent_item_id: schema
+    from_var: status
+    to_agent_item_id: __CTX__
+    to_var: status
+  - from_agent_item_id: schema
+    from_var: ok
+    to_agent_item_id: __CTX__
+    to_var: ok
+  - from_agent_item_id: schema
+    from_var: blocked
+    to_agent_item_id: __CTX__
+    to_var: blocked
+  - from_agent_item_id: schema
+    from_var: missing_inputs
+    to_agent_item_id: __CTX__
+    to_var: missing_inputs
+  - from_agent_item_id: schema
+    from_var: questions_to_user
+    to_agent_item_id: __CTX__
+    to_var: questions_to_user
+  - from_agent_item_id: schema
+    from_var: why_blocked
+    to_agent_item_id: __CTX__
+    to_var: why_blocked
+  - from_agent_item_id: schema
+    from_var: questions
+    to_agent_item_id: __CTX__
+    to_var: questions

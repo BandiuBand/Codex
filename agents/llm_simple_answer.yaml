@@ -12,6 +12,13 @@ outputs:
 - name: результат
 - name: output_json
 - name: json_error
+- name: status
+- name: ok
+- name: blocked
+- name: missing_inputs
+- name: questions_to_user
+- name: why_blocked
+- name: questions
 graph:
   lanes:
   - items:
@@ -48,3 +55,31 @@ graph:
     from_var: json_error
     to_agent_item_id: __CTX__
     to_var: json_error
+  - from_agent_item_id: llm
+    from_var: status
+    to_agent_item_id: __CTX__
+    to_var: status
+  - from_agent_item_id: llm
+    from_var: ok
+    to_agent_item_id: __CTX__
+    to_var: ok
+  - from_agent_item_id: llm
+    from_var: blocked
+    to_agent_item_id: __CTX__
+    to_var: blocked
+  - from_agent_item_id: llm
+    from_var: missing_inputs
+    to_agent_item_id: __CTX__
+    to_var: missing_inputs
+  - from_agent_item_id: llm
+    from_var: questions_to_user
+    to_agent_item_id: __CTX__
+    to_var: questions_to_user
+  - from_agent_item_id: llm
+    from_var: why_blocked
+    to_agent_item_id: __CTX__
+    to_var: why_blocked
+  - from_agent_item_id: llm
+    from_var: questions
+    to_agent_item_id: __CTX__
+    to_var: questions

@@ -1,0 +1,32 @@
+name: simple_answer_block_handler
+title_ua: Обробка блокування швидкої відповіді
+description_ua: Повертає BlockedExecution, якщо відповідь потребує уточнень
+kind: atomic
+inputs:
+- name: blocked
+- name: missing_inputs
+  default: []
+- name: questions_to_user
+  default: []
+- name: why_blocked
+  default: ""
+- name: json_error
+  default: ""
+- name: stop_agent_execution
+  type: bool
+  default: false
+locals:
+- name: code
+  value: |
+    from agentfw.runtime.engine import BlockedExecution
+
+    if bool(json_error):
+        blocked = False
+    if bool(blocked):
+        raise BlockedExecution(
+            missing_inputs=missing_inputs or None,
+            questions_to_user=questions_to_user or None,
+            why_blocked=str(why_blocked or "LLM indicated blocked status"),
+        )
+outputs: []
+executor: python
