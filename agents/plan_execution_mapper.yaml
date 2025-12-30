@@ -1,0 +1,48 @@
+name: plan_execution_mapper
+title_ua: Мапінг результатів виконання плану
+description_ua: Перетворює нормалізований JSON виконання плану на окремі прапори
+kind: atomic
+inputs:
+- name: план_виконання
+- name: json_error
+  default: ""
+- name: stop_agent_execution
+  type: bool
+  default: false
+locals:
+- name: code
+  value: |
+    data = план_виконання if isinstance(план_виконання, dict) else {}
+
+    executed_steps = data.get("executed_steps") if isinstance(data, dict) else []
+    if executed_steps is None:
+        executed_steps = []
+    if isinstance(executed_steps, dict):
+        executed_steps = [executed_steps]
+
+    passed = bool(data.get("passed")) if isinstance(data, dict) else False
+    needs_retry = bool(data.get("needs_retry")) if isinstance(data, dict) else False
+    cerber_comment = str(data.get("cerber_comment") or "") if isinstance(data, dict) else ""
+    summary = str(data.get("summary") or "") if isinstance(data, dict) else ""
+
+    if json_error:
+        passed = False
+        needs_retry = True
+
+    ok = passed and not needs_retry
+    потрібно_повторити = needs_retry
+    пройшло_перевірку = passed
+    коментар_цербера = cerber_comment
+    результат_виконання = summary
+outputs:
+- name: executed_steps
+- name: passed
+- name: needs_retry
+- name: cerber_comment
+- name: summary
+- name: ok
+- name: потрібно_повторити
+- name: пройшло_перевірку
+- name: коментар_цербера
+- name: результат_виконання
+executor: python

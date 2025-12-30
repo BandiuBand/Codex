@@ -1,0 +1,49 @@
+name: plan_execution_prompt_builder
+title_ua: Побудова промпта для виконання плану
+description_ua: Формує промпт для LLM Цербера з завданням, кроками та критеріями
+kind: atomic
+inputs:
+- name: завдання
+- name: кроки
+- name: критерії
+- name: max_reviews
+- name: stop_agent_execution
+  type: bool
+  default: false
+locals:
+- name: code
+  value: |
+    текст_завдання = str(завдання)
+    steps_list = кроки if isinstance(кроки, list) else []
+    criteria_list = критерії if isinstance(критерії, list) else []
+    if len(criteria_list) < len(steps_list):
+        criteria_list = criteria_list + [""] * (len(steps_list) - len(criteria_list))
+
+    steps_block = "\n".join(
+        f"- Крок {idx + 1}: {step} | Критерій: {criteria_list[idx]}"
+        for idx, step in enumerate(steps_list)
+    )
+    max_reviews_text = str(max_reviews)
+
+    prompt = f"Ти агент-\"Цербер\", який виконує та перевіряє план задачі.\\n\\n" \
+        f"Завдання: {текст_завдання}\\n\\n" \
+        f"Кроки та критерії: \\n{steps_block}\\n\\n" \
+        f"Максимальна кількість перевірок для одного кроку: {max_reviews_text}.\\n\\n" \
+        "Для кожного кроку опиши короткий результат, додай коментар і оцінку відповідності.\\n" \
+        "Поверни тільки валідний JSON у форматі: \\\n{\\n" \
+        "  \"plan_execution\": {\\n" \
+        "    \"executed_steps\": [\\n" \
+        "      {\\"step\\": \\\"...\\\\\", \\\"criterion\\": \\\"...\\\\\", \\\"result\\": \\\"...\\\\\", \\\"comment\\": \\\"...\\\\\", \\\"accepted\\": true/false, \\\"attempts\\": 1, \\\"evidence\\": [\\"...\\"]}\\n" \
+        "    ],\\n" \
+        "    \"passed\": true/false,\\n" \
+        "    \"needs_retry\": true/false,\\n" \
+        "    \"cerber_comment\": \"...\",\\n" \
+        "    \"summary\": \"...\"\\n" \
+        "  }\\n" \
+        "}\\n" \
+        "Дотримуйся української мови у текстових полях.\\n"
+
+    prompt = prompt.replace('{', '{{').replace('}', '}}')
+outputs:
+- name: prompt
+executor: python
