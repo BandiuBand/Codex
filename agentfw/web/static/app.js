@@ -31,6 +31,13 @@ function cssNumber(varName, fallback) {
 
 let drawBindingsScheduled = false;
 
+function syncTopbarHeight() {
+  const topbar = document.querySelector(".topbar");
+  if (!topbar) return;
+  const height = topbar.getBoundingClientRect().height;
+  document.documentElement.style.setProperty("--topbar-height", `${height}px`);
+}
+
 function scheduleDrawBindings() {
   if (drawBindingsScheduled) return;
   drawBindingsScheduled = true;
@@ -1123,8 +1130,12 @@ function bindEvents() {
   setupNameInput();
 }
 
-window.addEventListener("resize", scheduleDrawBindings);
+window.addEventListener("resize", () => {
+  syncTopbarHeight();
+  scheduleDrawBindings();
+});
 
+syncTopbarHeight();
 bindEvents();
 loadAgentsList();
 newAgent();

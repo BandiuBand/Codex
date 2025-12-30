@@ -7,6 +7,7 @@
   --lane-width: 340px;
   --zone-width: 200px;
   --canvas-gap: 12px;
+  --topbar-height: 56px;
 }
 
 body {
@@ -153,7 +154,7 @@ button:hover {
   border-right: none;
   border-radius: 0;
   position: sticky;
-  top: 56px;
+  top: var(--topbar-height, 56px);
   left: 0;
   right: 0;
   z-index: 180;
