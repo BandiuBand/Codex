@@ -1,0 +1,94 @@
+name: plan_execution_schema_validate
+title_ua: Валідація результату виконання плану
+description_ua: Нормалізує JSON виконання плану, перевіряє evidence та прапори проходження
+kind: atomic
+inputs:
+- name: execution_json
+- name: json_error_in
+  default: ""
+- name: stop_agent_execution
+  type: bool
+  default: false
+locals:
+- name: code
+  value: |
+    import json as json_lib
+
+    error = str(json_error_in).strip() if json_error_in else ""
+    source = execution_json
+    if isinstance(source, str):
+        try:
+            source = json_lib.loads(source)
+        except Exception as exc:  # noqa: BLE001
+            error = error or f"Invalid JSON: {exc}"
+            source = {}
+    if not isinstance(source, dict):
+        error = error or "Expected object for plan_execution payload"
+        source = {}
+
+    steps_raw = source.get("executed_steps") if isinstance(source, dict) else []
+    if steps_raw is None:
+        steps_raw = []
+    if isinstance(steps_raw, dict):
+        steps_raw = [steps_raw]
+
+    validated_steps = []
+    evidence_missing = []
+    for idx, step in enumerate(steps_raw):
+        if not isinstance(step, dict):
+            validated_steps.append({})
+            evidence_missing.append(idx + 1)
+            continue
+
+        evidence = step.get("evidence")
+        evidence_list = evidence if isinstance(evidence, list) else []
+        if not evidence_list:
+            evidence_missing.append(idx + 1)
+
+        normalized_step = {
+            "step": step.get("крок") or step.get("step") or "",
+            "criterion": step.get("критерій") or step.get("criterion") or "",
+            "result": step.get("результат") or step.get("result") or "",
+            "comment": step.get("коментар") or step.get("comment") or "",
+            "accepted": bool(step.get("прийнято") if "прийнято" in step else step.get("accepted")),
+            "attempts": int(step.get("спроб") or step.get("attempts") or 0),
+            "evidence": evidence_list,
+        }
+        validated_steps.append(normalized_step)
+
+    evidence_ok = len(evidence_missing) == 0
+    if evidence_missing:
+        missing_str = ", ".join(map(str, evidence_missing))
+        evidence_error = f"Evidence required for steps: {missing_str}"
+        error = error or evidence_error
+
+    passed = bool(source.get("passed")) if isinstance(source, dict) else False
+    needs_retry_flag = bool(source.get("needs_retry")) if isinstance(source, dict) else False
+    cerber_comment = str(source.get("cerber_comment") or "") if isinstance(source, dict) else ""
+    summary = str(source.get("summary") or "") if isinstance(source, dict) else ""
+
+    if error:
+        passed = False
+    if not evidence_ok:
+        passed = False
+        needs_retry_flag = True or needs_retry_flag
+
+    validated_json = {
+        "executed_steps": validated_steps,
+        "passed": passed,
+        "needs_retry": bool(needs_retry_flag or not evidence_ok or bool(error)),
+        "cerber_comment": cerber_comment,
+        "summary": summary,
+    }
+    executed_steps = validated_steps
+    needs_retry = validated_json["needs_retry"]
+    json_error = error
+outputs:
+- name: validated_json
+- name: executed_steps
+- name: passed
+- name: needs_retry
+- name: cerber_comment
+- name: summary
+- name: json_error
+executor: python

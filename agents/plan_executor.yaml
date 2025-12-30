@@ -1,68 +1,192 @@
 name: plan_executor
 title_ua: Виконання плану з перевіркою
-description_ua: LLM симулює виконання кроків і перевірку їх відповідності критеріям
-kind: atomic
+description_ua: LLM симулює виконання кроків, схемує результат і повертає нормалізовані прапори
+kind: composite
 inputs:
 - name: завдання
 - name: кроки
 - name: критерії
 - name: max_reviews
+- name: ollama_host
+  default: http://127.0.0.1:11434
+- name: model
+  default: qwen3:32b
+- name: temperature
+  default: 0.2
 - name: stop_agent_execution
   type: bool
   default: false
 locals:
+- name: options
+  value:
+    model: "{model}"
+    temperature: "{temperature}"
 - name: parse_json
   value: true
-- name: prompt
-  value: 'Ти агент-"Цербер", який виконує та перевіряє план задачі.
-
-    Завдання: {завдання}
-
-    Кроки: {кроки}
-
-    Критерії: {критерії}
-
-    Максимальна кількість перевірок для одного кроку: {max_reviews}
-
-
-    Для кожного кроку:
-
-    - Опиши короткий результат виконання.
-
-    - Додай поле evidence: список конкретних доказів (шляхи змінених файлів, команди,
-    хеші артефактів тощо). Порожні або відсутні evidence неприпустимі.
-
-    - Порівняй із відповідним критерієм. Крок без evidence автоматично відхиляється.
-
-    - Якщо крок не проходить, врахуй, що він може бути перероблений ще раз до {max_reviews}
-    разів.
-
-
-    Поверни тільки JSON з полями:
-
-    - executed_steps: список об''єктів {{"крок", "критерій", "результат", "коментар",
-    "прийнято", "спроб", "evidence"}}; evidence обов''язково список і має містити
-    хоча б один елемент
-
-    - passed: true/false чи пройшов увесь план перевірку (true тільки якщо всі кроки
-    прийняті та з evidence)
-
-    - cerber_comment: стислий підсумок від Цербера. Згадай, якщо якесь evidence відсутнє
-    або відхилене.
-
-    - needs_retry: чи треба повторити будь-який крок (true, якщо evidence порожній
-    або кроки не прийняті)
-
-    - summary: загальний підсумок виконання
-
-    '
+- name: result_key
+  value: plan_execution
 outputs:
 - name: результат
 - name: output_json
 - name: json_error
+- name: executed_steps
+- name: passed
+- name: cerber_comment
+- name: needs_retry
+- name: summary
+- name: ok
 - name: виконані_кроки
 - name: пройшло_перевірку
 - name: коментар_цербера
 - name: потрібно_повторити
 - name: результат_виконання
-executor: llm
+graph:
+  lanes:
+  - items:
+    - id: prompt_builder
+      agent: plan_execution_prompt_builder
+      bindings:
+      - from_agent_item_id: __CTX__
+        from_var: завдання
+        to_agent_item_id: prompt_builder
+        to_var: завдання
+      - from_agent_item_id: __CTX__
+        from_var: кроки
+        to_agent_item_id: prompt_builder
+        to_var: кроки
+      - from_agent_item_id: __CTX__
+        from_var: критерії
+        to_agent_item_id: prompt_builder
+        to_var: критерії
+      - from_agent_item_id: __CTX__
+        from_var: max_reviews
+        to_agent_item_id: prompt_builder
+        to_var: max_reviews
+      ui:
+        lane_index: 0
+        order: 0
+  - items:
+    - id: llm
+      agent: llm_ollama
+      bindings:
+      - from_agent_item_id: prompt_builder
+        from_var: prompt
+        to_agent_item_id: llm
+        to_var: prompt
+      - from_agent_item_id: __CTX__
+        from_var: ollama_host
+        to_agent_item_id: llm
+        to_var: ollama_host
+      - from_agent_item_id: __CTX__
+        from_var: options
+        to_agent_item_id: llm
+        to_var: options
+      - from_agent_item_id: __CTX__
+        from_var: parse_json
+        to_agent_item_id: llm
+        to_var: parse_json
+      ui:
+        lane_index: 1
+        order: 0
+  - items:
+    - id: extract
+      agent: json_extract
+      bindings:
+      - from_agent_item_id: llm
+        from_var: output_json
+        to_agent_item_id: extract
+        to_var: json
+      - from_agent_item_id: __CTX__
+        from_var: result_key
+        to_agent_item_id: extract
+        to_var: ключ
+      ui:
+        lane_index: 2
+        order: 0
+  - items:
+    - id: schema_validate
+      agent: plan_execution_schema_validate
+      bindings:
+      - from_agent_item_id: extract
+        from_var: output
+        to_agent_item_id: schema_validate
+        to_var: execution_json
+      - from_agent_item_id: llm
+        from_var: json_error
+        to_agent_item_id: schema_validate
+        to_var: json_error_in
+      ui:
+        lane_index: 3
+        order: 0
+  - items:
+    - id: mapper
+      agent: plan_execution_mapper
+      bindings:
+      - from_agent_item_id: schema_validate
+        from_var: validated_json
+        to_agent_item_id: mapper
+        to_var: план_виконання
+      - from_agent_item_id: schema_validate
+        from_var: json_error
+        to_agent_item_id: mapper
+        to_var: json_error
+      ui:
+        lane_index: 4
+        order: 0
+  __ctx_bindings:
+  - from_agent_item_id: llm
+    from_var: результат
+    to_agent_item_id: __CTX__
+    to_var: результат
+  - from_agent_item_id: schema_validate
+    from_var: validated_json
+    to_agent_item_id: __CTX__
+    to_var: output_json
+  - from_agent_item_id: schema_validate
+    from_var: json_error
+    to_agent_item_id: __CTX__
+    to_var: json_error
+  - from_agent_item_id: mapper
+    from_var: executed_steps
+    to_agent_item_id: __CTX__
+    to_var: executed_steps
+  - from_agent_item_id: mapper
+    from_var: passed
+    to_agent_item_id: __CTX__
+    to_var: passed
+  - from_agent_item_id: mapper
+    from_var: cerber_comment
+    to_agent_item_id: __CTX__
+    to_var: cerber_comment
+  - from_agent_item_id: mapper
+    from_var: needs_retry
+    to_agent_item_id: __CTX__
+    to_var: needs_retry
+  - from_agent_item_id: mapper
+    from_var: summary
+    to_agent_item_id: __CTX__
+    to_var: summary
+  - from_agent_item_id: mapper
+    from_var: ok
+    to_agent_item_id: __CTX__
+    to_var: ok
+  - from_agent_item_id: mapper
+    from_var: executed_steps
+    to_agent_item_id: __CTX__
+    to_var: виконані_кроки
+  - from_agent_item_id: mapper
+    from_var: пройшло_перевірку
+    to_agent_item_id: __CTX__
+    to_var: пройшло_перевірку
+  - from_agent_item_id: mapper
+    from_var: коментар_цербера
+    to_agent_item_id: __CTX__
+    to_var: коментар_цербера
+  - from_agent_item_id: mapper
+    from_var: потрібно_повторити
+    to_agent_item_id: __CTX__
+    to_var: потрібно_повторити
+  - from_agent_item_id: mapper
+    from_var: результат_виконання
+    to_agent_item_id: __CTX__
+    to_var: результат_виконання
