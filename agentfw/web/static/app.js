@@ -920,11 +920,27 @@ function makeCtxPort(kind, variable) {
   const label = document.createElement("span");
   label.textContent = variable.name;
   main.appendChild(label);
-  if (kind === "locals" && variable.value !== undefined) {
-    const val = document.createElement("span");
-    val.className = "var-value";
-    val.textContent = JSON.stringify(variable.value);
-    main.appendChild(val);
+  if (kind === "locals") {
+    const valInput = document.createElement("input");
+    valInput.type = "text";
+    valInput.className = "var-value-input";
+    valInput.value = variable.value !== undefined ? JSON.stringify(variable.value) : "";
+    valInput.title = "Значення локальної змінної (JSON дозволено)";
+    ["mousedown", "click", "dblclick"].forEach((evt) => {
+      valInput.addEventListener(evt, (e) => {
+        e.stopPropagation();
+      });
+    });
+    valInput.addEventListener("change", (e) => {
+      updateLocalVarValue(variable.name, e.target.value);
+    });
+    valInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        updateLocalVarValue(variable.name, e.target.value);
+      }
+    });
+    main.appendChild(valInput);
   }
   port.appendChild(main);
 
@@ -955,14 +971,23 @@ function makeCtxPort(kind, variable) {
   port.appendChild(actions);
 
   port.addEventListener("mousedown", (e) => {
-    if (e.target.closest(".port-actions")) return;
+    if (e.target.closest(".port-actions") || e.target.closest(".var-value-input")) return;
     startDrag(e, CTX_ID, variable.name, role);
   });
   port.addEventListener("mouseup", (e) => {
-    if (e.target.closest(".port-actions")) return;
+    if (e.target.closest(".port-actions") || e.target.closest(".var-value-input")) return;
     finishDrag(e, CTX_ID, variable.name, role);
   });
   return port;
+}
+
+function updateLocalVarValue(varName, rawValue) {
+  if (!state.current) return;
+  const idx = state.current.locals.findIndex((v) => v.name === varName);
+  if (idx === -1) return;
+  const parsedValue = parseValueInput(rawValue, state.current.locals[idx].value);
+  state.current.locals[idx] = { ...state.current.locals[idx], value: parsedValue };
+  renderCanvas();
 }
 
 function parseValueInput(raw, fallback) {
