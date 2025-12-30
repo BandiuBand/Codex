@@ -15,6 +15,8 @@ locals:
   value: qwen3:32b
 - name: temperature
   value: 0.2
+- name: summary_require_schema
+  value: true
 outputs:
 - name: уточнення
 - name: план
@@ -37,6 +39,9 @@ outputs:
 - name: попередній_контекст
 - name: зведення
 - name: резюме
+- name: summary_flags
+- name: summary_needs_more_info
+- name: summary_json_error
 - name: ok
 - name: needs_more_info
 - name: clarifications
@@ -159,6 +164,18 @@ graph:
         from_var: max_reviews
         to_agent_item_id: executor
         to_var: max_reviews
+      - from_agent_item_id: __CTX__
+        from_var: ollama_host
+        to_agent_item_id: executor
+        to_var: ollama_host
+      - from_agent_item_id: __CTX__
+        from_var: model
+        to_agent_item_id: executor
+        to_var: model
+      - from_agent_item_id: __CTX__
+        from_var: temperature
+        to_agent_item_id: executor
+        to_var: temperature
       ui:
         lane_index: 5
         order: 0
@@ -220,6 +237,22 @@ graph:
         from_var: next_stage_hint
         to_agent_item_id: summary
         to_var: next_stage_hint
+      - from_agent_item_id: __CTX__
+        from_var: ollama_host
+        to_agent_item_id: summary
+        to_var: ollama_host
+      - from_agent_item_id: __CTX__
+        from_var: model
+        to_agent_item_id: summary
+        to_var: model
+      - from_agent_item_id: __CTX__
+        from_var: temperature
+        to_agent_item_id: summary
+        to_var: temperature
+      - from_agent_item_id: __CTX__
+        from_var: summary_require_schema
+        to_agent_item_id: summary
+        to_var: require_schema
       ui:
         lane_index: 8
         order: 0
@@ -308,6 +341,22 @@ graph:
     from_var: результат
     to_agent_item_id: __CTX__
     to_var: фінальна_відповідь
+  - from_agent_item_id: summary
+    from_var: результат
+    to_agent_item_id: __CTX__
+    to_var: резюме
+  - from_agent_item_id: summary
+    from_var: needs_more_info
+    to_agent_item_id: __CTX__
+    to_var: summary_needs_more_info
+  - from_agent_item_id: summary
+    from_var: summary_flags
+    to_agent_item_id: __CTX__
+    to_var: summary_flags
+  - from_agent_item_id: summary
+    from_var: json_error
+    to_agent_item_id: __CTX__
+    to_var: summary_json_error
   - from_agent_item_id: normalize
     from_var: результат
     to_agent_item_id: __CTX__

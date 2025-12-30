@@ -1,0 +1,36 @@
+name: summary_mapper
+title_ua: Мапінг підсумку
+description_ua: Нормалізує підсумковий текст та прапори з JSON або сирого тексту
+kind: atomic
+inputs:
+- name: summary_json
+- name: text_in
+- name: json_error_in
+- name: stop_agent_execution
+  type: bool
+  default: false
+locals:
+- name: code
+  value: |
+    data = summary_json if isinstance(summary_json, dict) else {}
+    summary_text = (data.get('summary') or '').strip() if isinstance(data, dict) else ''
+    needs_more_info = bool(data.get('needs_more_info')) if isinstance(data, dict) else False
+    flags_raw = data.get('flags') if isinstance(data, dict) else []
+    flags = flags_raw if isinstance(flags_raw, list) else []
+
+    fallback_text = str(text_in or '').strip()
+    if not summary_text:
+        summary_text = fallback_text
+
+    json_error = str(json_error_in or '').strip()
+    if json_error and not summary_text:
+        summary_text = fallback_text
+
+    результат = summary_text
+    summary_flags = flags
+outputs:
+- name: результат
+- name: needs_more_info
+- name: summary_flags
+- name: json_error
+executor: python

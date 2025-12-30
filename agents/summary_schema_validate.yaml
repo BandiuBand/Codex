@@ -1,0 +1,48 @@
+name: summary_schema_validate
+title_ua: Валідація JSON підсумку
+description_ua: Перевіряє структуровану відповідь підсумку та нормалізує поля
+kind: atomic
+inputs:
+- name: summary_json
+- name: json_error_in
+- name: stop_agent_execution
+  type: bool
+  default: false
+locals:
+- name: code
+  value: |
+    import json as json_lib
+
+    error = str(json_error_in).strip() if json_error_in else ''
+    data = summary_json
+    if isinstance(data, str):
+        try:
+            data = json_lib.loads(data)
+        except Exception as exc:  # noqa: BLE001
+            error = error or f'Invalid JSON: {exc}'
+            data = {}
+
+    if not isinstance(data, dict):
+        error = error or 'Expected object for summary payload'
+        data = {}
+
+    summary_text = (data.get('summary') or '').strip() if isinstance(data, dict) else ''
+    needs_more_info = bool(data.get('needs_more_info')) if isinstance(data, dict) else False
+    flags_raw = data.get('flags') if isinstance(data, dict) else []
+    flags = flags_raw if isinstance(flags_raw, list) else []
+
+    if error:
+        summary_text = summary_text or ''
+        needs_more_info = False
+        flags = []
+
+    validated_json = {
+        'summary': summary_text,
+        'needs_more_info': needs_more_info,
+        'flags': flags,
+    }
+    json_error = error
+outputs:
+- name: validated_json
+- name: json_error
+executor: python

@@ -15,6 +15,12 @@ locals:
   value: 1
 - name: stop_branch_value
   value: true
+- name: ollama_host
+  value: http://127.0.0.1:11434
+- name: model
+  value: qwen3:32b
+- name: temperature
+  value: 0.0
 outputs:
 - name: is_complex
 - name: класифікація

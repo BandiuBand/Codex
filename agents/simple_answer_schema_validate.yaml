@@ -6,6 +6,8 @@ inputs:
 - name: answer_json
 - name: json_error_in
   default: ""
+- name: text_fallback
+  default: ""
 - name: stop_agent_execution
   type: bool
   default: false
@@ -15,6 +17,7 @@ locals:
     import json as json_lib
 
     error = str(json_error_in or "").strip()
+    raw_text = str(answer_json or text_fallback or "").strip()
     source = answer_json
     if isinstance(source, str):
         try:
@@ -42,6 +45,13 @@ locals:
 
     blocked = status_raw == "blocked" or bool(why_blocked_val) or bool(missing_inputs) or bool(questions_to_user)
     ok_flag = bool(status_raw == "ok" or (answer and not blocked and not status_raw))
+
+    if error and raw_text and not answer:
+        answer = raw_text
+        status_raw = status_raw or "ok"
+        error = ""
+        blocked = False
+        ok_flag = True
 
     if blocked and not why_blocked_val:
         error = error or "Blocked status requires 'why_blocked'"

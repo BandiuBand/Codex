@@ -10,6 +10,12 @@ inputs:
 locals:
 - name: stop_branch_value
   value: true
+- name: ollama_host
+  value: http://127.0.0.1:11434
+- name: model
+  value: qwen3:32b
+- name: temperature
+  value: 0.2
 outputs:
 - name: класифікація
 - name: відповідь
