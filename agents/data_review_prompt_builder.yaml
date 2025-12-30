@@ -1,0 +1,15 @@
+name: data_review_prompt_builder
+title_ua: Побудова промпта для перевірки даних
+description_ua: Формує промпт для оцінки готовності даних і збору уточнень
+kind: atomic
+inputs:
+- name: завдання
+- name: stop_agent_execution
+  type: bool
+  default: false
+locals:
+- name: code
+  value: "текст = str(завдання)\n\nprompt = f\"Ти асистент, що перевіряє готовність до виконання задачі. Текст задачі: {текст}.\\n\\nПоверни тільки валідний JSON у форматі: \\\n{{\\n  \\\"data_review\\\": {{\\n    \\\"ok\\\": true/false,\\n    \\\"needs_more_info\\\": true/false,\\n    \\\"clarifications\\\": \\\"...\\\",\\n    \\\"context_summary\\\": \\\"...\\\",\\n    \\\"user_answer\\\": \\\"...\\\"\\n  }}\\n}}\\n\\n- ok = true, якщо даних достатньо для старту.\\n- needs_more_info = true, якщо треба поставити уточнюючі питання перед стартом.\\n- clarifications: 1-3 чітких питання або порожній рядок.\\n- context_summary: стислий підсумок того, що вже відомо.\\n- user_answer: порожній рядок, якщо користувач нічого не відповів.\\n\\nДотримуйся української мови.\\n\"\n"
+outputs:
+- name: prompt
+executor: python

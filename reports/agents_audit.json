@@ -180,8 +180,8 @@
       "findings": []
     },
     {
-      "name": "llm_data_review",
-      "path": "Codex/agents/llm_data_review.yaml",
+      "name": "data_review",
+      "path": "Codex/agents/data_review.yaml",
       "severity": "MED",
       "findings": [
         {

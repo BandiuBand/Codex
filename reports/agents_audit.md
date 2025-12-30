@@ -52,7 +52,7 @@ Generated: 2025-12-30T20:24:08+00:00 UTC
   - implicit_control_flow: Implicit branching or side-effect driven control flow cues. (MED)
     - Matches: match:else, match:if
 
-- **llm_data_review** (`Codex/agents/llm_data_review.yaml`)
+- **data_review** (`Codex/agents/data_review.yaml`)
   - global_llm_config: Global or shared LLM configuration that may bypass per-call controls. (MED)
     - Matches: keyword:executor: llm, match:executor: llm
 
