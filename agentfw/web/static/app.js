@@ -179,6 +179,22 @@ function getItemLaneIndex(itemId) {
   return null;
 }
 
+function getItemById(itemId) {
+  if (!state.current?.graph || itemId === CTX_ID) return null;
+  for (const lane of state.current.graph.lanes) {
+    const item = lane.items.find((i) => i.id === itemId);
+    if (item) return item;
+  }
+  return null;
+}
+
+function isMultiInputPort(itemId, varName, role) {
+  if (role !== "input") return false;
+  const item = getItemById(itemId);
+  if (!item) return false;
+  return item.agent === "json_list_pack" && varName === "елементи";
+}
+
 async function loadAgentsList() {
   try {
     const data = await fetchJSON("/api/agents");
@@ -662,6 +678,11 @@ function makePort(itemId, varName, role, extraLabel = "") {
   port.dataset.varName = varName;
   port.dataset.role = role;
 
+  if (isMultiInputPort(itemId, varName, role)) {
+    port.classList.add("port-multi");
+    port.title = "Порт приймає кілька підключень";
+  }
+
   if (role === "local") {
     port.classList.add("port-disabled");
     port.title = "Зовнішні зв'язки для локальних портів недоступні";
@@ -764,8 +785,21 @@ function addBinding(binding) {
   if (binding.to_agent_item_id !== CTX_ID) {
     const target = allItems.find((i) => i.id === binding.to_agent_item_id);
     if (!target) return;
-    target.bindings = (target.bindings || []).filter((b) => b.to_var !== binding.to_var);
-    target.bindings.push(binding);
+    const allowsMultiple = isMultiInputPort(binding.to_agent_item_id, binding.to_var, "input");
+    if (allowsMultiple) {
+      target.bindings = (target.bindings || []).filter(
+        (b) =>
+          !(
+            b.from_agent_item_id === binding.from_agent_item_id &&
+            b.from_var === binding.from_var &&
+            b.to_var === binding.to_var
+          )
+      );
+      target.bindings.push(binding);
+    } else {
+      target.bindings = (target.bindings || []).filter((b) => b.to_var !== binding.to_var);
+      target.bindings.push(binding);
+    }
   } else {
     state.current.graph.ctx_bindings = (state.current.graph.ctx_bindings || []).filter((b) => b.to_var !== binding.to_var);
     state.current.graph.ctx_bindings.push(binding);
