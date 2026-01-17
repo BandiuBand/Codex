@@ -257,7 +257,7 @@ class AtomicExecutor:
         except BlockedExecution:
             raise
         except Exception as exc:  # noqa: BLE001
-            sandbox["error"] = str(exc)
+            raise RuntimeError(str(exc)) from exc
         if stdout_lines:
             sandbox["stdout"] = "\n".join(stdout_lines)
         return self._filter_outputs(sandbox, spec)

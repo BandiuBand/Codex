@@ -11,6 +11,21 @@ function setStatus(message, tone = "info") {
   el.hidden = !message;
 }
 
+function setHint(message) {
+  const el = $("runHint");
+  if (!el) return;
+  el.textContent = message || "";
+  el.hidden = !message;
+}
+
+function updateHint(agentName) {
+  if (agentName === "adaptive_task_agent") {
+    setHint("Для adaptive_task_agent вкажіть текстове завдання (task або user_message) або скористайтеся сторінкою чату.");
+    return;
+  }
+  setHint("");
+}
+
 async function fetchJSON(url, options = {}) {
   const resp = await fetch(url, options);
   if (!resp.ok) {
@@ -36,6 +51,7 @@ async function loadAgents() {
       opt.textContent = agent.title_ua || agent.name;
       select.appendChild(opt);
     });
+    updateHint(select.value);
   } catch (err) {
     console.error(err);
     setStatus("Не вдалося завантажити список агентів", "error");
@@ -60,7 +76,8 @@ async function runAgent() {
       body: JSON.stringify({ input: inputPayload }),
     });
     $("runOutputField").value = JSON.stringify(result, null, 2);
-    setStatus("Агент виконано");
+    const agentLabel = result?.agent || name;
+    setStatus(`Агент ${agentLabel} виконано`);
   } catch (err) {
     console.error(err);
     setStatus(err?.message || "Помилка виконання", "error");
@@ -69,6 +86,9 @@ async function runAgent() {
 
 function bindEvents() {
   $("runBtn")?.addEventListener("click", runAgent);
+  $("runAgentSelect")?.addEventListener("change", (event) => {
+    updateHint(event.target?.value || "");
+  });
 }
 
 bindEvents();
