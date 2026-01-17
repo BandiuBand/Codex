@@ -212,6 +212,7 @@ class AgentEditorHandler(SimpleHTTPRequestHandler):
         payload = {
             "ok": state.ok,
             "status": getattr(state, "status", "ok" if state.ok else "error"),
+            "agent": state.agent_name,
             "vars": state.vars,
             "log": state.trace,
             "error": state.error,
