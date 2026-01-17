@@ -1,0 +1,47 @@
+name: Jane
+title_ua: Jane
+description_ua: ''
+kind: composite
+inputs:
+- name: stop_agent_execution
+  type: bool
+  default: false
+locals:
+- name: Heying
+  value: Слухаю
+outputs: []
+graph:
+  lanes:
+  - items:
+    - id: chat_agent-1768675101784-1
+      agent: chat_agent
+      bindings:
+      - from_agent_item_id: __CTX__
+        from_var: Heying
+        to_agent_item_id: chat_agent-1768675101784-1
+        to_var: message_to_user
+      ui:
+        lane_index: 0
+        order: 0
+  - items:
+    - id: llm_ollama_qwen3_32b-1768675187833-3
+      agent: llm_ollama_qwen3_32b
+      bindings:
+      - from_agent_item_id: chat_agent-1768675101784-1
+        from_var: user_message
+        to_agent_item_id: llm_ollama_qwen3_32b-1768675187833-3
+        to_var: prompt
+      ui:
+        lane_index: 1
+        order: 0
+  - items:
+    - id: chat_agent-1768675200193-4
+      agent: chat_agent
+      bindings:
+      - from_agent_item_id: llm_ollama_qwen3_32b-1768675187833-3
+        from_var: результат
+        to_agent_item_id: chat_agent-1768675200193-4
+        to_var: message_to_user
+      ui:
+        lane_index: 2
+        order: 0
