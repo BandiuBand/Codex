@@ -178,12 +178,37 @@ class AtomicExecutor:
                     options.update(parsed)
             except json.JSONDecodeError:
                 options = {}
-        temp = ctx.get("temperature")
-        if temp is not None:
+        option_casts: Dict[str, type] = {
+            "temperature": float,
+            "top_k": int,
+            "top_p": float,
+            "num_ctx": int,
+            "num_predict": int,
+            "repeat_penalty": float,
+            "repeat_last_n": int,
+            "seed": int,
+            "mirostat": int,
+            "mirostat_eta": float,
+            "mirostat_tau": float,
+            "tfs_z": float,
+            "typical_p": float,
+            "frequency_penalty": float,
+            "presence_penalty": float,
+        }
+        passthrough_options = ("stop",)
+        for key, caster in option_casts.items():
+            value = ctx.get(key)
+            if value is None or value == "":
+                continue
             try:
-                options["temperature"] = float(temp)
+                options[key] = caster(value)
             except (TypeError, ValueError):
-                options["temperature"] = temp
+                options[key] = value
+        for key in passthrough_options:
+            value = ctx.get(key)
+            if value is None or value == "":
+                continue
+            options[key] = value
         return options
 
     def _gather_llm_config(self, spec: AgentSpec, ctx: ExecutionContext, options: Dict[str, Any]) -> tuple[Optional[str], Optional[str]]:
