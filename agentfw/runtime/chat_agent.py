@@ -58,10 +58,16 @@ class ChatAgentGateway:
         with self._condition:
             if not self.state.pending_input:
                 raise RuntimeError("Немає активного запитання до користувача")
-            if not self._pending_answer:
-                self._condition.wait(timeout=timeout)
-            if not self._pending_answer:
-                raise TimeoutError("Відповідь користувача не надійшла вчасно")
+            if timeout is None:
+                while not self._pending_answer:
+                    self._condition.wait()
+            else:
+                deadline = time.monotonic() + timeout
+                while not self._pending_answer:
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        raise TimeoutError("Відповідь користувача не надійшла вчасно")
+                    self._condition.wait(timeout=remaining)
             answer = self._pending_answer
             self._pending_answer = None
             self.state.pending_input = None
