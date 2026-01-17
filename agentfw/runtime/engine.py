@@ -482,7 +482,25 @@ class ExecutionEngine:
             else:
                 prefixed = f"{binding.from_agent_item_id}.{binding.from_var}"
                 value = parent_ctx.get(prefixed, parent_ctx.get(binding.from_var))
-            child_vars[binding.to_var] = value
+            if target_item.agent == "json_list_pack" and binding.to_var == "елементи":
+                existing = child_vars.get(binding.to_var)
+                if existing is None:
+                    items: List[Any] = []
+                elif isinstance(existing, list):
+                    items = existing
+                elif isinstance(existing, tuple):
+                    items = list(existing)
+                else:
+                    items = [existing]
+                if isinstance(value, list):
+                    items.extend(value)
+                elif isinstance(value, tuple):
+                    items.extend(list(value))
+                else:
+                    items.append(value)
+                child_vars[binding.to_var] = items
+            else:
+                child_vars[binding.to_var] = value
         return ExecutionContext(child_vars)
 
     def _require_inputs(self, spec: AgentSpec, ctx: ExecutionContext, *, depth: int) -> None:

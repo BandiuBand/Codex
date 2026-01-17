@@ -1,0 +1,26 @@
+name: json_list_pack
+title_ua: Запакувати список у JSON
+description_ua: Приймає один або кілька елементів і формує JSON-список
+kind: atomic
+inputs:
+- name: елементи
+- name: stop_agent_execution
+  type: bool
+  default: false
+locals:
+- name: code
+  value: 'import json as json_lib
+
+    if елементи is None:
+        items = []
+    elif isinstance(елементи, (list, tuple)):
+        items = list(елементи)
+    else:
+        items = [елементи]
+
+    output = json_lib.dumps(items, ensure_ascii=False)
+
+    '
+outputs:
+- name: output
+executor: python

@@ -572,6 +572,21 @@ button:hover {
   border-color: #1f6feb;
 }
 
+.port-multi .port-icon {
+  border-radius: 2px;
+  border-width: 2px;
+  transform: rotate(45deg);
+  background: rgba(31, 111, 235, 0.15);
+}
+
+.port-multi .port-icon::after {
+  content: "+";
+  font-size: 9px;
+  line-height: 1;
+  color: #1f6feb;
+  transform: rotate(-45deg);
+}
+
 .port-output {
   border-color: #2ea043;
 }
