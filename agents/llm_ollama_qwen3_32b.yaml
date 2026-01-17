@@ -1,0 +1,14 @@
+name: llm_ollama_qwen3_32b
+title_ua: LLM (Ollama, qwen3:32b)
+description_ua: Генерує текст через Ollama з фіксованою моделлю qwen3:32b
+kind: atomic
+inputs:
+- name: prompt
+locals:
+- name: ollama_host
+  value: http://127.0.0.1:11434
+- name: ollama_model
+  value: qwen3:32b
+outputs:
+- name: результат
+executor: llm
