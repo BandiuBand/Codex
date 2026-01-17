@@ -27,7 +27,8 @@ If you see `ModuleNotFoundError: No module named 'yaml'`, it means the `PyYAML` 
 ### Налаштування LLM через змінні агента (без глобальних конфігів)
 
 Параметри LLM задаються лише змінними конкретного агента. Наприклад, `agents/llm_ollama.yaml` містить inputs `ollama_host`,
-`ollama_model` та `temperature`; їх треба передати у workflow чи задати локальні дефолти, жодних центральних конфігів немає.
+`ollama_model`, `temperature` та окремі опції на кшталт `top_k`, `top_p`, `num_ctx`, `num_predict`; їх треба передати у workflow
+чи задати локальні дефолти, жодних центральних конфігів немає.
 
 Готовий мінімальний ланцюжок `prompt_builder -> llm_ollama -> output_collector` описаний у `agents/llm_prompt_chain.yaml`.
 Запустити його можна через демо або веб-UI, вказавши хост та модель у змінних агента:
