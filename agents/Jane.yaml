@@ -9,6 +9,10 @@ inputs:
 locals:
 - name: Heying
   value: Слухаю
+- name: 'false'
+  value: false
+- name: 'true'
+  value: true
 outputs: []
 graph:
   lanes:
@@ -20,6 +24,10 @@ graph:
         from_var: Heying
         to_agent_item_id: chat_agent-1768675101784-1
         to_var: message_to_user
+      - from_agent_item_id: __CTX__
+        from_var: 'true'
+        to_agent_item_id: chat_agent-1768675101784-1
+        to_var: needs_response
       ui:
         lane_index: 0
         order: 0
@@ -42,6 +50,10 @@ graph:
         from_var: результат
         to_agent_item_id: chat_agent-1768675200193-4
         to_var: message_to_user
+      - from_agent_item_id: __CTX__
+        from_var: 'false'
+        to_agent_item_id: chat_agent-1768675200193-4
+        to_var: needs_response
       ui:
         lane_index: 2
         order: 0
