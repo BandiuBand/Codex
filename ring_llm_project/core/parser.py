@@ -21,12 +21,46 @@ class CommandParser:
     Uses shlex so quotes work.
     """
 
+    @staticmethod
+    def _tolerant_split(cmd_line: str) -> list[str]:
+        tokens: list[str] = []
+        buf: list[str] = []
+        in_quote: str | None = None
+
+        for ch in cmd_line:
+            if in_quote:
+                if ch == in_quote:
+                    in_quote = None
+                else:
+                    buf.append(ch)
+                continue
+
+            if ch in ('"', "'"):
+                in_quote = ch
+                continue
+
+            if ch.isspace():
+                if buf:
+                    tokens.append("".join(buf))
+                    buf = []
+                continue
+
+            buf.append(ch)
+
+        if buf:
+            tokens.append("".join(buf))
+
+        return tokens
+
     def parse(self, cmd_line: str) -> ParsedCommand:
         raw = cmd_line.strip()
         if not raw.startswith("CMD "):
             raise ValueError("command_line_missing_CMD_prefix")
 
-        tokens = shlex.split(raw)
+        try:
+            tokens = shlex.split(raw)
+        except ValueError:
+            tokens = self._tolerant_split(raw)
         # tokens like: ["CMD", "ASK", "wait=0", "text=Hello"]
         if len(tokens) < 2:
             raise ValueError("command_line_too_short")
