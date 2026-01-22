@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from dataclasses import dataclass
 from typing import List
 
@@ -12,10 +13,13 @@ import requests
 from .config import AppConfig
 
 
-def safe_one_line(s: str) -> str:
-    s = (s or "").replace("\r\n", "\n").replace("\r", "\n")
-    s = " ".join(x.strip() for x in s.split("\n") if x.strip())
-    return s.strip()
+_THINK_BLOCK_RE = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
+
+
+def normalize_text(s: str) -> str:
+    text = (s or "").replace("\r\n", "\n").replace("\r", "\n")
+    text = _THINK_BLOCK_RE.sub("", text)
+    return text.strip()
 
 
 @dataclass
@@ -107,7 +111,7 @@ REMEMBER:
             if r.status_code != 200:
                 raise RuntimeError(f"OpenAI HTTP {r.status_code}: {r.text}")
             data = r.json()
-            return safe_one_line(data["choices"][0]["message"]["content"])
+            return normalize_text(data["choices"][0]["message"]["content"])
 
         if self.cfg.provider == "ollama":
             url = f"{self.cfg.ollama_url}/api/chat"
@@ -127,6 +131,6 @@ REMEMBER:
             if r.status_code != 200:
                 raise RuntimeError(f"Ollama HTTP {r.status_code}: {r.text}")
             data = r.json()
-            return safe_one_line(data["message"]["content"])
+            return normalize_text(data["message"]["content"])
 
         raise RuntimeError(f"Невідомий provider={self.cfg.provider}")
