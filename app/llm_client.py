@@ -13,12 +13,13 @@ import requests
 from .config import AppConfig
 
 
-_THINK_BLOCK_RE = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
+_THINK_BLOCK_RE = re.compile(r"<think>.*?(</think>|$)", re.DOTALL | re.IGNORECASE)
 
 
 def normalize_text(s: str) -> str:
     text = (s or "").replace("\r\n", "\n").replace("\r", "\n")
     text = _THINK_BLOCK_RE.sub("", text)
+    text = " ".join(x.strip() for x in text.split("\n") if x.strip())
     return text.strip()
 
 
