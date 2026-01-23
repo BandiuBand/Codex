@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Dict
 
 from commands.base import BaseCommand
-from core.dispatcher import DispatchResult
+from core.types import DispatchResult
 from core.memory import Memory
 from utils.text import normalize_newlines
 
@@ -19,7 +19,6 @@ class AskCommand(BaseCommand):
         if not text:
             text = "(порожнє питання від моделі)"
 
-        # Log + show to user
         memory.add_history(f"ASSISTANT_ASK: {text}")
         return DispatchResult(
             user_message=text,

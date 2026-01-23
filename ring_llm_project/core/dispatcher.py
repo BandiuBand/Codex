@@ -1,20 +1,10 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Optional, Tuple
-
 from core.memory import Memory
 from core.parser import ParsedCommand
+from core.types import DispatchResult
 from commands.registry import CommandRegistry
-from utils.text import normalize_newlines
-
-
-@dataclass
-class DispatchResult:
-    user_message: Optional[str] = None
-    stop_for_user_input: bool = False  # e.g. ASK
-    debug: str = ""
 
 
 class CommandDispatcher:
@@ -36,6 +26,4 @@ class CommandDispatcher:
 
         # execute
         result = handler.execute(memory, cmd.args)
-
-        # handler may already add history/inbox etc.
         return result

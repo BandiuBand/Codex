@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 from typing import Dict
 
 from core.memory import Memory
-from core.dispatcher import DispatchResult
+from core.types import DispatchResult
 
 
 class BaseCommand(ABC):
