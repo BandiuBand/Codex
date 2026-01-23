@@ -2,93 +2,78 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
-from typing import Dict, List
-
-
-class ValidationMode(str, Enum):
-    STRICT_CMD_ONLY = "STRICT_CMD_ONLY"     # output must be ONLY a command line
-    EXTRACT_FROM_TEXT = "EXTRACT_FROM_TEXT" # extract last CMD line from any text
-
-
-@dataclass
-class LLMConfig:
-    provider: str = "ollama"         # "ollama"
-    model: str = "qwen3:8b"
-    base_url: str = "http://127.0.0.1:11434"
-    temperature: float = 0.2
-    top_p: float = 0.9
-    num_predict: int = 256
-    timeout_s: int = 120
-
-
-@dataclass
-class MemoryConfig:
-    max_chars: int = 14000          # used only for memory_fill% + optional auto-fold
-    history_max_events: int = 200   # hard cap for history list length
-    auto_fold: bool = True
-    auto_fold_keep_last_events: int = 30
+from typing import List, Dict
 
 
 @dataclass
 class CommandSpec:
     name: str
-    description: str
+    help: str
     args: List[str] = field(default_factory=list)
+
+
+@dataclass
+class MemoryConfig:
+    max_chars: int = 14000
+    auto_fold_keep_last_events: int = 40
+
+
+@dataclass
+class ValidatorConfig:
+    mode: str = "embedded"  # "strict" | "embedded"
+    require_blocks: bool = False  # if True, accept commands ONLY inside §§CMD_START§§ blocks
+
+
+@dataclass
+class LLMConfig:
+    provider: str = "ollama"  # currently only ollama implemented here
+    base_url: str = "http://127.0.0.1:11434"
+    model: str = "qwen3:8b"
+    timeout_s: int = 120
 
 
 @dataclass
 class AppConfig:
     llm: LLMConfig = field(default_factory=LLMConfig)
     memory: MemoryConfig = field(default_factory=MemoryConfig)
+    validator: ValidatorConfig = field(default_factory=ValidatorConfig)
 
-    # validator behavior
-    validation_mode: ValidationMode = ValidationMode.EXTRACT_FROM_TEXT
-
-    # command registry for validator + prompt
-    commands: Dict[str, CommandSpec] = field(default_factory=lambda: {
-        "ASK": CommandSpec(
+    # Commands available to model (for prompt + registry validation)
+    command_specs: List[CommandSpec] = field(default_factory=lambda: [
+        CommandSpec(
             name="ASK",
-            description="Ask the user for missing information. The program will show the question to the user and wait for reply.",
-            args=["text", "wait"],
+            help="Ask the user a single question. Stops and waits for user input.",
+            args=["wait", "text"],
         ),
-        "NOTE": CommandSpec(
-            name="NOTE",
-            description="Write a note into memory (debug/inbox).",
-            args=["text", "level"],
+        CommandSpec(
+            name="SET_GOAL",
+            help="Set or replace the current GOAL section.",
+            args=["text"],
         ),
-        "SETVAR": CommandSpec(
-            name="SETVAR",
-            description="Set/update a variable in [VARS].",
+        CommandSpec(
+            name="SET_VAR",
+            help="Set a variable in VARS section.",
             args=["key", "value"],
         ),
-        "SETGOAL": CommandSpec(
-            name="SETGOAL",
-            description="Set/update [GOAL].",
+        CommandSpec(
+            name="ADD_INBOX",
+            help="Add an item into INBOX list.",
             args=["text"],
         ),
-        "PLAN": CommandSpec(
-            name="PLAN",
-            description="Replace the plan with numbered steps.",
-            args=["steps", "current"],
+        CommandSpec(
+            name="FOLD_NOW",
+            help="Force folding older HISTORY into one FOLDED entry.",
+            args=["reason"],
         ),
-        "FOLD": CommandSpec(
-            name="FOLD",
-            description="Create a fold (summary) from part of history.",
-            args=["reason", "keep_last"],
+        CommandSpec(
+            name="NOOP",
+            help="Do nothing. Useful when model wants to acknowledge without command.",
+            args=[],
         ),
-        "DONE": CommandSpec(
-            name="DONE",
-            description="Finish current cycle / mark completion.",
-            args=["text"],
-        ),
-        "ERROR": CommandSpec(
-            name="ERROR",
-            description="Signal that the model cannot proceed or protocol failed.",
-            args=["code", "message"],
-        ),
-    })
+    ])
 
-    # anti-loop protection for repeated ASK
-    repeat_ask_window: int = 12
-    repeat_ask_limit: int = 2
+    # UI tags used for robust extraction (rare tokens, ASCII-safe)
+    cmd_start: str = "§§CMD_START§§"
+    cmd_end: str = "§§CMD_END§§"
+    msg_start: str = "§§MSG_START§§"
+    msg_end: str = "§§MSG_END§§"
