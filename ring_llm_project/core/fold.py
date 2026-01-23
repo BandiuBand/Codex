@@ -2,7 +2,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import List
+
+from utils.text import normalize_newlines, strip_surrounding_whitespace_lines
 
 
 @dataclass
@@ -10,29 +13,47 @@ class Fold:
     reason: str
     summary: str
     replaced_events: int
+    created_utc: str
+
+    @staticmethod
+    def create(reason: str, summary: str, replaced_events: int) -> "Fold":
+        ts = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        return Fold(
+            reason=normalize_newlines(reason).strip(),
+            summary=strip_surrounding_whitespace_lines(summary),
+            replaced_events=int(replaced_events),
+            created_utc=ts,
+        )
 
     def to_text(self) -> str:
         return (
-            f"- reason: {self.reason}\n"
-            f"  replaced_events: {self.replaced_events}\n"
-            f"  summary: {self.summary}"
+            f"- [{self.created_utc}] reason={self.reason} replaced_events={self.replaced_events}\n"
+            f"  summary:\n"
+            f"{indent(self.summary, '    ')}"
         )
 
 
-def naive_summarize_events(events: List[str], max_lines: int = 10) -> str:
+def indent(s: str, prefix: str) -> str:
+    s = normalize_newlines(s)
+    return "\n".join(prefix + line for line in s.split("\n"))
+
+
+def naive_summarize_events(events: List[str], max_lines: int = 12) -> str:
     """
-    Very simple summarizer (offline, no LLM). Keeps signal only.
+    Cheap deterministic summarizer (no LLM). Takes first/last lines, trims.
     """
-    lines = []
-    for e in events:
-        e = e.strip()
-        if not e:
-            continue
-        # keep only first line of each event
-        first = e.split("\n", 1)[0].strip()
-        lines.append(first)
-        if len(lines) >= max_lines:
-            break
+    if not events:
+        return "(empty)"
+
+    lines = [normalize_newlines(e).strip() for e in events if normalize_newlines(e).strip()]
     if not lines:
         return "(empty)"
-    return " | ".join(lines)
+
+    if len(lines) <= max_lines:
+        return "\n".join(lines)
+
+    head_n = max_lines // 2
+    tail_n = max_lines - head_n
+    head = lines[:head_n]
+    tail = lines[-tail_n:]
+    return "\n".join(head + ["... (folded) ..."] + tail)

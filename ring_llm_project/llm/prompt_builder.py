@@ -4,57 +4,53 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import List
 
-from config import AppConfig, CommandSpec
+from config import CommandSpec, AppConfig
 from core.memory import Memory
-from llm.base import LLMMessage
 
 
-@dataclass
 class PromptBuilder:
-    cfg: AppConfig
+    """
+    IMPORTANT: prompt to model is English only.
+    """
+    def __init__(self, cfg: AppConfig):
+        self.cfg = cfg
 
-    def build_messages(self, memory: Memory, user_text: str) -> List[LLMMessage]:
-        """
-        IMPORTANT: system prompt is English only.
-        user_text can be any language (your conversation).
-        """
-        system_prompt = self._build_system_prompt()
-        mem_block = memory.to_text(include_end_marker=True)
+    def system_prompt(self, memory: Memory) -> str:
+        cmds = self._commands_section(self.cfg.command_specs)
 
-        user_prompt = (
-            f"{mem_block}\n"
-            f"USER_MESSAGE:\n{user_text.strip()}\n"
-            f"\n"
-            f"Return exactly one command line.\n"
-        )
+        # English-only system prompt:
+        return f"""You are a command-driven assistant.
 
-        return [
-            LLMMessage(role="system", content=system_prompt),
-            LLMMessage(role="user", content=user_prompt),
-        ]
+You MUST output exactly one of the following blocks:
 
-    def _build_system_prompt(self) -> str:
-        # Describe the protocol and allowed commands.
-        cmd_lines = []
-        for name in sorted(self.cfg.commands.keys()):
-            spec: CommandSpec = self.cfg.commands[name]
-            args = ", ".join(spec.args) if spec.args else "(no args)"
-            cmd_lines.append(f"- {spec.name}: {spec.description} Args: {args}")
+1) A COMMAND block:
+{self.cfg.cmd_start}
+CMD <NAME> key=value key=value ...
+{self.cfg.cmd_end}
 
-        commands_text = "\n".join(cmd_lines)
+2) A MESSAGE block (user-facing text):
+{self.cfg.msg_start}
+... free text ...
+{self.cfg.msg_end}
 
-        return (
-            "You are an execution planner for a command-driven assistant.\n"
-            "You MUST follow the protocol.\n\n"
-            "PROTOCOL:\n"
-            "1) Output MUST be a single command line starting with 'CMD '.\n"
-            "2) Do NOT output explanations, thoughts, analysis, or extra text.\n"
-            "3) If you need to ask the user, use: CMD ASK wait=0 text=\"...\"\n"
-            "4) If you cannot proceed, use: CMD ERROR code=\"...\" message=\"...\"\n"
-            "5) Commands are case-sensitive only for their name; use UPPERCASE names.\n\n"
-            "ALLOWED COMMANDS:\n"
-            f"{commands_text}\n\n"
-            "MEMORY FORMAT:\n"
-            "You will receive a memory snapshot between ===MEMORY=== and ===END_MEMORY===.\n"
-            "Use it to decide the next command.\n"
-        )
+Rules:
+- If you output a COMMAND block, it must contain exactly ONE command line starting with "CMD ".
+- If a value contains spaces/newlines/special symbols, use double quotes, e.g. text="hello world".
+- If you use quotes inside a quoted value, escape them as \\"
+- Do NOT output any thoughts, reasoning, or analysis. If you still produce them, they will be discarded.
+- Prefer ASK when you need missing info from the user.
+- Otherwise output a MESSAGE block.
+
+Available commands:
+{cmds}
+
+Current memory snapshot:
+{memory.to_text(include_end_marker=True)}
+"""
+
+    def _commands_section(self, specs: List[CommandSpec]) -> str:
+        lines = []
+        for s in specs:
+            args = (" " + " ".join(s.args)) if s.args else ""
+            lines.append(f"- {s.name}{args}: {s.help}")
+        return "\n".join(lines)

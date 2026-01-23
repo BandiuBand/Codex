@@ -2,46 +2,40 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Type
+from typing import Optional, Tuple
 
 from core.memory import Memory
-from core.commands.base import Command, CommandContext, CommandResult
-from core.commands.ask import AskCommand
-from core.commands.note import NoteCommand
-from core.commands.setvar import SetVarCommand
-from core.commands.setgoal import SetGoalCommand
-from core.commands.plan import PlanCommand
-from core.commands.fold_cmd import FoldCommand
-from core.commands.done import DoneCommand
-from core.commands.error import ErrorCommand
+from core.parser import ParsedCommand
+from commands.registry import CommandRegistry
+from utils.text import normalize_newlines
 
 
 @dataclass
-class DispatcherResult:
-    result: CommandResult
-    new_memory: Memory
+class DispatchResult:
+    user_message: Optional[str] = None
+    stop_for_user_input: bool = False  # e.g. ASK
+    debug: str = ""
 
 
 class CommandDispatcher:
-    def __init__(self):
-        self.registry: Dict[str, Type[Command]] = {
-            "ASK": AskCommand,
-            "NOTE": NoteCommand,
-            "SETVAR": SetVarCommand,
-            "SETGOAL": SetGoalCommand,
-            "PLAN": PlanCommand,
-            "FOLD": FoldCommand,
-            "DONE": DoneCommand,
-            "ERROR": ErrorCommand,
-        }
+    def __init__(self, registry: CommandRegistry):
+        self.registry = registry
 
-    def dispatch(
-        self, cmd_name: str, args: Dict[str, str], memory: Memory, ctx: CommandContext
-    ) -> DispatcherResult:
-        cmd_name = cmd_name.upper()
-        if cmd_name not in self.registry:
-            raise ValueError(f"unknown_command:{cmd_name}")
-        cmd_cls = self.registry[cmd_name]
-        cmd: Command = cmd_cls()
-        res = cmd.execute(args=args, memory=memory, ctx=ctx)
-        return DispatcherResult(result=res, new_memory=memory)
+    def dispatch(self, memory: Memory, cmd: ParsedCommand) -> DispatchResult:
+        handler = self.registry.get(cmd.name)
+        if handler is None:
+            memory.add_history(f"CMD_UNKNOWN {cmd.raw}")
+            return DispatchResult(
+                user_message=f"Невідома команда: {cmd.name}",
+                stop_for_user_input=True,
+                debug="unknown_command",
+            )
+
+        # log command line exactly
+        memory.add_history(f"LLM -> {cmd.raw}")
+
+        # execute
+        result = handler.execute(memory, cmd.args)
+
+        # handler may already add history/inbox etc.
+        return result

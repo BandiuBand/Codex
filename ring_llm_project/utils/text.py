@@ -2,38 +2,48 @@
 from __future__ import annotations
 
 import re
-from typing import Optional
 
 
-THINK_XML = re.compile(r"(?is)<think>.*?</think>")
-FENCED_THINK = re.compile(r"(?is)```(?:thinking|thoughts|think)\s*.*?```")
-
-
-def normalize_newlines(s: Optional[str]) -> str:
-    if not s:
+def normalize_newlines(s: str) -> str:
+    if s is None:
         return ""
-    return s.replace("\r\n", "\n").replace("\r", "\n")
+    s = s.replace("\r\n", "\n").replace("\r", "\n")
+    return s
 
 
-def strip_thoughts(raw: str) -> str:
-    """
-    Remove common 'thought' formats from raw model output.
-    Does NOT destroy newlines.
-    """
-    s = normalize_newlines(raw)
-    s = THINK_XML.sub("", s)
-    s = FENCED_THINK.sub("", s)
-    return s.strip()
+def strip_surrounding_whitespace_lines(s: str) -> str:
+    s = normalize_newlines(s)
+    # keep internal newlines, remove leading/trailing empty lines
+    return s.strip("\n").strip()
 
 
-def clamp(s: str, n: int) -> str:
-    if len(s) <= n:
-        return s
-    return s[:n] + "..."
+_THINK_BLOCKS = [
+    re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE),
+    re.compile(r"```thinking.*?```", re.DOTALL | re.IGNORECASE),
+    re.compile(r"```thought.*?```", re.DOTALL | re.IGNORECASE),
+    re.compile(r"```reasoning.*?```", re.DOTALL | re.IGNORECASE),
+]
 
 
-def safe_int(x: str, default: int) -> int:
-    try:
-        return int(x)
-    except Exception:
-        return default
+def remove_model_thoughts(s: str) -> str:
+    s = normalize_newlines(s)
+
+    for rgx in _THINK_BLOCKS:
+        s = rgx.sub("", s)
+
+    # Remove "THOUGHTS:" block until "FINAL:" if present (common pattern)
+    # Example:
+    # THOUGHTS:
+    # ...
+    # FINAL:
+    # ...
+    m = re.search(r"(?is)\bTHOUGHTS\s*:\s*(.*?)\bFINAL\s*:\s*", s)
+    if m:
+        # keep from FINAL: onward
+        idx = m.end()
+        s = s[idx:]
+
+    # Also remove leading "Final:" label only
+    s = re.sub(r"(?im)^\s*FINAL\s*:\s*", "", s)
+
+    return strip_surrounding_whitespace_lines(s)
