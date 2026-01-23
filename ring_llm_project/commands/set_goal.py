@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Dict
 
 from commands.base import BaseCommand
-from core.dispatcher import DispatchResult
+from core.types import DispatchResult
 from core.memory import Memory
 from utils.text import normalize_newlines
 
