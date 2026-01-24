@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Dict
 
+from ring_llm_project.commands.base import CommandContext
+from ring_llm_project.commands.kv import parse_kv_payload
 from ring_llm_project.core.memory import Memory
 
 
@@ -30,19 +32,30 @@ def _block_close() -> str:
 
 @dataclass(frozen=True)
 class UnfoldCommand:
+    name: str = "UNFOLD"
     command_id: str = "UNFOLD"
 
-    def prompt_help(self) -> str:
+    def prompt_fragment(self) -> str:
         return (
-            "UNFOLD — expands an existing fold into inline block form.\n"
-            "Syntax:\n"
+            "Command UNFOLD: expand an existing folded placeholder into inline block form.\n"
+            "Usage:\n"
             "<CMD>\n"
-            "id: UNFOLD\n"
+            "UNFOLD\n"
             "fold_id: <string>\n"
             "</CMD>\n"
             "Effect: replaces <FOLD id=\"...\" name=\"...\"/> with "
             "<FOLD id=\"...\" name=\"...\"> ... </FOLD>.\n"
         )
+
+    def prompt_help(self) -> str:
+        return self.prompt_fragment()
+
+    def run(self, mem: Memory, args: Dict[str, str], ctx: CommandContext) -> Memory:
+        try:
+            parsed = parse_kv_payload(args)
+        except ValueError as exc:
+            raise CommandError(f"UNFOLD: {exc}") from exc
+        return self.execute(mem, parsed)
 
     def execute(self, memory: Memory, args: Dict[str, Any]) -> Memory:
         fold_id = args.get("fold_id")

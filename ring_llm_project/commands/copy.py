@@ -22,8 +22,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Tuple
 from datetime import datetime, timezone
+
+from ring_llm_project.commands.base import CommandContext
+from ring_llm_project.commands.kv import parse_kv_payload
+from ring_llm_project.core.memory import Memory
 
 
 class CommandError(RuntimeError):
@@ -128,21 +132,30 @@ class CopyCommand:
     """
     Command COPY: copies text between markers from VISIBLE memory text into clipboard.
     """
+    name: str = "COPY"
     command_id: str = "COPY"
 
-    # This is the ONLY part that should go into the "commands list" prompt.
-    # No motivation here — only syntax + meaning.
-    def prompt_help(self) -> str:
+    def prompt_fragment(self) -> str:
         return (
-            "COPY — copy text between two markers into clipboard (overwrite).\n"
-            "Syntax:\n"
+            "Command COPY: copy text between two markers into clipboard (overwrite).\n"
+            "Usage:\n"
             "<CMD>\n"
-            "id: COPY\n"
+            "COPY\n"
             "start: <start_marker>\n"
             "end: <end_marker>\n"
             "</CMD>\n"
             "Behavior: finds first 'start', then first 'end' after it, copies text between them (exclusive)."
         )
+
+    def prompt_help(self) -> str:
+        return self.prompt_fragment()
+
+    def run(self, mem: Memory, args: Dict[str, str], ctx: CommandContext) -> Memory:
+        try:
+            parsed = parse_kv_payload(args)
+        except ValueError as exc:
+            raise CommandError(f"COPY: {exc}") from exc
+        return self.execute(mem, parsed)
 
     def execute(self, memory: Any, args: Dict[str, Any]) -> Any:
         """
