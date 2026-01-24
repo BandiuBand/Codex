@@ -8,15 +8,13 @@ class CommandFormat:
     """
     Block format (multi-line safe):
 
-    @CMD <NAME>
-    key: value
-    text: |
-      multiline
-      payload
-    @END
+    <CMD>
+    <NAME>
+    payload
+    </CMD>
     """
-    start: str = "@CMD"
-    end: str = "@END"
+    start: str = "<CMD>"
+    end: str = "</CMD>"
 
 
 @dataclass(frozen=True)
@@ -34,15 +32,16 @@ class CommandValidator:
         # You can extend it later.
         return (
             "When you output a command, use ONLY this block format:\n"
-            "@CMD <NAME>\n"
-            "key: value\n"
-            "text: |\n"
-            "  multi-line text...\n"
-            "@END\n"
+            "<CMD>\n"
+            "<NAME>\n"
+            "payload...\n"
+            "</CMD>\n"
             "Rules:\n"
             "- The command block must be valid and complete.\n"
-            "- For multi-line values, use '|' and indent following lines by two spaces.\n"
-            "- If you are not issuing a command, output normal assistant text with no @CMD block.\n"
+            "- The first line after <CMD> is the command name.\n"
+            "- Everything after the name (including newlines) is the payload.\n"
+            "- Do not use key/value pairs or '|' blocks.\n"
+            "- If you are not issuing a command, output normal assistant text with no <CMD> block.\n"
         )
 
     def extract_command_block(self, text: str) -> Tuple[bool, Optional[str]]:

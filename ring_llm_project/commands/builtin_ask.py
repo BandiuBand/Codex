@@ -11,14 +11,14 @@ class AskCommand:
         return (
             "Command ASK: ask the user a question and store the user's answer in memory.\n"
             "Usage:\n"
-            "@CMD ASK\n"
-            "text: |\n"
-            "  question...\n"
-            "@END\n"
+            "<CMD>\n"
+            "ASK\n"
+            "question...\n"
+            "</CMD>\n"
         )
 
     def run(self, mem: Memory, args: Dict[str, str], ctx: CommandContext) -> Memory:
-        q = args.get("text", "")
+        q = args.get("payload", "")
         mem.add_event("assistant", q, kind="ask")
 
         if not ctx.io:

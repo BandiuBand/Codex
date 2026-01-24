@@ -11,14 +11,14 @@ class ShowCommand:
         return (
             "Command SHOW: show a message to the user.\n"
             "Usage:\n"
-            "@CMD SHOW\n"
-            "text: |\n"
-            "  message...\n"
-            "@END\n"
+            "<CMD>\n"
+            "SHOW\n"
+            "message...\n"
+            "</CMD>\n"
         )
 
     def run(self, mem: Memory, args: Dict[str, str], ctx: CommandContext) -> Memory:
-        text = args.get("text", "")
+        text = args.get("payload", "")
         mem.add_event("assistant", text, kind="msg")
         if ctx.io:
             ctx.io.show(text)
