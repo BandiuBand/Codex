@@ -1,59 +1,27 @@
-# -*- coding: utf-8 -*-
 from __future__ import annotations
-
-from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import List
-
-from utils.text import normalize_newlines, strip_surrounding_whitespace_lines
+from typing import Optional
+from .memory import Memory
 
 
-@dataclass
-class Fold:
-    reason: str
-    summary: str
-    replaced_events: int
-    created_utc: str
+class Folder:
+    def __init__(self, keep_last_events: int = 30):
+        self.keep_last_events = keep_last_events
 
-    @staticmethod
-    def create(reason: str, summary: str, replaced_events: int) -> "Fold":
-        ts = datetime.now(timezone.utc).isoformat(timespec="seconds")
-        return Fold(
-            reason=normalize_newlines(reason).strip(),
-            summary=strip_surrounding_whitespace_lines(summary),
-            replaced_events=int(replaced_events),
-            created_utc=ts,
-        )
+    def auto_fold_if_needed(self, mem: Memory) -> Optional[str]:
+        text = mem.to_text(include_fill_line=False, include_end_marker=False)
+        if len(text) <= mem.max_chars:
+            return None
 
-    def to_text(self) -> str:
-        return (
-            f"- [{self.created_utc}] reason={self.reason} replaced_events={self.replaced_events}\n"
-            f"  summary:\n"
-            f"{indent(self.summary, '    ')}"
-        )
+        # fold old history into one fold
+        if len(mem.history) <= self.keep_last_events:
+            return None
 
+        old = mem.history[:-self.keep_last_events]
+        keep = mem.history[-self.keep_last_events:]
 
-def indent(s: str, prefix: str) -> str:
-    s = normalize_newlines(s)
-    return "\n".join(prefix + line for line in s.split("\n"))
+        folded_text = "\n".join(f"{int(e.ts)} {e.role.upper()}({e.kind}): {e.text}" for e in old)
+        fold = mem.create_fold(title="Auto-folded history", content=folded_text, parent_fold_id=None)
 
-
-def naive_summarize_events(events: List[str], max_lines: int = 12) -> str:
-    """
-    Cheap deterministic summarizer (no LLM). Takes first/last lines, trims.
-    """
-    if not events:
-        return "(empty)"
-
-    lines = [normalize_newlines(e).strip() for e in events if normalize_newlines(e).strip()]
-    if not lines:
-        return "(empty)"
-
-    if len(lines) <= max_lines:
-        return "\n".join(lines)
-
-    head_n = max_lines // 2
-    tail_n = max_lines - head_n
-    head = lines[:head_n]
-    tail = lines[-tail_n:]
-    return "\n".join(head + ["... (folded) ..."] + tail)
+        mem.history = keep
+        mem.add_event("system", f"Folded {len(old)} events into fold {fold.id}", kind="note", related_fold_id=fold.id)
+        return fold.id

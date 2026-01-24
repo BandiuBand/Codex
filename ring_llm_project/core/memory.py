@@ -1,155 +1,135 @@
-# -*- coding: utf-8 -*-
 from __future__ import annotations
-
-import hashlib
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
+import time
+import hashlib
 
-from core.fold import Fold, naive_summarize_events
-from utils.text import normalize_newlines
+
+def _now_ts() -> float:
+    return time.time()
+
+
+def _fp(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8", errors="ignore")).hexdigest()[:16]
+
+
+@dataclass
+class LinkMeta:
+    created_ts: float
+    parent_fold_id: Optional[str]
+    appearances: List[Dict[str, str]] = field(default_factory=list)
+    # appearances items: {"ts": "...", "fold_id": "...", "reason": "..."} or {"ts": "...", "root": "1"}
+
+    def add_appearance(self, fold_id: Optional[str], reason: str) -> None:
+        item = {"ts": str(_now_ts()), "reason": reason}
+        if fold_id is None:
+            item["root"] = "1"
+        else:
+            item["fold_id"] = fold_id
+        self.appearances.append(item)
+
+
+@dataclass
+class Link:
+    id: str
+    text: str
+    meta: LinkMeta
+
+
+@dataclass
+class Fold:
+    id: str
+    created_ts: float
+    parent_fold_id: Optional[str]
+    title: str
+    content: str
+    meta: Dict[str, str] = field(default_factory=dict)
+
+
+@dataclass
+class MemoryEvent:
+    role: str  # "user" | "assistant" | "system"
+    text: str
+    ts: float = field(default_factory=_now_ts)
+    related_fold_id: Optional[str] = None
+    kind: str = "msg"  # "msg" | "ask" | "answer" | "note"
 
 
 @dataclass
 class Memory:
     goal: str = ""
     vars: Dict[str, str] = field(default_factory=dict)
-    plan_steps: List[str] = field(default_factory=list)
-    plan_current: str = ""
-    inbox: List[str] = field(default_factory=list)
-    folded: List[Fold] = field(default_factory=list)
-    history: List[str] = field(default_factory=list)
-    debug: List[str] = field(default_factory=list)
+    plan: List[str] = field(default_factory=list)
 
-    max_chars: int = 14000
-    history_max_events: int = 200
+    history: List[MemoryEvent] = field(default_factory=list)
+    folds: Dict[str, Fold] = field(default_factory=dict)
+    links: Dict[str, Link] = field(default_factory=dict)
 
-    def add_history(self, line: str) -> None:
-        line = normalize_newlines(line).rstrip()
-        if not line.strip():
-            return
-        self.history.append(line)
-        if len(self.history) > self.history_max_events:
-            self.history = self.history[-self.history_max_events :]
+    max_chars: int = 30_000  # budget for prompt text, rough
 
-    def add_inbox(self, line: str) -> None:
-        line = normalize_newlines(line).rstrip()
-        if line.strip():
-            self.inbox.append(line)
+    def add_event(self, role: str, text: str, kind: str = "msg", related_fold_id: Optional[str] = None) -> None:
+        self.history.append(MemoryEvent(role=role, text=text, kind=kind, related_fold_id=related_fold_id))
 
-    def add_debug(self, line: str) -> None:
-        line = normalize_newlines(line).rstrip()
-        if line.strip():
-            self.debug.append(line)
+    def create_fold(self, title: str, content: str, parent_fold_id: Optional[str] = None) -> Fold:
+        fid = _fp(f"{title}\n{content}\n{_now_ts()}")
+        fold = Fold(id=fid, created_ts=_now_ts(), parent_fold_id=parent_fold_id, title=title, content=content)
+        self.folds[fid] = fold
+        return fold
 
-    def set_goal(self, text: str) -> None:
-        self.goal = normalize_newlines(text).strip()
-
-    def set_var(self, key: str, value: str) -> None:
-        self.vars[str(key).strip()] = normalize_newlines(str(value)).strip()
-
-    def fingerprint(self) -> str:
-        t = self._render(include_end_marker=False, include_fill_line=False).encode("utf-8")
-        return hashlib.sha256(t).hexdigest()[:16]
+    def create_link(self, text: str, parent_fold_id: Optional[str] = None) -> Link:
+        lid = _fp(f"LINK\n{text}\n{_now_ts()}")
+        meta = LinkMeta(created_ts=_now_ts(), parent_fold_id=parent_fold_id)
+        link = Link(id=lid, text=text, meta=meta)
+        self.links[lid] = link
+        return link
 
     def memory_fill_percent(self) -> int:
-        base = self._render(include_end_marker=False, include_fill_line=False)
-        if self.max_chars <= 0:
-            return 0
-        p = int(round(100 * (len(base) / self.max_chars)))
-        return 0 if p < 0 else (100 if p > 100 else p)
+        # IMPORTANT: no recursion! Use internal computed length only.
+        used = len(self.to_text(include_fill_line=False, include_end_marker=False))
+        return int(min(100, (used / max(1, self.max_chars)) * 100))
 
-    def to_text(self, include_end_marker: bool = True) -> str:
-        return self._render(include_end_marker=include_end_marker, include_fill_line=True)
-
-    def _render(self, include_end_marker: bool, include_fill_line: bool) -> str:
-        vars_lines = [f"{k}={self.vars[k]}" for k in sorted(self.vars.keys())]
-
-        plan_lines: List[str] = []
-        for i, s in enumerate(self.plan_steps, start=1):
-            ss = normalize_newlines(s).strip()
-            if ss:
-                plan_lines.append(f"{i}) {ss}")
-        if self.plan_current:
-            plan_lines.append(f"CURRENT: {normalize_newlines(self.plan_current).strip()}")
-
-        inbox_text = "(empty)" if not self.inbox else "\n".join(self.inbox)
-        folded_text = "(none)" if not self.folded else "\n".join(f.to_text() for f in self.folded)
-        history_text = "(empty)" if not self.history else "\n".join(self.history)
-        debug_text = "(empty)" if not self.debug else "\n".join(self.debug)
-
+    def to_text(self, include_fill_line: bool = True, include_end_marker: bool = True) -> str:
         out: List[str] = []
-        out.append("===MEMORY===")
         if include_fill_line:
-            base_no_fill = self._render(include_end_marker=False, include_fill_line=False)
-            if self.max_chars <= 0:
-                fill = 0
-            else:
-                fill = int(round(100 * (len(base_no_fill) / self.max_chars)))
-                fill = 0 if fill < 0 else (100 if fill > 100 else fill)
-            out.append(f"memory_fill={fill}%")
-            out.append("")  # keep readability
-
+            out.append(f"[MEMORY fill={self.memory_fill_percent()}%]")
         out.append("[GOAL]")
-        out.append(self.goal if self.goal else "(empty)")
+        out.append(self.goal.strip() if self.goal else "(empty)")
         out.append("[/GOAL]\n")
 
         out.append("[VARS]")
-        out.append("\n".join(vars_lines) if vars_lines else "(empty)")
+        if self.vars:
+            for k, v in self.vars.items():
+                out.append(f"{k}={v}")
+        else:
+            out.append("(empty)")
         out.append("[/VARS]\n")
 
         out.append("[PLAN]")
-        out.append("\n".join(plan_lines) if plan_lines else "(empty)")
+        if self.plan:
+            for i, p in enumerate(self.plan, 1):
+                out.append(f"{i}) {p}")
+        else:
+            out.append("(empty)")
         out.append("[/PLAN]\n")
 
-        out.append("[INBOX]")
-        out.append(inbox_text)
-        out.append("[/INBOX]\n")
-
-        out.append("[FOLDED]")
-        out.append(folded_text)
-        out.append("[/FOLDED]\n")
-
         out.append("[HISTORY]")
-        out.append(history_text)
+        if self.history:
+            for ev in self.history[-200:]:
+                # keep last N
+                out.append(f"{int(ev.ts)} {ev.role.upper()} ({ev.kind}): {ev.text}")
+        else:
+            out.append("(empty)")
         out.append("[/HISTORY]\n")
 
-        out.append("[DEBUG]")
-        out.append(debug_text)
-        out.append("[/DEBUG]")
+        out.append("[FOLDS]")
+        if self.folds:
+            # show only meta; content is referenced by id to avoid prompt blow-up
+            for fid, f in list(self.folds.items())[-50:]:
+                out.append(f"- {fid} | {f.title} | parent={f.parent_fold_id or '-'} | ts={int(f.created_ts)}")
+        else:
+            out.append("(none)")
+        out.append("[/FOLDS]")
 
         if include_end_marker:
             out.append("===END_MEMORY===")
-
         return "\n".join(out)
-
-    def auto_fold_if_needed(self, keep_last_events: int) -> Optional[Fold]:
-        text_len = len(self._render(include_end_marker=False, include_fill_line=False))
-        if text_len <= self.max_chars:
-            return None
-        if len(self.history) <= keep_last_events:
-            return None
-
-        old = self.history[:-keep_last_events]
-        new = self.history[-keep_last_events:]
-        summary = naive_summarize_events(old, max_lines=12)
-
-        fold = Fold.create(
-            reason="auto_fold: memory too large",
-            summary=summary,
-            replaced_events=len(old),
-        )
-        self.folded.append(fold)
-        self.history = new
-        return fold
-
-    def fold_now(self, reason: str, keep_last_events: int) -> Optional[Fold]:
-        if len(self.history) <= keep_last_events:
-            return None
-        old = self.history[:-keep_last_events]
-        new = self.history[-keep_last_events:]
-        summary = naive_summarize_events(old, max_lines=12)
-
-        fold = Fold.create(reason=reason, summary=summary, replaced_events=len(old))
-        self.folded.append(fold)
-        self.history = new
-        return fold
