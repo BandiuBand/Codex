@@ -24,7 +24,7 @@ class PromptBuilder:
             "You are a command-driven assistant.\n"
             "You may either:\n"
             "- Output normal assistant text (no command), OR\n"
-            "- Output exactly one command block.\n\n"
+            "- Output exactly one command block with a name and payload.\n\n"
             "COMMAND FORMAT:\n"
             f"{self.validator_help}\n\n"
             "AVAILABLE COMMANDS:\n"
