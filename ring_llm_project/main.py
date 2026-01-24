@@ -7,7 +7,7 @@ from ring_llm_project.core.behavior import DebugFlags
 from ring_llm_project.core.consciousness_builder import ConsciousnessBuilder
 from ring_llm_project.core.process import Process, ProcessConfig
 from ring_llm_project.commands.registry import CommandRegistry
-from ring_llm_project.commands.builtin_show import ShowCommand
+from ring_llm_project.commands.say import SayCommand
 from ring_llm_project.commands.builtin_ask import AskCommand
 from ring_llm_project.commands.base import IOAdapter
 
@@ -23,7 +23,7 @@ class ConsoleIO(IOAdapter):
 
 def build_registry() -> CommandRegistry:
     reg = CommandRegistry()
-    reg.register(ShowCommand())
+    reg.register(SayCommand())
     reg.register(AskCommand())
     return reg
 
