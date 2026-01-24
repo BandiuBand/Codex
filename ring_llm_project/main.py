@@ -3,7 +3,9 @@ from __future__ import annotations
 from ring_llm_project.core.llm_client import LLMClient, LLMConfig
 from ring_llm_project.core.router import LLMRouter
 from ring_llm_project.core.memory import Memory
-from ring_llm_project.core.process import Process, ProcessConfig, DebugFlags
+from ring_llm_project.core.behavior import DebugFlags
+from ring_llm_project.core.consciousness_builder import ConsciousnessBuilder
+from ring_llm_project.core.process import Process, ProcessConfig
 from ring_llm_project.commands.registry import CommandRegistry
 from ring_llm_project.commands.builtin_show import ShowCommand
 from ring_llm_project.commands.builtin_ask import AskCommand
@@ -57,9 +59,9 @@ def main():
 
     io = ConsoleIO()  # replace later with Cherry Studio adapter
 
-    process = Process(
-        cfg=ProcessConfig(control_llm_key="oss20b"),
-        mem=mem,
+    process_cfg = ProcessConfig(control_llm_key="oss20b")
+    behavior = ConsciousnessBuilder(
+        cfg=process_cfg,
         router=router,
         registry=registry,
         io=io,
@@ -69,6 +71,12 @@ def main():
             show_extracted_command=True,
             show_memory=False,
         ),
+    ).build()
+
+    process = Process(
+        cfg=process_cfg,
+        mem=mem,
+        behavior=behavior,
     )
 
     # Not "CLI mode": just a normal loop in a script, no args.
