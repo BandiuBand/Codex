@@ -15,15 +15,6 @@ from ring_llm_project.commands.unfold import UnfoldCommand
 from ring_llm_project.commands.base import IOAdapter
 
 
-class ConsoleIO(IOAdapter):
-    def show(self, text: str) -> None:
-        print("\nASSISTANT>\n" + text + "\n")
-
-    def ask(self, text: str) -> str:
-        print("\nASSISTANT (ASK)>\n" + text + "\n")
-        return input("YOU> ")
-
-
 def build_registry() -> CommandRegistry:
     reg = CommandRegistry()
     reg.register(SayCommand())
@@ -34,9 +25,16 @@ def build_registry() -> CommandRegistry:
     return reg
 
 
-def main():
+def create_process(
+    *,
+    io: IOAdapter,
+    mem: Memory | None = None,
+    llms: dict[str, LLMClient] | None = None,
+    process_cfg: ProcessConfig | None = None,
+    debug: DebugFlags | None = None,
+) -> Process:
     # 1) Create any number of LLM clients with any keys you want
-    llms = {
+    llms = llms or {
         # Cherry Studio / LM Studio OpenAI-compatible server:
         "oss20b": LLMClient(LLMConfig(
             base_url="http://127.0.0.1:1234",
@@ -50,7 +48,7 @@ def main():
     router = LLMRouter(llms=llms)
     registry = build_registry()
 
-    mem = Memory(
+    mem = mem or Memory(
         goal="Design power electronics converters.",
         vars={"controller": "TL494+ESP32"},
         plan=[
@@ -63,36 +61,28 @@ def main():
         max_chars=30_000,
     )
 
-    io = ConsoleIO()  # replace later with Cherry Studio adapter
-
-    process_cfg = ProcessConfig(control_llm_key="oss20b")
+    process_cfg = process_cfg or ProcessConfig(control_llm_key="oss20b")
+    debug = debug or DebugFlags(
+        show_class_calls=False,
+        show_raw_model_output=True,
+        show_extracted_command=True,
+        show_memory=False,
+    )
     behavior = ConsciousnessBuilder(
         cfg=process_cfg,
         router=router,
         registry=registry,
         io=io,
-        debug=DebugFlags(
-            show_class_calls=False,
-            show_raw_model_output=True,
-            show_extracted_command=True,
-            show_memory=False,
-        ),
+        debug=debug,
     ).build()
 
-    process = Process(
+    return Process(
         cfg=process_cfg,
         mem=mem,
         behavior=behavior,
     )
 
-    # Not "CLI mode": just a normal loop in a script, no args.
-    while True:
-        user = input("YOU> ").strip()
-        if user.lower() in {"/exit", "exit", "quit"}:
-            break
-        process.handle_user_message(user)
-        process.run_once()
 
-
-if __name__ == "__main__":
-    main()
+def run_once(process: Process, user_message: str) -> None:
+    process.handle_user_message(user_message)
+    process.run_once()
