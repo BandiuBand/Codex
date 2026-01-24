@@ -66,5 +66,5 @@ class CommandParser:
             raise CommandParseError("Missing </CMD>")
 
         payload = "\n".join(payload_lines).rstrip()
-        args: Dict[str, str] = {"payload": payload}
+        args: Dict[str, str] = {"payload": payload, "text": payload}
         return ParsedCommand(name=name, args=args, raw_block=block)
