@@ -1,0 +1,209 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional, Tuple
+
+from core.memory_contract import Memory
+
+
+class CommandError(RuntimeError):
+    pass
+
+
+def _now_utc_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _line_span(text: str, idx: int) -> Tuple[int, int]:
+    ls = text.rfind("\n", 0, idx)
+    ls = 0 if ls < 0 else ls + 1
+    le = text.find("\n", idx)
+    le = len(text) if le < 0 else le + 1
+    return ls, le
+
+
+def _find_block_span(text: str, open_tag: str, close_tag: str) -> Optional[Tuple[int, int]]:
+    a = text.find(open_tag)
+    if a < 0:
+        return None
+    b = text.find(close_tag, a + len(open_tag))
+    if b < 0:
+        return None
+    return a, b + len(close_tag)
+
+
+def _protected_spans(text: str) -> List[Tuple[int, int]]:
+    spans: List[Tuple[int, int]] = []
+
+    for marker in ("===MEMORY===", "===END_MEMORY==="):
+        i = text.find(marker)
+        if i >= 0:
+            spans.append(_line_span(text, i))
+
+    i = text.find("memory_fill=")
+    if i >= 0:
+        spans.append(_line_span(text, i))
+
+    for open_tag, close_tag in (("[HISTORY]", "[/HISTORY]"), ("[DEBUG]", "[/DEBUG]")):
+        sp = _find_block_span(text, open_tag, close_tag)
+        if sp:
+            spans.append(sp)
+
+    spans.sort()
+    merged: List[Tuple[int, int]] = []
+    for a, b in spans:
+        if not merged or a > merged[-1][1]:
+            merged.append((a, b))
+        else:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], b))
+    return merged
+
+
+def _overlaps_any(a: int, b: int, spans: List[Tuple[int, int]]) -> bool:
+    for x, y in spans:
+        if a < y and b > x:
+            return True
+    return False
+
+
+def _folded_placeholder(fold_id: str, name: str) -> str:
+    return f'<FOLD id="{fold_id}" name="{name}"/>'
+
+
+def _unfolded_open_exact(fold_id: str, name: str) -> str:
+    return f'<FOLD id="{fold_id}" name="{name}">'
+
+
+def _unfolded_close() -> str:
+    return "</FOLD>"
+
+
+@dataclass(frozen=True)
+class FoldCommand:
+    command_id: str = "FOLD"
+
+    def prompt_help(self) -> str:
+        return (
+            "FOLD — creates a fold once OR folds an already-unfolded fold back.\n"
+            "Two modes:\n"
+            "A) Create new fold by markers (only if fold_id does NOT exist yet):\n"
+            "<CMD>\n"
+            "id: FOLD\n"
+            "fold_id: <string>\n"
+            "name: <short label>\n"
+            "start: <start_marker>\n"
+            "end: <end_marker>\n"
+            "</CMD>\n"
+            "B) Fold back an unfolded fold (no markers):\n"
+            "<CMD>\n"
+            "id: FOLD\n"
+            "fold_id: <string>\n"
+            "</CMD>\n"
+        )
+
+    def execute(self, memory: Memory, args: Dict[str, Any]) -> Memory:
+        fold_id = args.get("fold_id")
+        if not isinstance(fold_id, str) or not fold_id.strip():
+            raise CommandError("FOLD: missing/invalid 'fold_id'")
+        fold_id = fold_id.strip()
+
+        start = args.get("start")
+        end = args.get("end")
+        name = args.get("name")
+
+        doc = memory.get_document()
+        prot = _protected_spans(doc)
+
+        # -------- Mode B: fold-back existing unfolded fold (no markers) --------
+        if start is None and end is None:
+            fold = memory.fold_get(fold_id)
+            if fold.state != "unfolded":
+                raise CommandError(f"FOLD: fold '{fold_id}' is not unfolded (cannot fold back)")
+
+            # find unfolded block <FOLD id="..." name="..."> ... </FOLD>
+            open_tag = _unfolded_open_exact(fold.fold_id, fold.name)
+            pos = doc.find(open_tag)
+            if pos < 0:
+                # if name changed externally — be strict: require exact match
+                raise CommandError("FOLD: unfolded block not found (exact open tag mismatch)")
+
+            content_start = pos + len(open_tag)
+            close_pos = doc.find(_unfolded_close(), content_start)
+            if close_pos < 0:
+                raise CommandError("FOLD: malformed unfolded block (missing </FOLD>)")
+
+            content = doc[content_start:close_pos]
+
+            # protect service areas
+            if _overlaps_any(content_start, close_pos, prot):
+                raise CommandError("FOLD: target overlaps protected (service) region")
+
+            # update stored content (fold object persists)
+            memory.fold_update_content(fold_id, content)
+
+            placeholder = _folded_placeholder(fold.fold_id, fold.name)
+            new_doc = doc[:pos] + placeholder + doc[close_pos + len(_unfolded_close()):]
+            memory.set_document(new_doc)
+
+            memory.fold_set_state(fold_id, "folded")
+            fold.mark_access({"ts": _now_utc_iso(), "type": "refold"})
+            memory.folds_sync_index_into_document()
+
+            memory.add_event({
+                "ts": _now_utc_iso(),
+                "type": "cmd",
+                "id": "FOLD",
+                "ok": True,
+                "mode": "refold",
+                "fold_id": fold_id,
+                "stored_len": len(content),
+            })
+            return memory
+
+        # -------- Mode A: create new fold by markers --------
+        if not (isinstance(start, str) and isinstance(end, str) and start and end):
+            raise CommandError("FOLD: for creation mode you must provide valid 'start' and 'end'")
+        if not (isinstance(name, str) and name.strip()):
+            raise CommandError("FOLD: for creation mode you must provide valid 'name'")
+
+        name = name.strip()
+
+        # create only once
+        if fold_id in memory.folds:
+            raise CommandError("FOLD: fold_id already exists (creation forbidden). Use fold-back mode instead.")
+
+        i = doc.find(start)
+        if i < 0:
+            raise CommandError("FOLD: start marker not found")
+        j = doc.find(end, i + len(start))
+        if j < 0:
+            raise CommandError("FOLD: end marker not found after start")
+
+        a = i + len(start)
+        b = j
+        if a > b:
+            raise CommandError("FOLD: invalid marker order")
+
+        if _overlaps_any(a, b, prot):
+            raise CommandError("FOLD: target overlaps protected (service) region")
+
+        content = doc[a:b]
+        memory.fold_put(fold_id=fold_id, name=name, content=content)
+
+        placeholder = _folded_placeholder(fold_id, name)
+        new_doc = doc[:a] + placeholder + doc[b:]
+        memory.set_document(new_doc)
+
+        memory.folds_sync_index_into_document()
+        memory.add_event({
+            "ts": _now_utc_iso(),
+            "type": "cmd",
+            "id": "FOLD",
+            "ok": True,
+            "mode": "create",
+            "fold_id": fold_id,
+            "name": name,
+            "stored_len": len(content),
+        })
+        return memory
