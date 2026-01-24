@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Dict
 
-from core.memory_contract import Memory
+from ring_llm_project.core.memory import Memory
 
 
 class CommandError(RuntimeError):
