@@ -4,15 +4,15 @@ from .base import CommandContext
 from ring_llm_project.core.memory import Memory
 
 
-class ShowCommand:
-    name = "SHOW"
+class SayCommand:
+    name = "SAY"
 
     def prompt_fragment(self) -> str:
         return (
-            "Command SHOW: show a message to the user.\n"
+            "Command SAY: show a message to the user.\n"
             "Usage:\n"
             "<CMD>\n"
-            "SHOW\n"
+            "SAY\n"
             "message...\n"
             "</CMD>\n"
         )
