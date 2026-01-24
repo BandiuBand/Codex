@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
+from ring_llm_project.commands.base import CommandContext
+from ring_llm_project.commands.kv import parse_kv_payload
 from ring_llm_project.core.memory import Memory
 
 
@@ -81,26 +83,36 @@ def _unfolded_close() -> str:
 
 @dataclass(frozen=True)
 class FoldCommand:
+    name: str = "FOLD"
     command_id: str = "FOLD"
 
-    def prompt_help(self) -> str:
+    def prompt_fragment(self) -> str:
         return (
-            "FOLD — creates a fold once OR folds an already-unfolded fold back.\n"
-            "Two modes:\n"
-            "A) Create new fold by markers (only if fold_id does NOT exist yet):\n"
+            "Command FOLD: create a new fold or refold an existing unfolded fold.\n"
+            "Usage (create new fold by markers; fold_id must not exist):\n"
             "<CMD>\n"
-            "id: FOLD\n"
+            "FOLD\n"
             "fold_id: <string>\n"
             "name: <short label>\n"
             "start: <start_marker>\n"
             "end: <end_marker>\n"
             "</CMD>\n"
-            "B) Fold back an unfolded fold (no markers):\n"
+            "Usage (refold an unfolded fold):\n"
             "<CMD>\n"
-            "id: FOLD\n"
+            "FOLD\n"
             "fold_id: <string>\n"
             "</CMD>\n"
         )
+
+    def prompt_help(self) -> str:
+        return self.prompt_fragment()
+
+    def run(self, mem: Memory, args: Dict[str, str], ctx: CommandContext) -> Memory:
+        try:
+            parsed = parse_kv_payload(args)
+        except ValueError as exc:
+            raise CommandError(f"FOLD: {exc}") from exc
+        return self.execute(mem, parsed)
 
     def execute(self, memory: Memory, args: Dict[str, Any]) -> Memory:
         fold_id = args.get("fold_id")

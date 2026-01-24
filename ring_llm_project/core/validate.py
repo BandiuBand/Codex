@@ -40,7 +40,7 @@ class CommandValidator:
             "- The command block must be valid and complete.\n"
             "- The first line after <CMD> is the command name.\n"
             "- Everything after the name (including newlines) is the payload.\n"
-            "- Do not use key/value pairs or '|' blocks.\n"
+            "- The payload can be free-form text or key: value lines depending on the command.\n"
             "- If you are not issuing a command, output normal assistant text with no <CMD> block.\n"
         )
 
