@@ -211,6 +211,34 @@ class Memory:
         used = len(self.to_text(include_fill_line=False))
         return int(min(100, (used / max(1, self.max_chars)) * 100))
 
+    def split_full_text(self, full_text: Optional[str] = None) -> tuple[str, str, str]:
+        text = self.to_text() if full_text is None else full_text
+        start_marker = "===MEMORY==="
+        end_marker = "===END_MEMORY==="
+        start_idx = text.find(start_marker)
+        end_idx = text.find(end_marker)
+        if start_idx < 0 or end_idx < 0 or end_idx < start_idx:
+            return "", text, ""
+
+        start_line_end = text.find("\n", start_idx)
+        if start_line_end < 0:
+            start_line_end = len(text)
+        else:
+            start_line_end += 1
+
+        end_line_start = text.rfind("\n", 0, end_idx)
+        if end_line_start < 0:
+            end_line_start = 0
+
+        prefix = text[:start_line_end]
+        body = text[start_line_end:end_line_start]
+        suffix = text[end_line_start:]
+        return prefix, body, suffix
+
+    def memory_body_text(self, full_text: Optional[str] = None) -> str:
+        _, body, _ = self.split_full_text(full_text)
+        return body
+
     def to_text(self, include_fill_line: bool = True) -> str:
         out: List[str] = []
         out.append("[STATE]")
