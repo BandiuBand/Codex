@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Dict
 
 from commands.base import BaseCommand
 from core.types import CommandCall, DispatchResult, ExecutionContext
@@ -25,6 +25,25 @@ class LoopDoneCommand(BaseCommand):
             "Command: <CMD>LOOP DONE</CMD>\n"
             "Purpose: stop the current internal loop. Output exactly this command when the loop should end.\n"
             "No arguments."
+        )
+
+    def run(self, memory, args: Dict[str, Any] | None = None, ctx: Any | None = None):
+        if ctx is not None:
+            for attr in ("loop_done", "stop_loop", "done", "should_stop"):
+                if hasattr(ctx, attr):
+                    try:
+                        setattr(ctx, attr, True)
+                    except Exception:
+                        pass
+            if hasattr(ctx, "flags") and isinstance(getattr(ctx, "flags"), dict):
+                ctx.flags["loop_done"] = True
+
+        return DispatchResult(
+            memory=memory,
+            loop_done=True,
+            visible_event=False,
+            user_output=None,
+            debug_note="Loop termination signal.",
         )
 
     def execute(self, memory: Any, call: CommandCall, ctx: ExecutionContext) -> DispatchResult:
