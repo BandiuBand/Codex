@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional
 
-from ring_llm_project.commands.base import CommandContext, IOAdapter
+from ring_llm_project.commands.base import BaseCommand, CommandContext, IOAdapter
 from ring_llm_project.commands.registry import CommandRegistry
 
 from .fold import Folder
@@ -21,6 +21,7 @@ from .step import (
     Step,
     mark_stop,
 )
+from .types import CommandCall, DispatchResult, ExecutionContext
 from .validate import CommandValidator
 
 
@@ -46,7 +47,7 @@ class FoldStep(Step):
         self.folder = folder
         self.debug = debug
 
-    def execute(self, memory: Memory) -> Memory:
+    def execute(self, memory: Memory, ctx: Optional[ExecutionContext] = None) -> Memory:
         self.folder.auto_fold_if_needed(memory)
         if self.debug.show_memory:
             print(memory.to_text())
@@ -66,7 +67,7 @@ class PromptAndCallStep(Step):
         self.control_llm_key = control_llm_key
         self.debug = debug
 
-    def execute(self, memory: Memory) -> Memory:
+    def execute(self, memory: Memory, ctx: Optional[ExecutionContext] = None) -> Memory:
         messages = self.prompt_builder.build_messages(memory)
         llm: LLMClient = self.router.get(self.control_llm_key)
 
@@ -88,7 +89,7 @@ class NormalizeStep(Step):
     def __init__(self, normalizer: Normalizer):
         self.normalizer = normalizer
 
-    def execute(self, memory: Memory) -> Memory:
+    def execute(self, memory: Memory, ctx: Optional[ExecutionContext] = None) -> Memory:
         raw = memory.vars.get(RUNTIME_RAW_OUTPUT_KEY, "")
         normalized = self.normalizer.normalize(raw)
         memory.vars[RUNTIME_NORMALIZED_OUTPUT_KEY] = normalized
@@ -106,7 +107,7 @@ class CommandBlockStep(Step):
         self.io = io
         self.debug = debug
 
-    def execute(self, memory: Memory) -> Memory:
+    def execute(self, memory: Memory, ctx: Optional[ExecutionContext] = None) -> Memory:
         normalized = memory.vars.get(RUNTIME_NORMALIZED_OUTPUT_KEY, "")
         ok, block = self.validator.extract_command_block(normalized)
         if not ok or not block:
@@ -140,7 +141,7 @@ class CommandDispatchStep(Step):
         self.router = router
         self.io = io
 
-    def execute(self, memory: Memory) -> Memory:
+    def execute(self, memory: Memory, ctx: Optional[ExecutionContext] = None) -> Memory:
         block = memory.vars.get(RUNTIME_COMMAND_BLOCK_KEY, "")
         if not block:
             mark_stop(memory)
@@ -164,6 +165,13 @@ class CommandDispatchStep(Step):
             if self.io:
                 self.io.show(err)
             mark_stop(memory)
+            return memory
+
+        if isinstance(cmd, BaseCommand):
+            call = CommandCall(raw=parsed.raw_block, name=parsed.name, args=parsed.args)
+            result = cmd.execute(memory, call, ExecutionContext())
+            if isinstance(result, DispatchResult):
+                return result.memory
             return memory
 
         ctx = CommandContext(io=self.io, llms=self.router.llms)

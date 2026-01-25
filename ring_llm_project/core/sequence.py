@@ -1,21 +1,31 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import List
+from typing import Any, List, Optional
 
+from core.types import DispatchResult, ExecutionContext
 from .memory import Memory
 from .step import Step, clear_stop, should_stop
 
 
-@dataclass
 class StepSequence:
-    steps: List[Step] = field(default_factory=list)
+    """
+    Deterministic ordered steps, no loops.
+    """
 
-    def run(self, memory: Memory) -> Memory:
+    def __init__(self, steps: List[Step], developer_notes: str = "") -> None:
+        self.steps = list(steps)
+        self.developer_notes = developer_notes
+
+    def run(self, memory: Any, ctx: Optional[ExecutionContext] = None) -> Any:
         current = memory
-        clear_stop(current)
+        if isinstance(current, Memory):
+            clear_stop(current)
         for step in self.steps:
-            current = step.execute(current)
-            if should_stop(current):
+            res = step.execute(current, ctx)
+            if isinstance(res, DispatchResult):
+                current = res.memory
+            else:
+                current = res
+            if isinstance(current, Memory) and should_stop(current):
                 break
         return current

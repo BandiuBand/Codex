@@ -18,7 +18,14 @@ class PromptBuilder:
 
     def build_messages(self, mem: Memory) -> List[Dict[str, str]]:
         # English-only system prompt
-        cmd_help = "\n".join(cmd.prompt_fragment() for cmd in self.registry.all().values())
+        help_lines = []
+        for cmd in self.registry.all().values():
+            if hasattr(cmd, "prompt_help"):
+                prompt_help = getattr(cmd, "prompt_help")
+                help_lines.append(prompt_help() if callable(prompt_help) else prompt_help)
+            elif hasattr(cmd, "prompt_fragment"):
+                help_lines.append(cmd.prompt_fragment())
+        cmd_help = "\n".join(help_lines)
 
         system = (
             "You are a command-driven assistant.\n"
