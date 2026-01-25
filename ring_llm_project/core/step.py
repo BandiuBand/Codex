@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Final
+from typing import Final, Optional
 
+from core.types import ExecutionContext
 from .memory import Memory
 
 RUNTIME_RAW_OUTPUT_KEY: Final[str] = "__runtime_raw_model_output"
@@ -25,5 +26,5 @@ def should_stop(memory: Memory) -> bool:
 
 class Step(ABC):
     @abstractmethod
-    def execute(self, memory: Memory) -> Memory:
+    def execute(self, memory: Memory, ctx: Optional[ExecutionContext] = None) -> Memory:
         raise NotImplementedError

@@ -1,6 +1,10 @@
 from __future__ import annotations
+
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Dict, Optional, Protocol
+from typing import Any, Dict, Optional, Protocol
+
+from core.types import CommandCall, DispatchResult, ExecutionContext
 from ring_llm_project.core.memory import Memory
 
 
@@ -25,3 +29,27 @@ class Command(Protocol):
 
     def run(self, mem: Memory, args: Dict[str, str], ctx: CommandContext) -> Memory:
         ...
+
+
+class BaseCommand(ABC):
+    """
+    Atomic command interface.
+    Prompt explanation belongs to the command, but 'motivation' belongs to Steps/Chains.
+    """
+    @property
+    @abstractmethod
+    def command_name(self) -> str:
+        """Exact command name, e.g. 'LOOP DONE'."""
+        raise NotImplementedError
+
+    @property
+    def prompt_help(self) -> str:
+        """
+        English-only snippet (you can inject it into Step prompts).
+        Must describe ONLY syntax + functionality, no motivation.
+        """
+        return ""
+
+    @abstractmethod
+    def execute(self, memory: Any, call: CommandCall, ctx: ExecutionContext) -> DispatchResult:
+        raise NotImplementedError

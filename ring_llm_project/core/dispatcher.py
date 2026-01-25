@@ -3,7 +3,8 @@ from __future__ import annotations
 
 from core.memory import Memory
 from core.parser import ParsedCommand
-from core.types import DispatchResult
+from core.types import CommandCall, DispatchResult, ExecutionContext
+from commands.base import BaseCommand
 from commands.registry import CommandRegistry
 
 
@@ -25,5 +26,14 @@ class CommandDispatcher:
         memory.add_history(f"LLM -> {cmd.raw}")
 
         # execute
-        result = handler.execute(memory, cmd.args)
-        return result
+        if isinstance(handler, BaseCommand):
+            call = CommandCall(raw=cmd.raw, name=cmd.name, args=cmd.args)
+            return handler.execute(memory, call, ExecutionContext())
+        if hasattr(handler, "execute"):
+            return handler.execute(memory, cmd.args)
+        return DispatchResult(
+            memory=memory,
+            user_message=f"Команда {cmd.name} не підтримується",
+            stop_for_user_input=True,
+            debug="unsupported_command",
+        )
