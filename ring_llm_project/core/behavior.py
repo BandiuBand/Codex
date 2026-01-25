@@ -171,8 +171,8 @@ class CommandDispatchStep(Step):
             call = CommandCall(raw=parsed.raw_block, name=parsed.name, args=parsed.args)
             result = cmd.execute(memory, call, ExecutionContext())
             if isinstance(result, DispatchResult):
-                return result.memory
-            return memory
+                return result
+            return DispatchResult(memory=memory)
 
         ctx = CommandContext(io=self.io, llms=self.router.llms)
         return cmd.run(memory, parsed.args, ctx)
