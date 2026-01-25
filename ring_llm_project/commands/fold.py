@@ -47,7 +47,12 @@ def _protected_spans(text: str) -> List[Tuple[int, int]]:
     if i >= 0:
         spans.append(_line_span(text, i))
 
-    for open_tag, close_tag in (("[HISTORY]", "[/HISTORY]"), ("[DEBUG]", "[/DEBUG]")):
+    for open_tag, close_tag in (
+        ("[STATE]", "[/STATE]"),
+        ("[HISTORY]", "[/HISTORY]"),
+        ("[CLIPBOARD]", "[/CLIPBOARD]"),
+        ("[DEBUG]", "[/DEBUG]"),
+    ):
         sp = _find_block_span(text, open_tag, close_tag)
         if sp:
             spans.append(sp)
@@ -64,9 +69,30 @@ def _protected_spans(text: str) -> List[Tuple[int, int]]:
 
 def _overlaps_any(a: int, b: int, spans: List[Tuple[int, int]]) -> bool:
     for x, y in spans:
-        if a < y and b > x:
+        if a <= y and b >= x:
             return True
     return False
+
+
+def _memory_body_span(text: str) -> Tuple[int, int]:
+    start_marker = "===MEMORY==="
+    end_marker = "===END_MEMORY==="
+    start_idx = text.find(start_marker)
+    if start_idx < 0:
+        raise CommandError("FOLD: missing ===MEMORY=== marker")
+    end_idx = text.find(end_marker)
+    if end_idx < 0:
+        raise CommandError("FOLD: missing ===END_MEMORY=== marker")
+    if end_idx < start_idx:
+        raise CommandError("FOLD: invalid memory marker order")
+
+    _, start_line_end = _line_span(text, start_idx)
+    end_line_start, _ = _line_span(text, end_idx)
+
+    if start_line_end > end_line_start:
+        raise CommandError("FOLD: invalid memory marker order")
+
+    return start_line_end, end_line_start
 
 
 def _folded_placeholder(fold_id: str, name: str) -> str:
@@ -125,6 +151,7 @@ class FoldCommand:
         name = args.get("name")
 
         doc = memory.get_document()
+        body_start, body_end = _memory_body_span(doc)
         prot = _protected_spans(doc)
 
         # -------- Mode B: fold-back existing unfolded fold (no markers) --------
@@ -150,6 +177,11 @@ class FoldCommand:
             # protect service areas
             if _overlaps_any(content_start, close_pos, prot):
                 raise CommandError("FOLD: target overlaps protected (service) region")
+            if (
+                pos < body_start
+                or close_pos + len(_unfolded_close()) > body_end
+            ):
+                raise CommandError("FOLD: refold target outside memory body")
 
             # update stored content (fold object persists)
             memory.fold_update_content(fold_id, content)
@@ -197,8 +229,14 @@ class FoldCommand:
         if a > b:
             raise CommandError("FOLD: invalid marker order")
 
+        if _overlaps_any(i, i + len(start), prot):
+            raise CommandError("FOLD: start marker overlaps protected (service) region")
+        if _overlaps_any(j, j + len(end), prot):
+            raise CommandError("FOLD: end marker overlaps protected (service) region")
         if _overlaps_any(a, b, prot):
             raise CommandError("FOLD: target overlaps protected (service) region")
+        if a < body_start or b > body_end:
+            raise CommandError("FOLD: target outside memory body")
 
         content = doc[a:b]
         memory.fold_put(fold_id=fold_id, name=name, content=content)
