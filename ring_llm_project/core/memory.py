@@ -1,302 +1,203 @@
+# -*- coding: utf-8 -*-
+
 from __future__ import annotations
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
-import time
+
 import hashlib
+import time
+from dataclasses import dataclass
+from typing import Dict, List, Optional, Tuple
 
 
-def _now_ts() -> float:
-    return time.time()
+MEM_START = "===MEMORY==="
+MEM_END = "===END_MEMORY==="
 
 
-def _fp(text: str) -> str:
-    return hashlib.sha256(text.encode("utf-8", errors="ignore")).hexdigest()[:16]
-
-
-@dataclass
-class LinkMeta:
-    created_ts: float
-    parent_fold_id: Optional[str]
-    appearances: List[Dict[str, str]] = field(default_factory=list)
-    # appearances items: {"ts": "...", "fold_id": "...", "reason": "..."} or {"ts": "...", "root": "1"}
-
-    def add_appearance(self, fold_id: Optional[str], reason: str) -> None:
-        item = {"ts": str(_now_ts()), "reason": reason}
-        if fold_id is None:
-            item["root"] = "1"
-        else:
-            item["fold_id"] = fold_id
-        self.appearances.append(item)
-
-
-@dataclass
-class Link:
-    id: str
-    text: str
-    meta: LinkMeta
-
-
-@dataclass
-class ClipboardEntry:
-    text: str = ""
-    meta: Dict[str, Any] = field(default_factory=dict)
+def _now_ts() -> int:
+    return int(time.time())
 
 
 @dataclass
 class Fold:
-    id: str
-    created_ts: float
-    parent_fold_id: Optional[str]
-    title: str
+    fold_id: str
+    label: str
     content: str
-    meta: Dict[str, str] = field(default_factory=dict)
-    state: str = "folded"  # "folded" | "unfolded"
-    appearances: List[Dict[str, Any]] = field(default_factory=list)
+    created_ts: int
+    parent_fold_id: Optional[str] = None
 
-    @property
-    def fold_id(self) -> str:
-        return self.id
-
-    @property
-    def name(self) -> str:
-        return self.title
-
-    def add_appearance(self, fold_id: Optional[str], reason: str) -> None:
-        item: Dict[str, Any] = {"ts": str(_now_ts()), "reason": reason}
-        if fold_id is None:
-            item["root"] = "1"
-        else:
-            item["fold_id"] = fold_id
-        self.appearances.append(item)
-
-    def mark_access(self, event: Dict[str, Any]) -> None:
-        self.appearances.append(event)
+    def placeholder(self) -> str:
+        # Visible to the LLM; stable reference.
+        return f"[[FOLD:{self.fold_id}|{self.label}]]"
 
 
-@dataclass
-class MemoryEvent:
-    role: str  # "user" | "assistant" | "system"
-    text: str
-    ts: float = field(default_factory=_now_ts)
-    related_fold_id: Optional[str] = None
-    kind: str = "msg"  # "msg" | "ask" | "answer" | "note"
-
-
-@dataclass
 class Memory:
-    goal: str = ""
-    vars: Dict[str, str] = field(default_factory=dict)
-    plan: List[str] = field(default_factory=list)
+    """Holds both service sections and the editable body.
 
-    document: str = ""
-    clipboard: ClipboardEntry = field(default_factory=ClipboardEntry)
-    events: List[Dict[str, Any]] = field(default_factory=list)
+    Service sections (NOT foldable/editable by edit commands):
+      - [STATE]
+      - [HISTORY]
+      - [CLIPBOARD]
+      - Memory markers lines
 
-    history: List[MemoryEvent] = field(default_factory=list)
-    folds: Dict[str, Fold] = field(default_factory=dict)
-    links: Dict[str, Link] = field(default_factory=dict)
+    Body is the text strictly between MEM_START and MEM_END.
+    All folding/editing commands operate ONLY on the body.
+    """
 
-    max_chars: int = 30_000  # budget for prompt text, rough
+    def __init__(self, *, history_limit: int = 20, body: str = ""):
+        self.state: Dict[str, str] = {}
+        self.history: List[str] = []
+        self.history_limit = history_limit
+        self.clipboard: str = ""
+        self.body: str = body
+        self.folds: Dict[str, Fold] = {}
+        self.current_fold_id: Optional[str] = None
 
-    def add_event(
-        self,
-        role: str | Dict[str, Any],
-        text: Optional[str] = None,
-        kind: str = "msg",
-        related_fold_id: Optional[str] = None,
-    ) -> None:
-        if isinstance(role, dict) and text is None:
-            self.events.append(role)
-            return
-        if not isinstance(role, str) or not isinstance(text, str):
-            raise TypeError("Memory.add_event: role and text must be str")
-        self.history.append(MemoryEvent(role=role, text=text, kind=kind, related_fold_id=related_fold_id))
+    # ----------------------------
+    # Serialization
+    # ----------------------------
 
-    def get_document(self) -> str:
-        return self.document
+    def to_text(self) -> str:
+        lines: List[str] = []
 
-    def set_document(self, doc: str) -> None:
-        if not isinstance(doc, str):
-            raise TypeError("Memory.set_document: doc must be str")
-        self.document = doc
+        # [STATE]
+        lines.append("[STATE]")
+        # Fill % only reflects body length (rough), not full text.
+        fill = self.memory_fill_percent()
+        lines.append(f"memory_fill={fill}%")
+        if self.current_fold_id:
+            lines.append(f"current_fold={self.current_fold_id}")
+        for k, v in self.state.items():
+            lines.append(f"{k}={v}")
+        lines.append("")
 
-    def clipboard_get(self) -> Optional[str]:
-        t = self.clipboard.text
-        return t if isinstance(t, str) and t != "" else None
+        # [HISTORY]
+        lines.append("[HISTORY]")
+        for h in self.history[-self.history_limit :]:
+            lines.append(h.rstrip("\n"))
+        lines.append("")
 
-    def clipboard_set(self, text: str, meta: Dict[str, Any]) -> None:
-        if not isinstance(text, str):
-            raise TypeError("Memory.clipboard_set: text must be str")
-        if not isinstance(meta, dict):
-            raise TypeError("Memory.clipboard_set: meta must be dict")
-        self.clipboard = ClipboardEntry(text=text, meta=meta)
+        # [CLIPBOARD]
+        lines.append("[CLIPBOARD]")
+        lines.append(self.clipboard.rstrip("\n"))
+        lines.append("")
 
-    def create_fold(self, title: str, content: str, parent_fold_id: Optional[str] = None) -> Fold:
-        fid = _fp(f"{title}\n{content}\n{_now_ts()}")
-        fold = Fold(id=fid, created_ts=_now_ts(), parent_fold_id=parent_fold_id, title=title, content=content)
-        fold.add_appearance(parent_fold_id, "create")
-        self.folds[fid] = fold
-        return fold
+        # Body
+        lines.append(MEM_START)
+        body = self.body.rstrip("\n")
+        lines.append(body)
+        lines.append(MEM_END)
 
-    def create_link(self, text: str, parent_fold_id: Optional[str] = None) -> Link:
-        lid = _fp(f"LINK\n{text}\n{_now_ts()}")
-        meta = LinkMeta(created_ts=_now_ts(), parent_fold_id=parent_fold_id)
-        link = Link(id=lid, text=text, meta=meta)
-        self.links[lid] = link
-        return link
+        return "\n".join(lines).rstrip("\n") + "\n"
 
-    def fold_put(self, fold_id: str, name: str, content: str) -> None:
-        if not isinstance(fold_id, str) or not fold_id:
-            raise TypeError("fold_id must be non-empty str")
-        if not isinstance(name, str) or not name:
-            raise TypeError("name must be non-empty str")
-        if not isinstance(content, str):
-            raise TypeError("content must be str")
+    def body_text(self) -> str:
+        return self.body
 
+    def set_body_text(self, text: str) -> None:
+        self.body = text
+
+    def memory_fill_percent(self, *, max_chars: int = 20000) -> int:
+        n = len(self.body)
+        return min(100, int((n / max_chars) * 100)) if max_chars > 0 else 0
+
+    # ----------------------------
+    # History / clipboard helpers
+    # ----------------------------
+
+    def push_history(self, cmd_block: str) -> None:
+        self.history.append(cmd_block.rstrip("\n"))
+        if len(self.history) > max(self.history_limit * 3, 100):
+            # prevent unbounded growth
+            self.history = self.history[-max(self.history_limit * 3, 100) :]
+
+    def set_clipboard(self, text: str) -> None:
+        self.clipboard = text
+
+    # ----------------------------
+    # Body editing helpers
+    # ----------------------------
+
+    def find_range(self, start: str, end: str) -> Tuple[int, int]:
+        """Return (i_start, i_end_exclusive) for the first occurrence.
+
+        Range is INCLUSIVE of the end token.
+        """
+        if not start or not end:
+            raise ValueError("start/end cannot be empty")
+        body = self.body
+        i = body.find(start)
+        if i < 0:
+            raise ValueError("start token not found in body")
+        j = body.find(end, i + len(start))
+        if j < 0:
+            raise ValueError("end token not found in body after start")
+        j2 = j + len(end)
+        return i, j2
+
+    def extract_range(self, start: str, end: str) -> str:
+        i, j = self.find_range(start, end)
+        return self.body[i:j]
+
+    def delete_range(self, start: str, end: str) -> None:
+        i, j = self.find_range(start, end)
+        self.body = self.body[:i] + self.body[j:]
+
+    def insert_between(self, start: str, end: str, text: str, *, position: str = "after_start") -> None:
+        """Insert text either after start token or before end token, but only if end occurs after start."""
+        i, j = self.find_range(start, end)
+        if position == "after_start":
+            at = i + len(start)
+        elif position == "before_end":
+            at = j - len(end)
+        else:
+            raise ValueError("position must be after_start or before_end")
+        self.body = self.body[:at] + text + self.body[at:]
+
+    # ----------------------------
+    # Folding
+    # ----------------------------
+
+    def _make_fold_id(self, label: str, content: str) -> str:
+        h = hashlib.sha256()
+        h.update(label.encode("utf-8"))
+        h.update(b"\n")
+        h.update(content.encode("utf-8"))
+        h.update(str(_now_ts()).encode("ascii"))
+        return h.hexdigest()[:16]
+
+    def fold_by_range(self, start: str, end: str, label: str, fold_id: Optional[str] = None) -> str:
+        content = self.extract_range(start, end)
+        if fold_id is None:
+            fold_id = self._make_fold_id(label, content)
         if fold_id in self.folds:
-            raise ValueError(f"Fold '{fold_id}' already exists")
+            # fold already exists: do NOT recreate; just try to refold if content currently present
+            self.refold(fold_id)
+            return fold_id
 
-        fold = Fold(
-            id=fold_id,
-            created_ts=_now_ts(),
-            parent_fold_id=None,
-            title=name,
-            content=content,
-            state="folded",
-        )
-        fold.add_appearance(None, "create")
+        fold = Fold(fold_id=fold_id, label=label, content=content, created_ts=_now_ts(), parent_fold_id=self.current_fold_id)
         self.folds[fold_id] = fold
+        # Replace the extracted content with placeholder
+        i, j = self.find_range(start, end)
+        self.body = self.body[:i] + fold.placeholder() + self.body[j:]
+        return fold_id
 
-    def fold_update_content(self, fold_id: str, new_content: str) -> None:
-        f = self.fold_get(fold_id)
-        if not isinstance(new_content, str):
-            raise TypeError("new_content must be str")
-        f.content = new_content
-
-    def fold_get(self, fold_id: str) -> Fold:
-        f = self.folds.get(fold_id)
-        if f is None:
-            raise KeyError(f"Fold '{fold_id}' not found")
-        return f
-
-    def fold_set_state(self, fold_id: str, state: str) -> None:
-        f = self.fold_get(fold_id)
-        if state not in ("folded", "unfolded"):
-            raise ValueError("state must be 'folded' or 'unfolded'")
-        f.state = state
-
-    def folds_render_index(self) -> str:
-        folded = [f for f in self.folds.values() if f.state == "folded"]
-        if not folded:
-            return "(none)"
-        lines = []
-        for f in folded:
-            lines.append(f"- {f.id} | {f.title}")
-        return "\n".join(lines)
-
-    def folds_sync_index_into_document(self) -> None:
-        doc = self.get_document()
-        a = doc.find("[FOLDED]")
-        b = doc.find("[/FOLDED]")
-        if a < 0 or b < 0 or b < a:
+    def unfold(self, fold_id: str) -> None:
+        fold = self.folds.get(fold_id)
+        if not fold:
+            raise ValueError(f"unknown fold_id: {fold_id}")
+        ph = fold.placeholder()
+        if ph not in self.body:
+            # already unfolded or not in this body
             return
+        self.body = self.body.replace(ph, fold.content, 1)
 
-        start = a + len("[FOLDED]")
-        new_mid = "\n" + self.folds_render_index() + "\n"
-        new_doc = doc[:start] + new_mid + doc[b:]
-        self.set_document(new_doc)
+    def refold(self, fold_id: str) -> None:
+        """Fold back a fold that was previously unfolded (replace exact content by placeholder)."""
+        fold = self.folds.get(fold_id)
+        if not fold:
+            raise ValueError(f"unknown fold_id: {fold_id}")
+        ph = fold.placeholder()
+        if ph in self.body:
+            return
+        if fold.content not in self.body:
+            raise ValueError("cannot refold: content not found in current body")
+        self.body = self.body.replace(fold.content, ph, 1)
 
-    def memory_fill_percent(self) -> int:
-        # IMPORTANT: no recursion! Use internal computed length only.
-        used = len(self.to_text(include_fill_line=False))
-        return int(min(100, (used / max(1, self.max_chars)) * 100))
-
-    def split_full_text(self, full_text: Optional[str] = None) -> tuple[str, str, str]:
-        text = self.to_text() if full_text is None else full_text
-        start_marker = "===MEMORY==="
-        end_marker = "===END_MEMORY==="
-        start_idx = text.find(start_marker)
-        end_idx = text.find(end_marker)
-        if start_idx < 0 or end_idx < 0 or end_idx < start_idx:
-            return "", text, ""
-
-        start_line_end = text.find("\n", start_idx)
-        if start_line_end < 0:
-            start_line_end = len(text)
-        else:
-            start_line_end += 1
-
-        end_line_start = text.rfind("\n", 0, end_idx)
-        if end_line_start < 0:
-            end_line_start = 0
-
-        prefix = text[:start_line_end]
-        body = text[start_line_end:end_line_start]
-        suffix = text[end_line_start:]
-        return prefix, body, suffix
-
-    def memory_body_text(self, full_text: Optional[str] = None) -> str:
-        _, body, _ = self.split_full_text(full_text)
-        return body
-
-    def to_text(self, include_fill_line: bool = True) -> str:
-        out: List[str] = []
-        out.append("[STATE]")
-        if include_fill_line:
-            out.append(f"memory_fill={self.memory_fill_percent()}%")
-        out.append("[GOAL]")
-        out.append(self.goal.strip() if self.goal else "(empty)")
-        out.append("[/GOAL]\n")
-
-        out.append("[VARS]")
-        if self.vars:
-            for k, v in self.vars.items():
-                out.append(f"{k}={v}")
-        else:
-            out.append("(empty)")
-        out.append("[/VARS]\n")
-
-        out.append("[PLAN]")
-        if self.plan:
-            for i, p in enumerate(self.plan, 1):
-                out.append(f"{i}) {p}")
-        else:
-            out.append("(empty)")
-        out.append("[/PLAN]\n")
-
-        out.append("[FOLDS]")
-        if self.folds:
-            # show only meta; content is referenced by id to avoid prompt blow-up
-            for fid, f in list(self.folds.items())[-50:]:
-                out.append(f"- {fid} | {f.title} | parent={f.parent_fold_id or '-'} | ts={int(f.created_ts)}")
-        else:
-            out.append("(none)")
-        out.append("[/FOLDS]")
-        out.append("[/STATE]\n")
-
-        out.append("[HISTORY]")
-        if self.history:
-            for ev in self.history[-200:]:
-                # keep last N
-                out.append(f"{int(ev.ts)} {ev.role.upper()} ({ev.kind}): {ev.text}")
-        else:
-            out.append("(empty)")
-        out.append("[/HISTORY]\n")
-
-        out.append("[CLIPBOARD]")
-        clipboard_text = self.clipboard.text if isinstance(self.clipboard.text, str) else ""
-        clipboard_meta = self.clipboard.meta if isinstance(self.clipboard.meta, dict) else {}
-        if not clipboard_text and not clipboard_meta:
-            out.append("(empty)")
-        else:
-            if clipboard_text:
-                out.append(clipboard_text)
-            for k, v in clipboard_meta.items():
-                out.append(f"meta.{k}={v}")
-        out.append("[/CLIPBOARD]\n")
-
-        out.append("===MEMORY===")
-        body = self.document if isinstance(self.document, str) and self.document else "(empty)"
-        out.append(body)
-        out.append("===END_MEMORY===")
-        return "\n".join(out)

@@ -1,47 +1,67 @@
+# -*- coding: utf-8 -*-
+
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from dataclasses import dataclass, field
+from typing import Dict, Optional, Protocol, TYPE_CHECKING
+
+if TYPE_CHECKING:  # pragma: no cover
+    from core.memory import Memory
 
 
 @dataclass(frozen=True)
 class CommandCall:
+    """Command parsed from a <CMD> block.
+
+    The block format is:
+        <CMD>
+        COMMAND_NAME
+        KEY1:
+        value...
+        KEY2:
+        value...
+        </CMD>
+
+    payload_text is the raw text after the first line (command name).
+    payload is a best-effort KEY->VALUE mapping, extracted by the parser.
     """
-    Parsed command call from <CMD>...</CMD>.
-    Example payload: "LOOP DONE"
-    """
-    raw: str                 # full inner text, trimmed
-    name: str                # normalized command name (e.g. "LOOP DONE")
-    args: Dict[str, Any]     # optional parsed args (can be empty)
+
+    name: str
+    payload_text: str = ""
+    payload: Dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
 class DispatchResult:
-    """
-    Result of executing one command.
-    IMPORTANT:
-      - loop_done=True must NOT be persisted into memory history.
-      - visible_event=False means 'do not log into memory history'.
+    """Result of executing a command or step."""
 
-    Legacy fields are kept for compatibility with older dispatch flows.
-    """
-    memory: Any = None
-    loop_done: bool = False
-    visible_event: bool = True
+    memory: 'Memory'
+    # Text that should be shown to the user (optional, depending on IO layer)
     user_output: Optional[str] = None
-    debug_note: Optional[str] = None
-    user_message: Optional[str] = None
-    stop_for_user_input: bool = False
-    debug: str = ""
+    # If True, a StepLoop should stop.
+    break_loop: bool = False
 
 
 @dataclass
 class ExecutionContext:
-    """
-    Execution context passed through steps/dispatcher.
-    You can extend it later (timestamps, llm_key, debug flags, etc.)
-    """
+    """Execution context passed across the engine."""
+
+    # Models pool: key -> LLM client
+    llm_pool: Dict[str, object]
+
+    # Active model key for this step/command (optional convenience)
+    model_key: str = "big"
+
+    # IO interface (Console, Cherry Studio hook, etc.)
+    io: Optional[object] = None
+
+    # Debug flags
     debug_calls: bool = False
     debug_raw_llm: bool = False
-    debug_commands: bool = False
+    debug_cmd: bool = False
     debug_memory: bool = False
+
+
+class Step(Protocol):
+    def execute(self, memory: 'Memory', ctx: ExecutionContext) -> DispatchResult:
+        ...

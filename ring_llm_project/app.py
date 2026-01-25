@@ -1,44 +1,60 @@
+# -*- coding: utf-8 -*-
+
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import Dict, Optional
 
-from ring_llm_project.core.llm_client import LLMClient, LLMConfig
-from ring_llm_project.core.memory import Memory
-from ring_llm_project.core.router import LLMRouter
-from ring_llm_project.main import build_registry
-from ring_llm_project.scenarios.day import DayEngine, DayEngineConfig
+from commands.ask import AskCommand
+from commands.copy import CopyCommand
+from commands.cut import CutCommand
+from commands.delete import DeleteCommand
+from commands.fold import FoldCommand
+from commands.insert import InsertCommand
+from commands.loop_done import LoopDoneCommand
+from commands.say import SayCommand
+from commands.unfold import UnfoldCommand
+from core.dispatcher import CommandDispatcher, CommandRegistry
+from core.io import ConsoleIO, IOAdapter
+from core.llm_client import LLMClient, LLMConfig
+from core.memory import Memory
+from scenarios.day.engine import DayEngine
 
 
 @dataclass
 class AgentApp:
-    llms: Optional[dict[str, LLMClient]] = None
-    memory: Optional[Memory] = None
-    day_cfg: DayEngineConfig = DayEngineConfig()
+    llm_pool: Dict[str, LLMClient]
+    dispatcher: CommandDispatcher
+    day_engine: DayEngine
+    memory: Memory
 
-    def __post_init__(self) -> None:
-        if self.llms is None:
-            self.llms = {
-                "oss20b": LLMClient(
-                    LLMConfig(
-                        base_url="http://127.0.0.1:1234",
-                        model="openai/gpt-oss-20b",
-                        temperature=0.0,
-                    )
-                )
-            }
-        self.router = LLMRouter(llms=self.llms)
-        self.registry = build_registry()
-        if self.memory is None:
-            self.memory = Memory(
-                goal="Keep working memory compact.",
-                max_chars=30_000,
-            )
-        self.day = DayEngine(router=self.router, registry=self.registry, cfg=self.day_cfg)
+    @classmethod
+    def build_default(cls, *, llm_pool: Dict[str, LLMConfig], io: Optional[IOAdapter] = None) -> "AgentApp":
+        io = io or ConsoleIO()
+
+        pool: Dict[str, LLMClient] = {k: LLMClient(cfg) for k, cfg in llm_pool.items()}
+
+        registry = CommandRegistry()
+        # Atomic commands
+        registry.register(CopyCommand())
+        registry.register(InsertCommand())
+        registry.register(CutCommand())
+        registry.register(DeleteCommand())
+        registry.register(FoldCommand())
+        registry.register(UnfoldCommand())
+        registry.register(LoopDoneCommand())
+        registry.register(SayCommand())
+        registry.register(AskCommand())
+
+        dispatcher = CommandDispatcher(registry)
+        day = DayEngine(dispatcher=dispatcher, llm_pool=pool, io=io)
+        mem = Memory()
+        return cls(llm_pool=pool, dispatcher=dispatcher, day_engine=day, memory=mem)
 
     def run_once(self, user_text: str) -> str:
-        if user_text:
-            self.memory.add_event("user", user_text, kind="msg")
-        result = self.day.run_s2(self.memory)
-        self.memory = result.memory
-        return result.user_output or ""
+        """One app tick: add user's message into BODY and run day S2 fold-loop."""
+        if user_text.strip():
+            self.memory.append_body(f"USER: {user_text}\n")
+        res = self.day_engine.run_s2_fold_loop(self.memory)
+        self.memory = res.memory
+        return self.memory.to_text()

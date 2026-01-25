@@ -1,56 +1,24 @@
-from __future__ import annotations
+# -*- coding: utf-8 -*-
 
-from typing import Any, Dict
+from __future__ import annotations
 
 from commands.base import BaseCommand
 from core.types import CommandCall, DispatchResult, ExecutionContext
+from core.memory import Memory
 
 
 class LoopDoneCommand(BaseCommand):
-    """
-    <CMD>LOOP DONE</CMD>
+    def __init__(self) -> None:
+        super().__init__(
+            name="LOOP DONE",
+            prompt_help=(
+                """LOOP DONE: Exits the current StepLoop.
 
-    - НЕ змінює пам'ять
-    - НЕ пишеться в історію/пам'ять (visible_event=False)
-    - Служить лише як сигнал для LoopingStepSequence (loop_done=True)
-    """
-    @property
-    def command_name(self) -> str:
-        return "LOOP DONE"
-
-    @property
-    def prompt_help(self) -> str:
-        # English-only
-        return (
-            "Command: <CMD>LOOP DONE</CMD>\n"
-            "Purpose: stop the current internal loop. Output exactly this command when the loop should end.\n"
-            "No arguments."
+No fields.
+"""
+            ),
         )
 
-    def run(self, memory, args: Dict[str, Any] | None = None, ctx: Any | None = None):
-        if ctx is not None:
-            for attr in ("loop_done", "stop_loop", "done", "should_stop"):
-                if hasattr(ctx, attr):
-                    try:
-                        setattr(ctx, attr, True)
-                    except Exception:
-                        pass
-            if hasattr(ctx, "flags") and isinstance(getattr(ctx, "flags"), dict):
-                ctx.flags["loop_done"] = True
-
-        return DispatchResult(
-            memory=memory,
-            loop_done=True,
-            visible_event=False,
-            user_output=None,
-            debug_note="Loop termination signal.",
-        )
-
-    def execute(self, memory: Any, call: CommandCall, ctx: ExecutionContext) -> DispatchResult:
-        return DispatchResult(
-            memory=memory,
-            loop_done=True,
-            visible_event=False,
-            user_output=None,
-            debug_note="Loop termination signal."
-        )
+    def execute(self, memory: Memory, call: CommandCall, ctx: ExecutionContext) -> DispatchResult:
+        # not logged; loop wrapper may decide
+        return DispatchResult(memory=memory, break_loop=True)
