@@ -12,6 +12,7 @@ from ring_llm_project.commands.builtin_ask import AskCommand
 from ring_llm_project.commands.copy import CopyCommand
 from ring_llm_project.commands.fold import FoldCommand
 from ring_llm_project.commands.unfold import UnfoldCommand
+from ring_llm_project.commands.loop_done import LoopDoneCommand
 from ring_llm_project.commands.base import IOAdapter
 
 
@@ -22,6 +23,7 @@ def build_registry() -> CommandRegistry:
     reg.register(CopyCommand())
     reg.register(FoldCommand())
     reg.register(UnfoldCommand())
+    reg.register(LoopDoneCommand())
     return reg
 
 
