@@ -46,6 +46,8 @@ class S2FoldLoopStep(Step):
         self.params = params or FoldLoopParams()
 
     def execute(self, memory, ctx: Optional[ExecutionContext] = None) -> DispatchResult:
+        if isinstance(memory, DispatchResult):
+            memory = memory.memory
         body = memory.memory_body_text()
 
         if len(body) <= self.params.max_body_chars:
