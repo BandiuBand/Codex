@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import inspect
 from typing import Any, Dict
 
 from commands.base import BaseCommand
@@ -39,31 +38,13 @@ class LoopDoneCommand(BaseCommand):
             if hasattr(ctx, "flags") and isinstance(getattr(ctx, "flags"), dict):
                 ctx.flags["loop_done"] = True
 
-        try:
-            from core.dispatcher import DispatchResult as DispatcherResult  # avoid circular imports
-        except Exception:
-            return memory
-
-        try:
-            return DispatcherResult(memory=memory, loop_done=True)
-        except TypeError:
-            pass
-
-        sig = inspect.signature(DispatcherResult)
-        kwargs = {}
-        for name in sig.parameters.keys():
-            if name == "memory":
-                kwargs[name] = memory
-            elif name in ("loop_done", "done", "stop", "stop_loop", "should_stop", "break_loop"):
-                kwargs[name] = True
-            elif name in ("ok", "success"):
-                kwargs[name] = True
-            elif name in ("command_id", "cmd_id"):
-                kwargs[name] = self.command_name
-            elif name in ("text", "user_text", "user_message", "message", "output", "assistant_text"):
-                kwargs[name] = None
-
-        return DispatcherResult(**kwargs)
+        return DispatchResult(
+            memory=memory,
+            loop_done=True,
+            visible_event=False,
+            user_output=None,
+            debug_note="Loop termination signal.",
+        )
 
     def execute(self, memory: Any, call: CommandCall, ctx: ExecutionContext) -> DispatchResult:
         return DispatchResult(
