@@ -43,12 +43,17 @@ class LoopingStepSequence:
         for it in range(1, self.max_iterations + 1):
             for step in self.loop_steps:
                 res = step.execute(memory, ctx)
-                last_res = res
-                memory = res.memory
 
-                # Stop condition: LOOP DONE command (or step decided loop_done)
-                if res.loop_done:
-                    return memory
+                # Compatibility: step may return DispatchResult or Memory directly
+                if isinstance(res, DispatchResult):
+                    last_res = res
+                    memory = res.memory
+
+                    # Stop condition: LOOP DONE command (or step decided loop_done)
+                    if res.loop_done:
+                        return memory
+                else:
+                    memory = res
 
         # If still not done after max_iterations
         if self.on_max_iterations == "raise":
