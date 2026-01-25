@@ -48,6 +48,8 @@ class S2FoldLoopStep(Step):
     def execute(self, memory, ctx: Optional[ExecutionContext] = None) -> DispatchResult:
         if isinstance(memory, DispatchResult):
             memory = memory.memory
+        elif hasattr(memory, "memory") and not hasattr(memory, "memory_body_text"):
+            memory = memory.memory
         body = memory.memory_body_text()
 
         if len(body) <= self.params.max_body_chars:
