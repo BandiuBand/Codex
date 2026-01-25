@@ -101,7 +101,10 @@ class S2FoldLoopStep(Step):
             return cmd.execute(memory, call, ExecutionContext())
 
         ctx = CommandContext(io=None, llms=self.router.llms)
-        result = cmd.run(memory, parsed.args, ctx)
+        runner = getattr(cmd, "run", None) or getattr(cmd, "execute", None)
+        if runner is None:
+            raise AttributeError(f"Command {type(cmd).__name__} has neither run() nor execute()")
+        result = runner(memory, parsed.args, ctx)
         if isinstance(result, DispatchResult):
             return result
         return DispatchResult(memory=result)
