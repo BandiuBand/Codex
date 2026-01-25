@@ -45,7 +45,7 @@ Available commands:
 {cmds}
 
 Current memory snapshot:
-{memory.to_text(include_end_marker=True)}
+{memory.to_text()}
 """
 
     def _commands_section(self, specs: List[CommandSpec]) -> str:

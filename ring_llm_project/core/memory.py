@@ -208,13 +208,14 @@ class Memory:
 
     def memory_fill_percent(self) -> int:
         # IMPORTANT: no recursion! Use internal computed length only.
-        used = len(self.to_text(include_fill_line=False, include_end_marker=False))
+        used = len(self.to_text(include_fill_line=False))
         return int(min(100, (used / max(1, self.max_chars)) * 100))
 
-    def to_text(self, include_fill_line: bool = True, include_end_marker: bool = True) -> str:
+    def to_text(self, include_fill_line: bool = True) -> str:
         out: List[str] = []
+        out.append("[STATE]")
         if include_fill_line:
-            out.append(f"[MEMORY fill={self.memory_fill_percent()}%]")
+            out.append(f"memory_fill={self.memory_fill_percent()}%")
         out.append("[GOAL]")
         out.append(self.goal.strip() if self.goal else "(empty)")
         out.append("[/GOAL]\n")
@@ -235,6 +236,16 @@ class Memory:
             out.append("(empty)")
         out.append("[/PLAN]\n")
 
+        out.append("[FOLDS]")
+        if self.folds:
+            # show only meta; content is referenced by id to avoid prompt blow-up
+            for fid, f in list(self.folds.items())[-50:]:
+                out.append(f"- {fid} | {f.title} | parent={f.parent_fold_id or '-'} | ts={int(f.created_ts)}")
+        else:
+            out.append("(none)")
+        out.append("[/FOLDS]")
+        out.append("[/STATE]\n")
+
         out.append("[HISTORY]")
         if self.history:
             for ev in self.history[-200:]:
@@ -244,15 +255,20 @@ class Memory:
             out.append("(empty)")
         out.append("[/HISTORY]\n")
 
-        out.append("[FOLDS]")
-        if self.folds:
-            # show only meta; content is referenced by id to avoid prompt blow-up
-            for fid, f in list(self.folds.items())[-50:]:
-                out.append(f"- {fid} | {f.title} | parent={f.parent_fold_id or '-'} | ts={int(f.created_ts)}")
+        out.append("[CLIPBOARD]")
+        clipboard_text = self.clipboard.text if isinstance(self.clipboard.text, str) else ""
+        clipboard_meta = self.clipboard.meta if isinstance(self.clipboard.meta, dict) else {}
+        if not clipboard_text and not clipboard_meta:
+            out.append("(empty)")
         else:
-            out.append("(none)")
-        out.append("[/FOLDS]")
+            if clipboard_text:
+                out.append(clipboard_text)
+            for k, v in clipboard_meta.items():
+                out.append(f"meta.{k}={v}")
+        out.append("[/CLIPBOARD]\n")
 
-        if include_end_marker:
-            out.append("===END_MEMORY===")
+        out.append("===MEMORY===")
+        body = self.document if isinstance(self.document, str) and self.document else "(empty)"
+        out.append(body)
+        out.append("===END_MEMORY===")
         return "\n".join(out)
