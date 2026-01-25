@@ -8,7 +8,7 @@ class Folder:
         self.keep_last_events = keep_last_events
 
     def auto_fold_if_needed(self, mem: Memory) -> Optional[str]:
-        text = mem.to_text(include_fill_line=False, include_end_marker=False)
+        text = mem.to_text(include_fill_line=False)
         if len(text) <= mem.max_chars:
             return None
 
