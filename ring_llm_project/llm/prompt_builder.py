@@ -44,8 +44,8 @@ Rules:
 Available commands:
 {cmds}
 
-Current memory snapshot:
-{memory.to_text()}
+Current memory body:
+{memory.memory_body_text()}
 """
 
     def _commands_section(self, specs: List[CommandSpec]) -> str:

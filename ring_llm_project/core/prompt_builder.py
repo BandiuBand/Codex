@@ -36,8 +36,8 @@ class PromptBuilder:
             f"{self.validator_help}\n\n"
             "AVAILABLE COMMANDS:\n"
             f"{cmd_help}\n\n"
-            "MEMORY SNAPSHOT (read-only):\n"
-            f"{mem.to_text()}\n"
+            "MEMORY BODY (read-only):\n"
+            f"{mem.memory_body_text()}\n"
         )
 
         # Last user message is already in memory history, but we pass explicit final user turn too:
